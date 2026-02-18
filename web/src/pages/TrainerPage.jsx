@@ -103,7 +103,7 @@ export function TrainerPage() {
         const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
         const cadenceOffsets = [0, 5, 7, 5];
         const triadOffsets = [0, 4, 7];
-        const chordBeats = 2;
+        const chordBeats = 1;
         const chordDurationSeconds = beatSeconds * chordBeats;
 
         cadenceOffsets.forEach((offset) => {
@@ -117,13 +117,13 @@ export function TrainerPage() {
             const gain = context.createGain();
             gain.gain.setValueAtTime(0.0001, startAt);
             gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
-            gain.gain.exponentialRampToValueAtTime(0.0001, startAt + chordDurationSeconds * 0.9);
+            gain.gain.setValueAtTime(0.08, startAt + chordDurationSeconds);
 
             oscillator.connect(gain);
             gain.connect(context.destination);
 
             oscillator.start(startAt);
-            oscillator.stop(startAt + chordDurationSeconds * 0.95);
+            oscillator.stop(startAt + chordDurationSeconds);
           });
 
           startAt += chordDurationSeconds;
