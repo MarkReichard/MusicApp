@@ -28,6 +28,8 @@ export function TrainerPage() {
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [autoplayKey, setAutoplayKey] = useState(null);
+  const [inputAudioContext, setInputAudioContext] = useState(null);
+  const [activeInputTones, setActiveInputTones] = useState({});
 
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const singEnabled = mode === 'sing';
@@ -176,6 +178,79 @@ export function TrainerPage() {
       };
     });
 
+  useEffect(() => {
+    return () => {
+      Object.values(activeInputTones).forEach((tone) => {
+        try {
+          tone.gain.gain.cancelScheduledValues(tone.context.currentTime);
+          tone.gain.gain.setTargetAtTime(0.0001, tone.context.currentTime, 0.02);
+          tone.oscillator.stop(tone.context.currentTime + 0.08);
+        } catch {
+          // ignore
+        }
+      });
+      if (inputAudioContext) {
+        void inputAudioContext.close().catch(() => undefined);
+      }
+    };
+  }, [activeInputTones, inputAudioContext]);
+
+  async function startInputTone(midi) {
+    if (activeInputTones[midi]) {
+      return;
+    }
+
+    const frequency = midiToFrequencyHz(midi);
+    if (!Number.isFinite(frequency)) {
+      return;
+    }
+
+    const context = inputAudioContext ?? new AudioContext();
+    if (!inputAudioContext) {
+      setInputAudioContext(context);
+    }
+
+    if (context.state === 'suspended') {
+      await context.resume();
+    }
+
+    const now = context.currentTime;
+    const oscillator = context.createOscillator();
+    oscillator.type = 'triangle';
+    oscillator.frequency.setValueAtTime(frequency, now);
+
+    const gain = context.createGain();
+    gain.gain.setValueAtTime(0.0001, now);
+    gain.gain.exponentialRampToValueAtTime(0.14, now + 0.015);
+
+    oscillator.connect(gain);
+    gain.connect(context.destination);
+    oscillator.start(now);
+
+    setActiveInputTones((previous) => ({
+      ...previous,
+      [midi]: { oscillator, gain, context },
+    }));
+  }
+
+  function stopInputTone(midi) {
+    const tone = activeInputTones[midi];
+    if (!tone) {
+      return;
+    }
+
+    const stopAt = tone.context.currentTime;
+    tone.gain.gain.cancelScheduledValues(stopAt);
+    tone.gain.gain.setTargetAtTime(0.0001, stopAt, 0.02);
+    tone.oscillator.stop(stopAt + 0.08);
+
+    setActiveInputTones((previous) => {
+      const next = { ...previous };
+      delete next[midi];
+      return next;
+    });
+  }
+
   const currentSungMidi = Number.isFinite(current.midi) ? current.midi : null;
   const graphCenterMidi = Math.round(
     Number.isFinite(currentSungMidi)
@@ -306,7 +381,13 @@ export function TrainerPage() {
                 <button
                   key={button.label}
                   className="solfege-btn"
-                  onClick={() => registerInput(midi)}
+                  onPointerDown={() => {
+                    void startInputTone(midi);
+                    registerInput(midi);
+                  }}
+                  onPointerUp={() => stopInputTone(midi)}
+                  onPointerLeave={() => stopInputTone(midi)}
+                  onPointerCancel={() => stopInputTone(midi)}
                 >
                   {button.label}
                 </button>
@@ -322,7 +403,13 @@ export function TrainerPage() {
                 <button
                   key={key.midi}
                   className="piano-key white"
-                  onClick={() => registerInput(key.midi)}
+                  onPointerDown={() => {
+                    void startInputTone(key.midi);
+                    registerInput(key.midi);
+                  }}
+                  onPointerUp={() => stopInputTone(key.midi)}
+                  onPointerLeave={() => stopInputTone(key.midi)}
+                  onPointerCancel={() => stopInputTone(key.midi)}
                 >
                   {midiToNoteLabel(key.midi)}
                 </button>
@@ -333,7 +420,13 @@ export function TrainerPage() {
                 key={key.midi}
                 className="piano-key black"
                 style={{ left: `${key.left}px` }}
-                onClick={() => registerInput(key.midi)}
+                onPointerDown={() => {
+                  void startInputTone(key.midi);
+                  registerInput(key.midi);
+                }}
+                onPointerUp={() => stopInputTone(key.midi)}
+                onPointerLeave={() => stopInputTone(key.midi)}
+                onPointerCancel={() => stopInputTone(key.midi)}
               >
                 {midiToNoteLabel(key.midi)}
               </button>
