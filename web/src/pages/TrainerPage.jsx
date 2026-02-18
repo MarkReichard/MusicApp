@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
@@ -28,8 +28,8 @@ export function TrainerPage() {
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [autoplayKey, setAutoplayKey] = useState(null);
-  const [inputAudioContext, setInputAudioContext] = useState(null);
-  const [activeInputTones, setActiveInputTones] = useState({});
+  const inputAudioContextRef = useRef(null);
+  const activeInputTonesRef = useRef({});
 
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const singEnabled = mode === 'sing';
@@ -180,7 +180,7 @@ export function TrainerPage() {
 
   useEffect(() => {
     return () => {
-      Object.values(activeInputTones).forEach((tone) => {
+      Object.values(activeInputTonesRef.current).forEach((tone) => {
         try {
           tone.gain.gain.cancelScheduledValues(tone.context.currentTime);
           tone.gain.gain.setTargetAtTime(0.0001, tone.context.currentTime, 0.02);
@@ -189,14 +189,17 @@ export function TrainerPage() {
           // ignore
         }
       });
-      if (inputAudioContext) {
-        void inputAudioContext.close().catch(() => undefined);
+      activeInputTonesRef.current = {};
+
+      if (inputAudioContextRef.current) {
+        void inputAudioContextRef.current.close().catch(() => undefined);
+        inputAudioContextRef.current = null;
       }
     };
-  }, [activeInputTones, inputAudioContext]);
+  }, []);
 
   async function startInputTone(midi) {
-    if (activeInputTones[midi]) {
+    if (activeInputTonesRef.current[midi]) {
       return;
     }
 
@@ -205,9 +208,9 @@ export function TrainerPage() {
       return;
     }
 
-    const context = inputAudioContext ?? new AudioContext();
-    if (!inputAudioContext) {
-      setInputAudioContext(context);
+    const context = inputAudioContextRef.current ?? new AudioContext();
+    if (!inputAudioContextRef.current) {
+      inputAudioContextRef.current = context;
     }
 
     if (context.state === 'suspended') {
@@ -227,14 +230,11 @@ export function TrainerPage() {
     gain.connect(context.destination);
     oscillator.start(now);
 
-    setActiveInputTones((previous) => ({
-      ...previous,
-      [midi]: { oscillator, gain, context },
-    }));
+    activeInputTonesRef.current[midi] = { oscillator, gain, context };
   }
 
   function stopInputTone(midi) {
-    const tone = activeInputTones[midi];
+    const tone = activeInputTonesRef.current[midi];
     if (!tone) {
       return;
     }
@@ -244,11 +244,7 @@ export function TrainerPage() {
     tone.gain.gain.setTargetAtTime(0.0001, stopAt, 0.02);
     tone.oscillator.stop(stopAt + 0.08);
 
-    setActiveInputTones((previous) => {
-      const next = { ...previous };
-      delete next[midi];
-      return next;
-    });
+    delete activeInputTonesRef.current[midi];
   }
 
   const currentSungMidi = Number.isFinite(current.midi) ? current.midi : null;
