@@ -105,6 +105,7 @@ export function TrainerPage() {
         const triadOffsets = [0, 4, 7];
         const chordBeats = 1;
         const chordDurationSeconds = beatSeconds * chordBeats;
+        const fadeOutSeconds = beatSeconds * 0.05;
 
         cadenceOffsets.forEach((offset) => {
           const chordRoot = tonicMidi + offset;
@@ -117,7 +118,8 @@ export function TrainerPage() {
             const gain = context.createGain();
             gain.gain.setValueAtTime(0.0001, startAt);
             gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
-            gain.gain.setValueAtTime(0.08, startAt + chordDurationSeconds);
+            gain.gain.setValueAtTime(0.08, startAt + Math.max(0.02, chordDurationSeconds - fadeOutSeconds));
+            gain.gain.exponentialRampToValueAtTime(0.0001, startAt + chordDurationSeconds);
 
             oscillator.connect(gain);
             gain.connect(context.destination);
@@ -129,7 +131,7 @@ export function TrainerPage() {
           startAt += chordDurationSeconds;
         });
 
-        startAt += gapSeconds;
+        startAt += gapSeconds * 2;
       }
 
       for (const note of notes) {
