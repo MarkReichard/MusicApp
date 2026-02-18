@@ -11,7 +11,7 @@ export function App() {
         <h1>Music Trainer</h1>
         <nav>
           <NavLink to="/lessons">Lessons</NavLink>
-          <NavLink to="/pitch-lab">Pitch Lab</NavLink>
+          <NavLink to="/pitch-lab">Mic Settings</NavLink>
         </nav>
       </header>
 

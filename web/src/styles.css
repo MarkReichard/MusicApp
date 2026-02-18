@@ -11,7 +11,18 @@ a { color: inherit; text-decoration: none; }
 .card { border: 1px solid #334155; border-radius: 12px; background: #111827; }
 .list { display: grid; gap: 10px; }
 .lesson-item { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
-.button { border: 1px solid #334155; background: #1d4ed8; color: #fff; border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.button {
+  border: 1px solid #334155;
+  background: #1d4ed8;
+  color: #fff;
+  border-radius: 8px;
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1.2;
+  font-weight: 600;
+  font-family: inherit;
+}
 .button.secondary { background: #334155; }
 .grid { display: grid; gap: 12px; grid-template-columns: 340px 1fr; }
 .controls { padding: 12px; display: grid; gap: 10px; }
@@ -36,6 +47,21 @@ a { color: inherit; text-decoration: none; }
   gap: 8px;
 }
 .row { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 8px; }
+.exercise-nav-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.exercise-nav-buttons {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  max-width: 100%;
+}
 input, select { width: 100%; border: 1px solid #475569; border-radius: 8px; background: #0b1220; color: #e2e8f0; padding: 7px 9px; }
 .readouts { padding: 12px; display: grid; grid-template-columns: repeat(5, minmax(100px,1fr)); gap: 8px; }
 .stat { border: 1px solid #334155; border-radius: 10px; background: #0b1220; padding: 8px; }

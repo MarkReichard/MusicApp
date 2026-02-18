@@ -90,6 +90,36 @@
         "additionalProperties": false
       }
     },
+    "exercises": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["notes"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "notes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["pitch", "midi", "degree", "durationBeats"],
+              "properties": {
+                "pitch": { "type": "string" },
+                "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
+                "degree": {
+                  "type": "string",
+                  "enum": ["Do", "Re", "Mi", "Fa", "Sol", "La", "Ti"]
+                },
+                "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "phrases": {
       "type": "array",
       "items": {

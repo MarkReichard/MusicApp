@@ -19,11 +19,13 @@ const SOLFEGE_BUTTONS = [
 export function TrainerPage() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
+  const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
   const [mode, setMode] = useState('piano');
   const [selectedKey, setSelectedKey] = useState(lesson?.defaultKey ?? 'C');
   const [tempoBpm, setTempoBpm] = useState(lesson?.defaultTempoBpm ?? 90);
   const [singOctave, setSingOctave] = useState(loadStoredSingOctave(lesson?.defaultOctave ?? 4));
   const [optionsOpen, setOptionsOpen] = useState(false);
+  const [exerciseIndex, setExerciseIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
@@ -50,11 +52,13 @@ export function TrainerPage() {
   const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
   const octaveShift = (singOctave - lesson.defaultOctave) * 12;
   const totalMidiShift = keySemitoneShift + octaveShift;
+  const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
+  const activeNotes = activeExercise?.notes ?? [];
 
-  const expectedBaseMidi = lesson.notes[index]?.midi ?? null;
+  const expectedBaseMidi = activeNotes[index]?.midi ?? null;
   const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
-  const progress = `${Math.min(index + 1, lesson.notes.length)} / ${lesson.notes.length}`;
-  const shiftedLessonNotes = lesson.notes.map(
+  const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
+  const shiftedLessonNotes = activeNotes.map(
     (note) => ({
       ...note,
       midi: note.midi + totalMidiShift,
@@ -66,7 +70,19 @@ export function TrainerPage() {
     if (midi !== expectedMidi) return;
 
     setCorrectIndices((previous) => (previous.includes(index) ? previous : [...previous, index]));
-    setIndex((previous) => Math.min(previous + 1, lesson.notes.length - 1));
+    setIndex((previous) => Math.min(previous + 1, activeNotes.length - 1));
+  }
+
+  function setExercise(nextIndex) {
+    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
+    if (clamped === exerciseIndex) {
+      return;
+    }
+
+    setExerciseIndex(clamped);
+    setIndex(0);
+    setCorrectIndices([]);
+    setAutoplayKey(null);
   }
 
   async function playMidiSequence(notes) {
@@ -125,6 +141,7 @@ export function TrainerPage() {
     setIndex(0);
     setCorrectIndices([]);
     setAutoplayKey(null);
+    setExerciseIndex(0);
   }, [lesson.id]);
 
   useEffect(() => {
@@ -143,14 +160,14 @@ export function TrainerPage() {
   }, [current.midi, expectedMidi, mode]);
 
   useEffect(() => {
-    const nextAutoplayKey = `${lesson.id}:${selectedKey}:${tempoBpm}:${singOctave}`;
+    const nextAutoplayKey = `${lesson.id}:${exerciseIndex}:${selectedKey}:${tempoBpm}:${singOctave}`;
     if (autoplayKey === nextAutoplayKey) {
       return;
     }
 
     setAutoplayKey(nextAutoplayKey);
     void playMidiSequence(shiftedLessonNotes);
-  }, [autoplayKey, lesson.id, selectedKey, singOctave, tempoBpm]);
+  }, [autoplayKey, exerciseIndex, lesson.id, selectedKey, singOctave, tempoBpm]);
 
   const pianoKeys = useMemo(() => {
     const startMidi = 12 * (singOctave + 1);
@@ -272,6 +289,29 @@ export function TrainerPage() {
     <div className="trainer-grid">
       <div className="card controls">
         <h3>{lesson.name}</h3>
+        {lessonExercises.length > 1 ? (
+          <div className="exercise-nav-row">
+            <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small>
+            <div className="exercise-nav-buttons">
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setExercise(exerciseIndex - 1)}
+                disabled={exerciseIndex <= 0}
+              >
+                Previous
+              </button>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={() => setExercise(exerciseIndex + 1)}
+                disabled={exerciseIndex >= lessonExercises.length - 1}
+              >
+                Next
+              </button>
+            </div>
+          </div>
+        ) : null}
 
         <div className="options-accordion card">
           <button
@@ -345,7 +385,7 @@ export function TrainerPage() {
             {isPlayingTarget ? 'Playing…' : 'Replay Target Tones'}
           </button>
           <button className="button secondary" onClick={() => { setIndex(0); setCorrectIndices([]); }}>Reset</button>
-          <Link className="button secondary" to="/pitch-lab">Open Pitch Lab</Link>
+          <Link className="button secondary" to="/pitch-lab">Open Mic Settings</Link>
           <Link className="button secondary" to="/lessons">Back</Link>
         </div>
       </div>
@@ -356,7 +396,7 @@ export function TrainerPage() {
           <div className="input-progress">
             <span className="progress-text">{progress}</span>
             <div className="progress-dots" aria-label="Sequence progress">
-              {lesson.notes.map((_, noteIndex) => {
+              {activeNotes.map((_, noteIndex) => {
                 const isCurrent = noteIndex === index;
                 const isCorrect = correctIndices.includes(noteIndex);
                 return (
@@ -468,7 +508,7 @@ export function TrainerPage() {
           </div>
         ) : null}
 
-        {mode === 'sing' ? <small>Sing the expected note. Pitch settings come from Pitch Lab (local storage).</small> : null}
+        {mode === 'sing' ? <small>Sing the expected note. Pitch settings come from Mic Settings (local storage).</small> : null}
       </div>
     </div>
   );
@@ -529,4 +569,25 @@ function saveStoredSingOctave(value) {
   } catch {
     // ignore storage failures in private/incognito modes
   }
+}
+
+function normalizeLessonExercises(lesson) {
+  if (!lesson) {
+    return [];
+  }
+
+  if (Array.isArray(lesson.exercises) && lesson.exercises.length) {
+    return lesson.exercises
+      .filter((exercise) => exercise && Array.isArray(exercise.notes) && exercise.notes.length)
+      .map((exercise, index) => ({
+        id: exercise.id ?? `${lesson.id}-exercise-${index + 1}`,
+        notes: exercise.notes,
+      }));
+  }
+
+  if (Array.isArray(lesson.notes) && lesson.notes.length) {
+    return [{ id: `${lesson.id}-exercise-1`, notes: lesson.notes }];
+  }
+
+  return [];
 }

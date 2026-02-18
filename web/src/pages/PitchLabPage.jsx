@@ -48,7 +48,7 @@ export function PitchLabPage() {
   return (
     <div className="grid">
       <div className="card controls">
-        <h3>Pitch Lab Controls</h3>
+        <h3>Mic Settings Controls</h3>
         <Field label="Sample rate" value={draft.sampleRate} onChange={(v) => update('sampleRate', v)} />
         <Field label="Samples (fftSize)" value={draft.fftSize} onChange={(v) => update('fftSize', v)} />
         <Field label="Poll ms" value={draft.pollMs} onChange={(v) => update('pollMs', v)} />
