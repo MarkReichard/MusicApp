@@ -23,6 +23,7 @@ export function TrainerPage() {
   const [mode, setMode] = useState('piano');
   const [selectedKey, setSelectedKey] = useState(lesson?.defaultKey ?? 'C');
   const [tempoBpm, setTempoBpm] = useState(lesson?.defaultTempoBpm ?? 90);
+  const [playTonicCadence, setPlayTonicCadence] = useState(true);
   const [singOctave, setSingOctave] = useState(loadStoredSingOctave(lesson?.defaultOctave ?? 4));
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -98,6 +99,39 @@ export function TrainerPage() {
       const gapSeconds = 0.03;
       let startAt = context.currentTime + 0.03;
 
+      if (playTonicCadence) {
+        const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
+        const cadenceOffsets = [0, 5, 7, 5];
+        const triadOffsets = [0, 4, 7];
+        const chordBeats = 2;
+        const chordDurationSeconds = beatSeconds * chordBeats;
+
+        cadenceOffsets.forEach((offset) => {
+          const chordRoot = tonicMidi + offset;
+          triadOffsets.forEach((triadOffset) => {
+            const frequency = midiToFrequencyHz(chordRoot + triadOffset);
+            const oscillator = context.createOscillator();
+            oscillator.type = 'triangle';
+            oscillator.frequency.value = frequency;
+
+            const gain = context.createGain();
+            gain.gain.setValueAtTime(0.0001, startAt);
+            gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.0001, startAt + chordDurationSeconds * 0.9);
+
+            oscillator.connect(gain);
+            gain.connect(context.destination);
+
+            oscillator.start(startAt);
+            oscillator.stop(startAt + chordDurationSeconds * 0.95);
+          });
+
+          startAt += chordDurationSeconds;
+        });
+
+        startAt += gapSeconds;
+      }
+
       for (const note of notes) {
         const frequency = midiToFrequencyHz(note.midi);
         const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
@@ -160,14 +194,14 @@ export function TrainerPage() {
   }, [current.midi, expectedMidi, mode]);
 
   useEffect(() => {
-    const nextAutoplayKey = `${lesson.id}:${exerciseIndex}:${selectedKey}:${tempoBpm}:${singOctave}`;
+    const nextAutoplayKey = `${lesson.id}:${exerciseIndex}:${selectedKey}:${tempoBpm}:${singOctave}:${playTonicCadence}`;
     if (autoplayKey === nextAutoplayKey) {
       return;
     }
 
     setAutoplayKey(nextAutoplayKey);
     void playMidiSequence(shiftedLessonNotes);
-  }, [autoplayKey, exerciseIndex, lesson.id, selectedKey, singOctave, tempoBpm]);
+  }, [autoplayKey, exerciseIndex, lesson.id, playTonicCadence, selectedKey, singOctave, tempoBpm]);
 
   const pianoKeys = useMemo(() => {
     const startMidi = 12 * (singOctave + 1);
@@ -358,6 +392,17 @@ export function TrainerPage() {
                   {allowedOctaves.map((octave) => (
                     <option key={octave} value={octave}>Oct {octave}</option>
                   ))}
+                </select>
+              </div>
+
+              <div className="row">
+                <label>Play I-IV-V-IV first</label>
+                <select
+                  value={playTonicCadence ? 'yes' : 'no'}
+                  onChange={(event) => setPlayTonicCadence(event.target.value === 'yes')}
+                >
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
                 </select>
               </div>
             </div>
