@@ -1,69 +1,37 @@
-# Music Ear Training App (Expo + React Native)
+# Music Trainer (Web)
 
-## What is implemented
+Web-only React app for lesson practice and pitch tuning.
 
-- Lesson library grouped by lesson `category` from JSON.
-- Lesson library cards show local progress analytics (attempts and best accuracy).
-- Trainer screen includes:
-  - Progress indicators (`Set`, `Note`, progress bar).
-  - Pitch-only correctness (advance on correct, stay on wrong).
-  - Solfege (multi-octave), piano (2 octaves), and singing input modes.
-  - Replay icon for current chunk.
-  - Lesson options accordion on the same training screen.
-- Support refresh from web service with:
-  - Network timeout protection.
-  - Clear error messages on failure.
-- Local persistence for defaults and per-lesson overrides.
-- Preloaded lessons for `3_note_pattern` and `christmas_songs`.
-- Audible synthesized note playback (generated WAV piano-like tones).
-- Automatic singing pitch detection (live Hz, MIDI, cents) and auto-check while mic is active.
+## App structure
 
-## Local analytics
+- `web/src/pages/LessonsPage.jsx` — lesson library page
+- `web/src/pages/TrainerPage.jsx` — practice/training page
+- `web/src/pages/PitchLabPage.jsx` — live pitch detection tuning page
+- `web/src/lib/usePitchDetector.js` — shared Pitchy detection hook used by trainer + lab
+- `web/src/lib/pitchSettings.js` — localStorage-backed pitch settings
 
-- Per-lesson attempts are stored locally.
-- Completed/incomplete attempts and pitch accuracy are tracked.
-- Library screen shows attempts count and best accuracy per lesson.
+## Pitch settings persistence
 
-## Run on Windows PC
+- Pitch Lab settings are saved in localStorage key `musicapp.web.pitchSettings.v1`.
+- Trainer sing mode reads the same saved settings.
+- Default pitch range is:
+  - `minFrequencyHz = 20`
+  - `maxFrequencyHz = 800`
 
-1. Install:
-   - Node.js LTS
-   - Android Studio (SDK + emulator)
-2. Install dependencies:
-   - `npm install`
-3. Build native dev client (required for live pitch module):
-   - `npm run android`
-4. Start dev server for dev client:
-   - `npm run start:dev`
-5. In Expo terminal:
-   - Press `a` to open Android emulator.
+## Run
 
-## Run on physical Android device
+From repository root:
 
-1. Enable USB debugging on Android phone.
-2. Connect phone by USB.
-3. Run `npm run android` to install the dev build on device.
-4. Run `npm run start:dev`.
+- Install root deps: `npm install`
+- Install web deps (first time): `npm install --prefix web`
+- Start dev server: `npm run web:dev`
+- Build: `npm run web:build`
+- Preview build: `npm run web:preview`
 
-## Typecheck
+## VS Code launch
 
-- `npm run typecheck`
+Use Run and Debug profile:
 
-## Debugging
+- `Web App: Full Launch`
 
-- Open Expo DevTools from terminal output.
-- Use React Native logs in terminal.
-- Use emulator for general UI testing.
-- Use physical Android for singing/microphone-related testing.
-
-## Audio notes
-
-- `src/audio/playback.ts` plays generated WAV note synthesis through `expo-av`.
-- `src/audio/synth.ts` includes URI caching to reduce repeated synthesis CPU cost.
-
-## Singing pitch detection notes
-
-- Mic permission, live PCM stream capture, and YIN pitch detection are implemented.
-- Singing mode auto-submits detected notes while mic is on and voice level is sufficient.
-- `Check Detected Now` remains available as manual fallback.
-- This requires a native dev build (`expo run:android`), not Expo Go.
+This starts Vite and opens the browser debugger.
