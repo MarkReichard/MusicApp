@@ -26,6 +26,8 @@ export function TrainerOptionsSection({
           className="accordion-toggle trainer-options-toggle"
           onClick={onToggleOptions}
           type="button"
+          title={optionsOpen ? 'Hide training options' : 'Show training options'}
+          aria-label={optionsOpen ? 'Hide training options' : 'Show training options'}
         >
           <span>Training Options</span>
           <span>{optionsOpen ? '▾' : '▸'}</span>
@@ -101,7 +103,14 @@ export function TrainerOptionsSection({
 
             <div className="row">
               <label>Mic settings</label>
-              <Link className="button secondary" to="/pitch-lab">Open Mic Settings</Link>
+              <Link
+                className="button secondary"
+                to="/pitch-lab"
+                title="Open mic settings"
+                aria-label="Open mic settings"
+              >
+                Open Mic Settings
+              </Link>
             </div>
           </div>
         </div>

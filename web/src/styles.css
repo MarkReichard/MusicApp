@@ -24,6 +24,12 @@ a { color: inherit; text-decoration: none; }
   font-family: inherit;
 }
 .button.secondary { background: #334155; }
+.home-icon-button {
+  font-size: 20px;
+  line-height: 1;
+  padding-left: 14px;
+  padding-right: 14px;
+}
 .grid { display: grid; gap: 12px; grid-template-columns: 340px 1fr; }
 .controls { padding: 12px; display: grid; gap: 10px; }
 .lesson-title-row {
@@ -268,7 +274,7 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
 }
 
 .trainer-input-panel .mic-settings-canvas {
-  height: 340px;
+  height: 440px;
 }
 
 .sing-guide-row {

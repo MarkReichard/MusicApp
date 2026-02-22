@@ -77,13 +77,17 @@ export function TrainerPage() {
     setIndex(0);
     setCorrectIndices([]);
   }
+  function resetInputProgress() {
+    setIndex(0);
+    setCorrectIndices([]);
+  }
 
   async function playMidiSequence(notes) {
     if (!notes.length || isPlayingTarget) {
       return;
     }
 
-    setIsPlayingTarget(true);
+          <Link className="button" to="/lessons" title="Back to lessons" aria-label="Back to lessons">⌂</Link>
     const context = new AudioContext();
 
     try {
@@ -320,12 +324,29 @@ export function TrainerPage() {
               className="button secondary"
               onClick={() => setExercise(exerciseIndex - 1)}
               disabled={exerciseIndex <= 0}
+              title="Previous exercise"
+              aria-label="Previous exercise"
             >
               ⏮
             </button>
           ) : null}
-          <button className="button" disabled={isPlayingTarget} onClick={() => void playMidiSequence(shiftedLessonNotes)}>
+          <button
+            className="button"
+            disabled={isPlayingTarget}
+            onClick={() => void playMidiSequence(shiftedLessonNotes)}
+            title="Play target notes"
+            aria-label="Play target notes"
+          >
             {isPlayingTarget ? 'Playing…' : '▶'}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={resetInputProgress}
+            title="Reset input progress"
+            aria-label="Reset input progress"
+          >
+            ↺
           </button>
           {lessonExercises.length > 1 ? (
             <button
@@ -333,11 +354,20 @@ export function TrainerPage() {
               className="button secondary"
               onClick={() => setExercise(exerciseIndex + 1)}
               disabled={exerciseIndex >= lessonExercises.length - 1}
+              title="Next exercise"
+              aria-label="Next exercise"
             >
               ⏭
             </button>
           ) : null}
-          <Link className="button secondary" to="/lessons">⌂</Link>
+          <Link
+            className="button secondary home-icon-button"
+            to="/lessons"
+            title="Back to lessons"
+            aria-label="Back to lessons"
+          >
+            ⌂
+          </Link>
         </div>
       </div>
 
