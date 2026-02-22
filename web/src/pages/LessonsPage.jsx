@@ -20,7 +20,7 @@ export function LessonsPage() {
         <section className="lesson-category-group" key={category}>
           <h3 className="lesson-category-title">{formatCategoryLabel(category)}</h3>
           {lessonsByCategory[category].map((lesson) => (
-            <div className="card lesson-item" key={lesson.id}>
+            <div className="card lesson-item" key={lesson._sourcePath ?? lesson.id}>
               <div>
                 <div>{lesson.name}</div>
                 <small>{lesson.category} · {lesson.difficulty}</small>

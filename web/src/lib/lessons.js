@@ -2,8 +2,14 @@ const lessonModules = import.meta.glob('../../../content/lessons/**/*.json', {
   eager: true,
 });
 
-export const lessons = Object.values(lessonModules)
-  .map((module) => module.default ?? module)
+export const lessons = Object.entries(lessonModules)
+  .map(([sourcePath, module]) => {
+    const lesson = module.default ?? module;
+    return {
+      ...lesson,
+      _sourcePath: sourcePath,
+    };
+  })
   .filter((lesson) => {
     if (!lesson || typeof lesson.id !== 'string') {
       return false;
