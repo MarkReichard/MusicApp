@@ -456,12 +456,14 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
   notes.forEach((note, noteIndex) => {
     const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
     const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
-    playedBars.push({
-      id: `played-${noteIndex}`,
-      startSec: cursor,
-      endSec: cursor + noteDurationSeconds,
-      midi: note.midi,
-    });
+    if (note.type !== "rest") {
+      playedBars.push({
+        id: `played-${noteIndex}`,
+        startSec: cursor,
+        endSec: cursor + noteDurationSeconds,
+        midi: note.midi,
+      });
+    }
     cursor += noteDurationSeconds + gapSeconds;
   });
 
@@ -474,14 +476,16 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
     const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
     const graceRatio = Math.max(0.5, Math.min(1, Number(gracePeriodPercent) / 100));
     const scoreDurationSeconds = noteDurationSeconds * graceRatio;
-    expectedBars.push({
-      id: `expected-${noteIndex}`,
-      index: noteIndex,
-      startSec: singCursor,
-      endSec: singCursor + scoreDurationSeconds,
-      scoreEndSec: singCursor + scoreDurationSeconds,
-      midi: note.midi,
-    });
+    if (note.type !== "rest") {
+      expectedBars.push({
+        id: `expected-${noteIndex}`,
+        index: noteIndex,
+        startSec: singCursor,
+        endSec: singCursor + scoreDurationSeconds,
+        scoreEndSec: singCursor + scoreDurationSeconds,
+        midi: note.midi,
+      });
+    }
     singCursor += noteDurationSeconds + gapSeconds;
   });
 

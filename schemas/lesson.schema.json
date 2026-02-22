@@ -77,8 +77,13 @@
       "minItems": 1,
       "items": {
         "type": "object",
-        "required": ["pitch", "midi", "degree", "durationBeats"],
+        "required": ["type", "durationBeats"],
         "properties": {
+          "type": {
+            "type": "string",
+            "enum": ["note", "rest"],
+            "default": "note"
+          },
           "pitch": { "type": "string" },
           "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
           "degree": {
@@ -87,7 +92,13 @@
           },
           "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
         },
-        "additionalProperties": false
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "note" } } },
+            "then": { "required": ["pitch", "midi", "degree"] }
+          }
+        ]
       }
     },
     "exercises": {
@@ -103,8 +114,13 @@
             "minItems": 1,
             "items": {
               "type": "object",
-              "required": ["pitch", "midi", "degree", "durationBeats"],
+              "required": ["type", "durationBeats"],
               "properties": {
+                "type": {
+                  "type": "string",
+                  "enum": ["note", "rest"],
+                  "default": "note"
+                },
                 "pitch": { "type": "string" },
                 "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
                 "degree": {
@@ -113,7 +129,13 @@
                 },
                 "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
               },
-              "additionalProperties": false
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": { "properties": { "type": { "const": "note" } } },
+                  "then": { "required": ["pitch", "midi", "degree"] }
+                }
+              ]
             }
           }
         },
