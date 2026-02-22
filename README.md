@@ -28,6 +28,23 @@ From repository root:
 - Build: `npm run web:build`
 - Preview build: `npm run web:preview`
 
+## Convert MusicXML to lessons
+
+Use the root CLI to convert `.musicxml` / `.xml` / `.mxl` score files into lesson JSON.
+
+- Install root deps: `npm install`
+- Convert one file:
+  - `npm run convert:mxml -- --input path/to/score.musicxml`
+- Convert all score files in a folder:
+  - `npm run convert:mxml -- --input path/to/folder --output content/lessons`
+
+Optional flags:
+
+- `--category imported_scores`
+- `--difficulty intermediate`
+- `--default-key C`
+- `--tags imported,musicxml`
+
 ## VS Code launch
 
 Use Run and Debug profile:

@@ -2,8 +2,13 @@
   "name": "music-trainer-web",
   "version": "0.1.0",
   "private": true,
+  "dependencies": {
+    "adm-zip": "^0.5.16",
+    "fast-xml-parser": "^4.5.1"
+  },
   "scripts": {
     "start": "npm run web:dev",
+    "convert:mxml": "node scripts/convert-mxml-to-lessons.mjs",
     "web:dev": "npm --prefix web run dev",
     "web:build": "npm --prefix web run build",
     "web:preview": "npm --prefix web run preview"

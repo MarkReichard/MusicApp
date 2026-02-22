@@ -52,15 +52,20 @@ export function SingTrainerPage() {
   const octaveShift = (singOctave - lesson.defaultOctave) * 12;
   const totalMidiShift = keySemitoneShift + octaveShift;
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
-  const activeNotes = activeExercise?.notes ?? [];
+  const activeEvents = activeExercise?.notes ?? [];
+  const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
 
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
-  const shiftedLessonNotes = activeNotes.map(
-    (note) => ({
+  const shiftedLessonNotes = activeEvents.map((note) => {
+    if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+      return { ...note };
+    }
+
+    return {
       ...note,
       midi: note.midi + totalMidiShift,
-    }),
-  );
+    };
+  });
   const rangeSuggestionText = !hasSavedPitchRange
     ? 'No saved pitch range yet. Use the Pitch Range page first.'
     : rangeRecommendation
@@ -130,6 +135,7 @@ export function SingTrainerPage() {
 
     setIsPlayingTarget(true);
     const context = new AudioContext();
+    await context.resume().catch(() => undefined);
 
     try {
       const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
@@ -174,9 +180,14 @@ export function SingTrainerPage() {
       }
 
       for (const note of notes) {
-        const frequency = midiToFrequencyHz(note.midi);
         const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
         const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+        if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+          startAt += noteDurationSeconds + gapSeconds;
+          continue;
+        }
+
+        const frequency = midiToFrequencyHz(note.midi);
         const oscillator = context.createOscillator();
         oscillator.type = 'triangle';
         oscillator.frequency.value = frequency;
