@@ -3,7 +3,7 @@ import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
-import { MicPitchGraphPanel } from '../components/MicPitchGraphPanel';
+import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 
 const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
@@ -292,16 +292,7 @@ export function SingTrainerPage() {
           </div>
         </div>
 
-        <MicPitchGraphPanel
-          title="Sung Pitch"
-          settings={pitchSettings}
-          externalCurrent={current}
-          externalHistory={history}
-          showHeader={false}
-          showControls={false}
-          showReadouts={false}
-          maxHistoryPoints={220}
-        />
+        <SingInputGraph settings={pitchSettings} current={current} history={history} />
       </div>
     </div>
   );
