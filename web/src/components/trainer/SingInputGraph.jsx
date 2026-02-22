@@ -304,12 +304,11 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
     return;
   }
 
-  const interpolated = interpolateMissingMidi(samples);
-  if (interpolated.length < 2) {
+  if (samples.length < 2) {
     return;
   }
 
-  const decimated = decimatePoints(interpolated, 110);
+  const decimated = decimatePoints(samples, 110);
 
   context.strokeStyle = '#22d3ee';
   context.lineWidth = 4;
@@ -347,31 +346,6 @@ function decimatePoints(points, maxPoints) {
   const lastPoint = points[points.length - 1];
   if (result.at(-1) !== lastPoint) {
     result.push(lastPoint);
-  }
-
-  return result;
-}
-
-function interpolateMissingMidi(samples) {
-  if (samples.length < 2) return samples;
-
-  const result = [...samples];
-  let lastValidIndex = -1;
-
-  for (let i = 0; i < result.length; i++) {
-    if (Number.isFinite(result[i].midi)) {
-      if (lastValidIndex >= 0 && i > lastValidIndex + 1) {
-        // interpolate from lastValidIndex to i
-        const start = result[lastValidIndex];
-        const end = result[i];
-        const timeDiff = end.timeSec - start.timeSec;
-        for (let j = lastValidIndex + 1; j < i; j++) {
-          const ratio = (result[j].timeSec - start.timeSec) / timeDiff;
-          result[j].midi = start.midi + (end.midi - start.midi) * ratio;
-        }
-      }
-      lastValidIndex = i;
-    }
   }
 
   return result;
