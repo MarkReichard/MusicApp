@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
@@ -7,6 +7,7 @@ import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 
 const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
+const SING_COUNTDOWN_BEATS = 2;
 
 export function SingTrainerPage() {
   const { lessonId } = useParams();
@@ -21,6 +22,10 @@ export function SingTrainerPage() {
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
+  const [toleranceCents, setToleranceCents] = useState(25);
+  const [session, setSession] = useState(null);
+  const [nowMs, setNowMs] = useState(() => performance.now());
+  const evaluatedBarsRef = useRef(new Set());
 
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const { current, history } = usePitchDetector(pitchSettings, true);
@@ -34,8 +39,6 @@ export function SingTrainerPage() {
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeNotes = activeExercise?.notes ?? [];
 
-  const expectedBaseMidi = activeNotes[index]?.midi ?? null;
-  const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
   const shiftedLessonNotes = activeNotes.map(
     (note) => ({
@@ -43,14 +46,6 @@ export function SingTrainerPage() {
       midi: note.midi + totalMidiShift,
     }),
   );
-
-  function registerInput(midi) {
-    if (expectedMidi === null) return;
-    if (midi !== expectedMidi) return;
-
-    setCorrectIndices((previous) => (previous.includes(index) ? previous : [...previous, index]));
-    setIndex((previous) => Math.min(previous + 1, activeNotes.length - 1));
-  }
 
   function setExercise(nextIndex) {
     const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
@@ -61,17 +56,41 @@ export function SingTrainerPage() {
     setExerciseIndex(clamped);
     setIndex(0);
     setCorrectIndices([]);
+    setSession(null);
+    evaluatedBarsRef.current = new Set();
   }
 
   function resetInputProgress() {
     setIndex(0);
     setCorrectIndices([]);
+    setSession(null);
+    evaluatedBarsRef.current = new Set();
   }
 
   async function playMidiSequence(notes) {
     if (!notes.length || isPlayingTarget) {
       return;
     }
+
+    const timeline = buildSingTimeline({
+      notes,
+      tempoBpm,
+      singOctave,
+      selectedKey,
+      playTonicCadence,
+      countdownBeats: SING_COUNTDOWN_BEATS,
+    });
+
+    const startMs = performance.now() + 30;
+    evaluatedBarsRef.current = new Set();
+    setIndex(0);
+    setCorrectIndices([]);
+    setSession({
+      startMs,
+      singStartSec: timeline.singStartSec,
+      playedBars: timeline.playedBars,
+      expectedBars: timeline.expectedBars,
+    });
 
     setIsPlayingTarget(true);
     const context = new AudioContext();
@@ -163,6 +182,8 @@ export function SingTrainerPage() {
     setIndex(0);
     setCorrectIndices([]);
     setExerciseIndex(0);
+    setSession(null);
+    evaluatedBarsRef.current = new Set();
   }, [lesson]);
 
   useEffect(() => {
@@ -170,15 +191,57 @@ export function SingTrainerPage() {
   }, [singOctave]);
 
   useEffect(() => {
-    if (!Number.isFinite(current.midi) || expectedMidi === null) {
+    let frameId = 0;
+    const tick = () => {
+      setNowMs(performance.now());
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  const barResults = useMemo(() => {
+    if (!session?.expectedBars?.length) {
+      return {};
+    }
+
+    return session.expectedBars.reduce((results, bar) => {
+      const matched = isBarMatched({
+        bar,
+        history,
+        sessionStartMs: session.startMs,
+        toleranceCents,
+      });
+      results[bar.id] = matched;
+      return results;
+    }, {});
+  }, [history, session, toleranceCents]);
+
+  useEffect(() => {
+    if (!session?.expectedBars?.length) {
       return;
     }
 
-    const rounded = Math.round(current.midi);
-    if (rounded === expectedMidi) {
-      registerInput(rounded);
+    const elapsedSec = (nowMs - session.startMs) / 1000;
+    if (!Number.isFinite(elapsedSec) || elapsedSec < 0) {
+      return;
     }
-  }, [current.midi, expectedMidi]);
+
+    session.expectedBars.forEach((bar) => {
+      if (elapsedSec < bar.endSec || evaluatedBarsRef.current.has(bar.id)) {
+        return;
+      }
+
+      evaluatedBarsRef.current.add(bar.id);
+      const matched = barResults[bar.id];
+
+      if (matched) {
+        setCorrectIndices((previous) => (previous.includes(bar.index) ? previous : [...previous, bar.index]));
+      }
+
+      setIndex(Math.min(bar.index + 1, Math.max(0, activeNotes.length - 1)));
+    });
+  }, [activeNotes.length, barResults, nowMs, session]);
 
   if (!lesson) {
     return (
@@ -192,14 +255,13 @@ export function SingTrainerPage() {
   return (
     <div className="trainer-grid">
       <div className="card controls">
-        <div className="lesson-title-row">
+        <div className="lesson-title-row sing-title-row">
           <h3>{lesson.name} · Sing</h3>
-          {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : null}
-        </div>
-
-        <div className="trainer-detected-note">
-          <span>Detected note: </span>
-          <strong>{current.note}</strong>
+          <div className="trainer-detected-note sing-title-detected">
+            <span>Detected note: </span>
+            <strong>{current.note}</strong>
+          </div>
+          {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : <span className="sing-title-spacer" />}
         </div>
 
         <TrainerOptionsSection
@@ -216,6 +278,8 @@ export function SingTrainerPage() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
+          toleranceCents={toleranceCents}
+          onToleranceCentsChange={setToleranceCents}
         />
 
         <div style={{ display: 'flex', gap: 8 }}>
@@ -292,10 +356,106 @@ export function SingTrainerPage() {
           </div>
         </div>
 
-        <SingInputGraph settings={pitchSettings} current={current} history={history} />
+        <SingInputGraph
+          settings={pitchSettings}
+          history={history}
+          sessionStartMs={session?.startMs}
+          singStartSec={session?.singStartSec}
+          stopScrollSec={session?.stopScrollSec}
+          playedBars={session?.playedBars ?? []}
+          expectedBars={session?.expectedBars ?? []}
+          barResults={barResults}
+        />
       </div>
     </div>
   );
+}
+
+function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonicCadence, countdownBeats }) {
+  const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
+  const gapSeconds = 0.03;
+  let cursor = 0.03;
+  const playedBars = [];
+  const expectedBars = [];
+
+  if (playTonicCadence) {
+    const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
+    const cadenceOffsets = [0, 5, 7, 5];
+    const triadOffsets = [0, 4, 7];
+    const chordDurationSeconds = beatSeconds;
+
+    cadenceOffsets.forEach((offset, cadenceIndex) => {
+      const chordRoot = tonicMidi + offset;
+      triadOffsets.forEach((triadOffset, triadIndex) => {
+        playedBars.push({
+          id: `cadence-${cadenceIndex}-${triadIndex}`,
+          startSec: cursor,
+          endSec: cursor + chordDurationSeconds,
+          midi: chordRoot + triadOffset,
+        });
+      });
+      cursor += chordDurationSeconds;
+    });
+
+    cursor += gapSeconds * 2;
+  }
+
+  notes.forEach((note, noteIndex) => {
+    const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+    const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+    playedBars.push({
+      id: `played-${noteIndex}`,
+      startSec: cursor,
+      endSec: cursor + noteDurationSeconds,
+      midi: note.midi,
+    });
+    cursor += noteDurationSeconds + gapSeconds;
+  });
+
+  const singStartSec = cursor + beatSeconds * countdownBeats;
+  let singCursor = singStartSec;
+
+  notes.forEach((note, noteIndex) => {
+    const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+    const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+    expectedBars.push({
+      id: `expected-${noteIndex}`,
+      index: noteIndex,
+      startSec: singCursor,
+      endSec: singCursor + noteDurationSeconds,
+      midi: note.midi,
+    });
+    singCursor += noteDurationSeconds + gapSeconds;
+  });
+
+  const lastExpectedEndSec = expectedBars.length
+    ? expectedBars[expectedBars.length - 1].endSec
+    : singStartSec;
+  const stopScrollSec = lastExpectedEndSec + beatSeconds * 2;
+
+  return { playedBars, expectedBars, singStartSec, stopScrollSec };
+}
+
+function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
+  if (!Number.isFinite(sessionStartMs) || !history.length) {
+    return false;
+  }
+
+  const midiValues = history
+    .filter((entry) => Number.isFinite(entry.timeMs) && Number.isFinite(entry.midi))
+    .filter((entry) => {
+      const relativeSec = (entry.timeMs - sessionStartMs) / 1000;
+      return relativeSec >= bar.startSec && relativeSec <= bar.endSec;
+    })
+    .map((entry) => entry.midi);
+
+  if (!midiValues.length) {
+    return false;
+  }
+
+  const averageMidi = midiValues.reduce((sum, midi) => sum + midi, 0) / midiValues.length;
+  const centsDiff = Math.abs((averageMidi - bar.midi) * 100);
+  return centsDiff <= toleranceCents;
 }
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];

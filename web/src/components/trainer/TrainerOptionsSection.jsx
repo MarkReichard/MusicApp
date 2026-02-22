@@ -15,6 +15,8 @@ export function TrainerOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
+  toleranceCents,
+  onToleranceCentsChange,
 }) {
   return (
     <>
@@ -80,6 +82,26 @@ export function TrainerOptionsSection({
                 <option value="no">No</option>
               </select>
             </div>
+
+            {typeof onToleranceCentsChange === 'function' ? (
+              <div className="row">
+                <span>Tolerance (cents)</span>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="1"
+                  value={toleranceCents}
+                  onChange={(event) => {
+                    const next = Number(event.target.value);
+                    if (!Number.isFinite(next)) {
+                      return;
+                    }
+                    onToleranceCentsChange(Math.max(1, Math.min(100, Math.round(next))));
+                  }}
+                />
+              </div>
+            ) : null}
 
             <div className="row">
               <span>Mic settings</span>

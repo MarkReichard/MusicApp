@@ -36,7 +36,7 @@ export function usePitchDetector(settings, enabled, options = {}) {
   async function stop() {
     const resources = resourcesRef.current;
     if (resources.timer) {
-      window.clearInterval(resources.timer);
+      globalThis.clearInterval(resources.timer);
       resources.timer = null;
     }
     if (resources.source) {
@@ -84,15 +84,14 @@ export function usePitchDetector(settings, enabled, options = {}) {
       averageWindow: [],
     };
 
-    resourcesRef.current.timer = window.setInterval(() => {
+    resourcesRef.current.timer = globalThis.setInterval(() => {
       const resources = resourcesRef.current;
       if (!resources.analyser || !resources.detector) return;
 
       resources.analyser.getFloatTimeDomainData(sampleBuffer);
 
       let rms = 0;
-      for (let index = 0; index < sampleBuffer.length; index += 1) {
-        const value = sampleBuffer[index];
+      for (const value of sampleBuffer) {
         rms += value * value;
       }
       rms = Math.sqrt(rms / sampleBuffer.length);
@@ -121,13 +120,14 @@ export function usePitchDetector(settings, enabled, options = {}) {
 
       const midi = Number.isFinite(pitchHz) ? 69 + 12 * Math.log2(pitchHz / 440) : null;
       const note = Number.isFinite(midi) ? midiToNoteLabel(midi) : '-';
+      const timeMs = performance.now();
 
       setCurrent({ pitchHz, midi, note, db, clarity });
       setHistory((previous) => {
         const maxHistoryPoints = Number.isFinite(options.maxHistoryPoints)
           ? Math.max(20, Math.round(options.maxHistoryPoints))
           : 220;
-        const next = [...previous, { pitchHz, db }];
+        const next = [...previous, { pitchHz, db, midi, timeMs }];
         return next.length > maxHistoryPoints ? next.slice(next.length - maxHistoryPoints) : next;
       });
     }, pollMs);
