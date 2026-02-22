@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 const VIEWPORT_SECONDS = 12;
 const TARGET_CURSOR_RATIO = 0.35;
-const TARGET_FRAME_MS = 33;
+const TARGET_FRAME_MS = 42;
 
 export function SingInputGraph({
   settings,
@@ -120,12 +120,19 @@ export function SingInputGraph({
         sessionStartMs: latest.sessionStartMs,
       });
 
+      const hasActiveSession = Number.isFinite(latest.sessionStartMs);
+      const isFrozen = Boolean(frozenStateRef.current);
+      if (!hasActiveSession || isFrozen) {
+        frameId = 0;
+        return;
+      }
+
       frameId = requestAnimationFrame(renderFrame);
     };
 
     frameId = requestAnimationFrame(renderFrame);
     return () => cancelAnimationFrame(frameId);
-  }, [maxMidi, minMidi]);
+  }, [maxMidi, minMidi, sessionStartMs]);
 
   return (
     <div className="card" style={{ padding: 12, marginTop: 12 }}>
@@ -302,7 +309,7 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
     return;
   }
 
-  const decimated = decimatePoints(interpolated, 160);
+  const decimated = decimatePoints(interpolated, 110);
 
   context.strokeStyle = '#22d3ee';
   context.lineWidth = 4;
@@ -338,7 +345,7 @@ function decimatePoints(points, maxPoints) {
   }
 
   const lastPoint = points[points.length - 1];
-  if (result[result.length - 1] !== lastPoint) {
+  if (result.at(-1) !== lastPoint) {
     result.push(lastPoint);
   }
 

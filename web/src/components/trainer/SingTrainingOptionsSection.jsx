@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 
-export function TrainerOptionsSection({
+export function SingTrainingOptionsSection({
   optionsOpen,
   onToggleOptions,
   allowedKeys,
@@ -15,6 +15,14 @@ export function TrainerOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
+  playExpectedDuringSing,
+  onPlayExpectedDuringSingChange,
+  guideNoteVolumePercent,
+  onGuideNoteVolumePercentChange,
+  toleranceCents,
+  onToleranceCentsChange,
+  gracePeriodPercent,
+  onGracePeriodPercentChange,
 }) {
   return (
     <>
@@ -23,10 +31,10 @@ export function TrainerOptionsSection({
           className="accordion-toggle trainer-options-toggle"
           onClick={onToggleOptions}
           type="button"
-          title={optionsOpen ? 'Hide training options' : 'Show training options'}
-          aria-label={optionsOpen ? 'Hide training options' : 'Show training options'}
+          title={optionsOpen ? 'Hide sing training options' : 'Show sing training options'}
+          aria-label={optionsOpen ? 'Hide sing training options' : 'Show sing training options'}
         >
-          <span>Training Options</span>
+          <span>Sing Training Options</span>
           <span>{optionsOpen ? '▾' : '▸'}</span>
         </button>
       </div>
@@ -79,6 +87,71 @@ export function TrainerOptionsSection({
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
               </select>
+            </div>
+
+            <div className="row">
+              <span>Play expected note while singing</span>
+              <select
+                value={playExpectedDuringSing ? 'yes' : 'no'}
+                onChange={(event) => onPlayExpectedDuringSingChange(event.target.value === 'yes')}
+              >
+                <option value="yes">Yes</option>
+                <option value="no">No</option>
+              </select>
+            </div>
+
+            <div className="row">
+              <span>Guide note volume (%)</span>
+              <input
+                type="number"
+                min="0"
+                max="100"
+                step="1"
+                value={guideNoteVolumePercent}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  onGuideNoteVolumePercentChange(Math.max(0, Math.min(100, Math.round(next))));
+                }}
+              />
+            </div>
+
+            <div className="row">
+              <span>Tolerance (cents)</span>
+              <input
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                value={toleranceCents}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  onToleranceCentsChange(Math.max(1, Math.min(100, Math.round(next))));
+                }}
+              />
+            </div>
+
+            <div className="row">
+              <span>Scored window (%)</span>
+              <input
+                type="number"
+                min="50"
+                max="100"
+                step="1"
+                value={gracePeriodPercent}
+                onChange={(event) => {
+                  const next = Number(event.target.value);
+                  if (!Number.isFinite(next)) {
+                    return;
+                  }
+                  onGracePeriodPercentChange(Math.max(50, Math.min(100, Math.round(next))));
+                }}
+              />
             </div>
 
             <div className="row">
