@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
@@ -8,10 +8,12 @@ import { PianoInputMode } from '../components/trainer/PianoInputMode';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
+  const [searchParams] = useSearchParams();
+  const requestedMode = searchParams.get('mode') === 'solfege' ? 'solfege' : 'piano';
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
   const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
-  const [mode, setMode] = useState('piano');
+  const [mode, setMode] = useState(requestedMode);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
@@ -157,11 +159,15 @@ export function TrainerPage() {
     setPlayTonicCadence(persistedOptions.playTonicCadence);
     setSingOctave(persistedOptions.singOctave);
 
-    setMode('piano');
+    setMode(requestedMode);
     setIndex(0);
     setCorrectIndices([]);
     setExerciseIndex(0);
-  }, [lesson]);
+  }, [lesson, requestedMode]);
+
+  useEffect(() => {
+    setMode((currentMode) => (currentMode === requestedMode ? currentMode : requestedMode));
+  }, [requestedMode]);
 
   useEffect(() => {
     if (!lesson) {

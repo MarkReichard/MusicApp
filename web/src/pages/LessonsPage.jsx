@@ -12,8 +12,9 @@ export function LessonsPage() {
             <small>{lesson.category} · {lesson.difficulty}</small>
           </div>
           <div className="lesson-actions">
-            <Link className="button" to={`/trainer/${lesson.id}`}>Open Trainer</Link>
-            <Link className="button secondary" to={`/trainer/${lesson.id}/sing`}>Open Sing Trainer</Link>
+            <Link className="button" to={`/trainer/${lesson.id}?mode=solfege`}>Solfege</Link>
+            <Link className="button" to={`/trainer/${lesson.id}?mode=piano`}>Piano</Link>
+            <Link className="button" to={`/trainer/${lesson.id}/sing`}>Sing</Link>
           </div>
         </div>
       ))}
