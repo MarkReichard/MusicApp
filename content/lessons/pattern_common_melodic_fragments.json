@@ -1,7 +1,7 @@
 {
   "id": "pattern_common_melodic_fragments_1_12",
   "name": "Common Melodic Fragments (1-12)",
-  "category": "3_to_5_note_pattern",
+  "category": "note_patterns",
   "type": "pattern",
   "difficulty": "beginner",
   "tags": ["stepwise", "common_pattern", "scalar_fragment"],

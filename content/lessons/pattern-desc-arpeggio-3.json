@@ -1,7 +1,7 @@
 {
   "id": "pattern_desc_arpeggio_major_triad_3",
   "name": "Arpeggios",
-  "category": "3_note_pattern",
+  "category": "note_patterns",
   "type": "pattern",
   "difficulty": "beginner",
   "tags": ["arpeggio", "triad", "common_pattern"],

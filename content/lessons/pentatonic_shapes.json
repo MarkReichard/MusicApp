@@ -1,7 +1,7 @@
 {
   "id": "pentatonic_shapes_patterns",
   "name": "Pentatonic Shapes",
-  "category": "3_to_5_note_pattern",
+  "category": "note_patterns",
   "type": "pattern",
   "difficulty": "beginner",
   "tags": [
