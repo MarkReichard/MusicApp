@@ -2,8 +2,6 @@ const STORAGE_KEY = 'musicapp.web.trainerOptions.v1';
 
 const defaultTrainerOptions = {
   playTonicCadence: true,
-  playExpectedDuringSing: false,
-  guideNoteVolumePercent: 50,
   toleranceCents: 25,
   gracePeriodPercent: 95,
 };
@@ -17,8 +15,6 @@ export function getTrainerOptionsForLesson(lesson) {
       tempoBpm: 60,
       singOctave: 4,
       playTonicCadence: defaultTrainerOptions.playTonicCadence,
-      playExpectedDuringSing: defaultTrainerOptions.playExpectedDuringSing,
-      guideNoteVolumePercent: defaultTrainerOptions.guideNoteVolumePercent,
       toleranceCents: defaultTrainerOptions.toleranceCents,
       gracePeriodPercent: defaultTrainerOptions.gracePeriodPercent,
     };
@@ -49,18 +45,11 @@ export function getTrainerOptionsForLesson(lesson) {
     ? Math.max(50, Math.min(100, Math.round(graceRaw)))
     : defaultTrainerOptions.gracePeriodPercent;
 
-  const guideNoteVolumeRaw = Number(stored.guideNoteVolumePercent);
-  const guideNoteVolumePercent = Number.isFinite(guideNoteVolumeRaw)
-    ? Math.max(0, Math.min(100, Math.round(guideNoteVolumeRaw)))
-    : defaultTrainerOptions.guideNoteVolumePercent;
-
   return {
     selectedKey,
     tempoBpm,
     singOctave,
     playTonicCadence: Boolean(stored.playTonicCadence),
-    playExpectedDuringSing: Boolean(stored.playExpectedDuringSing),
-    guideNoteVolumePercent,
     toleranceCents,
     gracePeriodPercent,
   };

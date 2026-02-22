@@ -17,8 +17,6 @@ export function SingTrainerPage() {
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
-  const [playExpectedDuringSing, setPlayExpectedDuringSing] = useState(initialOptions.playExpectedDuringSing);
-  const [guideNoteVolumePercent, setGuideNoteVolumePercent] = useState(initialOptions.guideNoteVolumePercent);
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -170,33 +168,6 @@ export function SingTrainerPage() {
         startAt += noteDurationSeconds + gapSeconds;
       }
 
-      if (playExpectedDuringSing && guideNoteVolumePercent > 0) {
-        const sessionStartAt = context.currentTime + 0.03;
-        const peakGuideGain = Math.max(0.001, Math.min(0.09, (guideNoteVolumePercent / 100) * 0.09));
-        timeline.expectedBars.forEach((bar) => {
-          const guideStartAt = sessionStartAt + Math.max(0, bar.startSec);
-          const guideEndAt = sessionStartAt + Math.max(bar.startSec + 0.06, bar.endSec);
-          const frequency = midiToFrequencyHz(bar.midi);
-
-          const oscillator = context.createOscillator();
-          oscillator.type = 'sine';
-          oscillator.frequency.value = frequency;
-
-          const gain = context.createGain();
-          gain.gain.setValueAtTime(0.0001, guideStartAt);
-          gain.gain.exponentialRampToValueAtTime(peakGuideGain, guideStartAt + 0.02);
-          gain.gain.setValueAtTime(peakGuideGain, Math.max(guideStartAt + 0.02, guideEndAt - 0.015));
-          gain.gain.exponentialRampToValueAtTime(0.0001, guideEndAt);
-
-          oscillator.connect(gain);
-          gain.connect(context.destination);
-
-          oscillator.start(guideStartAt);
-          oscillator.stop(guideEndAt + 0.01);
-          maxScheduledEndAt = Math.max(maxScheduledEndAt, guideEndAt + 0.01);
-        });
-      }
-
       const totalDurationMs = Math.ceil((maxScheduledEndAt - context.currentTime) * 1000) + 40;
       await new Promise((resolve) => globalThis.setTimeout(resolve, totalDurationMs));
     } finally {
@@ -215,8 +186,6 @@ export function SingTrainerPage() {
     setSelectedKey(persistedOptions.selectedKey);
     setTempoBpm(persistedOptions.tempoBpm);
     setPlayTonicCadence(persistedOptions.playTonicCadence);
-    setPlayExpectedDuringSing(persistedOptions.playExpectedDuringSing);
-    setGuideNoteVolumePercent(persistedOptions.guideNoteVolumePercent);
     setSingOctave(persistedOptions.singOctave);
     setToleranceCents(persistedOptions.toleranceCents);
     setGracePeriodPercent(persistedOptions.gracePeriodPercent);
@@ -238,13 +207,11 @@ export function SingTrainerPage() {
       selectedKey,
       tempoBpm,
       playTonicCadence,
-      playExpectedDuringSing,
-      guideNoteVolumePercent,
       singOctave,
       toleranceCents,
       gracePeriodPercent,
     });
-  }, [lesson, playTonicCadence, playExpectedDuringSing, guideNoteVolumePercent, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent]);
+  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent]);
 
   useEffect(() => {
     historyRef.current = history;
@@ -331,10 +298,6 @@ export function SingTrainerPage() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
-          playExpectedDuringSing={playExpectedDuringSing}
-          onPlayExpectedDuringSingChange={setPlayExpectedDuringSing}
-          guideNoteVolumePercent={guideNoteVolumePercent}
-          onGuideNoteVolumePercentChange={setGuideNoteVolumePercent}
           toleranceCents={toleranceCents}
           onToleranceCentsChange={setToleranceCents}
           gracePeriodPercent={gracePeriodPercent}

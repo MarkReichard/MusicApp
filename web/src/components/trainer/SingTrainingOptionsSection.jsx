@@ -15,10 +15,6 @@ export function SingTrainingOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
-  playExpectedDuringSing,
-  onPlayExpectedDuringSingChange,
-  guideNoteVolumePercent,
-  onGuideNoteVolumePercentChange,
   toleranceCents,
   onToleranceCentsChange,
   gracePeriodPercent,
@@ -87,35 +83,6 @@ export function SingTrainingOptionsSection({
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
               </select>
-            </div>
-
-            <div className="row">
-              <span>Play expected note while singing</span>
-              <select
-                value={playExpectedDuringSing ? 'yes' : 'no'}
-                onChange={(event) => onPlayExpectedDuringSingChange(event.target.value === 'yes')}
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
-            </div>
-
-            <div className="row">
-              <span>Guide note volume (%)</span>
-              <input
-                type="number"
-                min="0"
-                max="100"
-                step="1"
-                value={guideNoteVolumePercent}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) {
-                    return;
-                  }
-                  onGuideNoteVolumePercentChange(Math.max(0, Math.min(100, Math.round(next))));
-                }}
-              />
             </div>
 
             <div className="row">
