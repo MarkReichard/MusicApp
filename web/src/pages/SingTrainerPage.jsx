@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
+import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
+import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
 import { SingInputGraph } from '../components/trainer/SingInputGraph';
@@ -13,6 +15,16 @@ export function SingTrainerPage() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
+  const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
+  const rangeRecommendation = useMemo(
+    () => recommendKeyAndOctaveForRange({
+      lesson,
+      userMinMidi: savedPitchRange.minMidi,
+      userMaxMidi: savedPitchRange.maxMidi,
+    }),
+    [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
+  );
   const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
@@ -49,6 +61,13 @@ export function SingTrainerPage() {
       midi: note.midi + totalMidiShift,
     }),
   );
+  const rangeSuggestionText = !hasSavedPitchRange
+    ? 'No saved pitch range yet. Use the Pitch Range page first.'
+    : rangeRecommendation
+      ? `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${rangeRecommendation.fitsCompletely ? '' : ' (closest fit)'}.`
+      : 'No key/octave recommendation available for this lesson.';
+  const disableApplyRangeDefaults = !rangeRecommendation
+    || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
   function setExercise(nextIndex) {
     const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
@@ -70,6 +89,15 @@ export function SingTrainerPage() {
     setSession(null);
     setBarResults({});
     evaluatedBarsRef.current = new Set();
+  }
+
+  function applyRangeDefaults() {
+    if (!rangeRecommendation) {
+      return;
+    }
+
+    setSelectedKey(rangeRecommendation.key);
+    setSingOctave(rangeRecommendation.octave);
   }
 
   async function playMidiSequence(notes) {
@@ -298,6 +326,9 @@ export function SingTrainerPage() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
+          rangeSuggestionText={rangeSuggestionText}
+          onApplyRangeDefaults={applyRangeDefaults}
+          disableApplyRangeDefaults={disableApplyRangeDefaults}
           toleranceCents={toleranceCents}
           onToleranceCentsChange={setToleranceCents}
           gracePeriodPercent={gracePeriodPercent}

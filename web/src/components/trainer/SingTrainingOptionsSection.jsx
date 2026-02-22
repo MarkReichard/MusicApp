@@ -15,6 +15,9 @@ export function SingTrainingOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
+  rangeSuggestionText,
+  onApplyRangeDefaults,
+  disableApplyRangeDefaults,
   toleranceCents,
   onToleranceCentsChange,
   gracePeriodPercent,
@@ -84,6 +87,22 @@ export function SingTrainingOptionsSection({
                 <option value="no">No</option>
               </select>
             </div>
+
+            <div className="row">
+              <span>Range defaults</span>
+              <button
+                type="button"
+                className="button secondary"
+                onClick={onApplyRangeDefaults}
+                disabled={disableApplyRangeDefaults}
+                title="Apply recommended key and octave from saved pitch range"
+                aria-label="Apply recommended key and octave from saved pitch range"
+              >
+                Use My Range
+              </button>
+            </div>
+
+            {rangeSuggestionText ? <small>{rangeSuggestionText}</small> : null}
 
             <div className="row">
               <span>Tolerance (cents)</span>

@@ -2,6 +2,8 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
+import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
+import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
 import { PianoInputMode } from '../components/trainer/PianoInputMode';
@@ -12,6 +14,16 @@ export function TrainerPage() {
   const requestedMode = searchParams.get('mode') === 'solfege' ? 'solfege' : 'piano';
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
+  const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
+  const rangeRecommendation = useMemo(
+    () => recommendKeyAndOctaveForRange({
+      lesson,
+      userMinMidi: savedPitchRange.minMidi,
+      userMaxMidi: savedPitchRange.maxMidi,
+    }),
+    [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
+  );
   const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
   const [mode, setMode] = useState(requestedMode);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
@@ -44,6 +56,13 @@ export function TrainerPage() {
       midi: note.midi + totalMidiShift,
     }),
   );
+  const rangeSuggestionText = !hasSavedPitchRange
+    ? 'No saved pitch range yet. Use the Pitch Range page first.'
+    : rangeRecommendation
+      ? `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${rangeRecommendation.fitsCompletely ? '' : ' (closest fit)'}.`
+      : 'No key/octave recommendation available for this lesson.';
+  const disableApplyRangeDefaults = !rangeRecommendation
+    || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
   function registerInput(midi) {
     if (expectedMidi === null) return;
@@ -67,6 +86,15 @@ export function TrainerPage() {
   function resetInputProgress() {
     setIndex(0);
     setCorrectIndices([]);
+  }
+
+  function applyRangeDefaults() {
+    if (!rangeRecommendation) {
+      return;
+    }
+
+    setSelectedKey(rangeRecommendation.key);
+    setSingOctave(rangeRecommendation.octave);
   }
 
   async function playMidiSequence(notes) {
@@ -339,6 +367,9 @@ export function TrainerPage() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
+          rangeSuggestionText={rangeSuggestionText}
+          onApplyRangeDefaults={applyRangeDefaults}
+          disableApplyRangeDefaults={disableApplyRangeDefaults}
         />
 
         <div style={{ display: 'flex', gap: 8 }}>
