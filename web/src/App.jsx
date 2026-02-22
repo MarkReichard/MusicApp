@@ -4,6 +4,7 @@ import { LessonsPage } from './pages/LessonsPage';
 import { TrainerPage } from './pages/TrainerPage';
 import { SingTrainerPage } from './pages/SingTrainerPage';
 import { PitchLabPage } from './pages/PitchLabPage';
+import { PitchRangePage } from './pages/PitchRangePage';
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
         <nav>
           <NavLink to="/lessons">Lessons</NavLink>
           <NavLink to="/pitch-lab">Mic Settings</NavLink>
+          <NavLink to="/pitch-range">Pitch Range</NavLink>
         </nav>
       </header>
 
@@ -23,6 +25,7 @@ export function App() {
           <Route path="/trainer/:lessonId" element={<TrainerPage />} />
           <Route path="/trainer/:lessonId/sing" element={<SingTrainerPage />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
+          <Route path="/pitch-range" element={<PitchRangePage />} />
         </Routes>
       </main>
     </div>

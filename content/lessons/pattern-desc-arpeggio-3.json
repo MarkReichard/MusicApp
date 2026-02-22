@@ -16,10 +16,7 @@
   "notes": [
     { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 },
     { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
-    { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-    { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-    { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-    { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 }
+    { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 }
   ],
   "exercises": [
     {
@@ -27,18 +24,12 @@
       "notes": [
         { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 },
         { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 }
+        { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 }
       ]
     },
     {
       "id": "set_2",
       "notes": [
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
         { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
         { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 }
@@ -49,18 +40,12 @@
       "notes": [
         { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C6", "midi": 84, "degree": "Do", "durationBeats": 1 }
+        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 }
       ]
     },
     {
       "id": "set_4",
       "notes": [
-        { "pitch": "C6", "midi": 84, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
         { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
         { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 }
@@ -71,10 +56,7 @@
       "notes": [
         { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 },
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 }
+        { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 }
       ]
     },
     {
@@ -82,9 +64,6 @@
       "notes": [
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
         { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
         { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 }
       ]
     },
@@ -93,10 +72,7 @@
       "notes": [
         { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
         { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C6", "midi": 84, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 }
+        { "pitch": "C6", "midi": 84, "degree": "Do", "durationBeats": 1 }
       ]
     },
     {
@@ -104,10 +80,7 @@
       "notes": [
         { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
         { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 }
+        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 }
       ]
     },
     {
@@ -115,10 +88,7 @@
       "notes": [
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
         { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "E4", "midi": 64, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 }
+        { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 }
       ]
     },
     {
@@ -126,17 +96,14 @@
       "notes": [
         { "pitch": "C4", "midi": 60, "degree": "Do", "durationBeats": 1 },
         { "pitch": "G4", "midi": 67, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 },
-        { "pitch": "E5", "midi": 76, "degree": "Mi", "durationBeats": 1 },
-        { "pitch": "G5", "midi": 79, "degree": "Sol", "durationBeats": 1 },
-        { "pitch": "C6", "midi": 84, "degree": "Do", "durationBeats": 1 }
+        { "pitch": "C5", "midi": 72, "degree": "Do", "durationBeats": 1 }
       ]
     }
   ],
   "patternDefinition": {
-    "relativeSemitones": [0, 4, 7, 12, 16, 19],
-    "length": 6
+    "relativeSemitones": [0, 4, 7],
+    "length": 3
   },
   "source": { "kind": "preloaded", "version": "1.0.0" },
-  "updatedAt": "2026-02-17T00:00:00Z"
+  "updatedAt": "2026-02-22T00:00:00Z"
 }
