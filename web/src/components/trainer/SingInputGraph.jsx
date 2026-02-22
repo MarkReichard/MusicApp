@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 const VIEWPORT_SECONDS = 12;
 const TARGET_CURSOR_RATIO = 0.35;
-const TARGET_FRAME_MS = 42;
+const TARGET_FRAME_MS = 16;
 
 export function SingInputGraph({
   settings,
@@ -353,33 +353,28 @@ function decimatePoints(points, maxPoints) {
 }
 
 function interpolateMissingMidi(samples) {
-  return samples.map((sample, index) => {
-    if (Number.isFinite(sample.midi)) {
-      return sample;
-    }
+  if (samples.length < 2) return samples;
 
-    let prevIndex = index - 1;
-    while (prevIndex >= 0 && !Number.isFinite(samples[prevIndex].midi)) {
-      prevIndex -= 1;
-    }
+  const result = [...samples];
+  let lastValidIndex = -1;
 
-    let nextIndex = index + 1;
-    while (nextIndex < samples.length && !Number.isFinite(samples[nextIndex].midi)) {
-      nextIndex += 1;
+  for (let i = 0; i < result.length; i++) {
+    if (Number.isFinite(result[i].midi)) {
+      if (lastValidIndex >= 0 && i > lastValidIndex + 1) {
+        // interpolate from lastValidIndex to i
+        const start = result[lastValidIndex];
+        const end = result[i];
+        const timeDiff = end.timeSec - start.timeSec;
+        for (let j = lastValidIndex + 1; j < i; j++) {
+          const ratio = (result[j].timeSec - start.timeSec) / timeDiff;
+          result[j].midi = start.midi + (end.midi - start.midi) * ratio;
+        }
+      }
+      lastValidIndex = i;
     }
+  }
 
-    if (prevIndex < 0 || nextIndex >= samples.length) {
-      return sample;
-    }
-
-    const prev = samples[prevIndex];
-    const next = samples[nextIndex];
-    const ratio = (sample.timeSec - prev.timeSec) / Math.max(1e-6, next.timeSec - prev.timeSec);
-    return {
-      ...sample,
-      midi: prev.midi + (next.midi - prev.midi) * ratio,
-    };
-  });
+  return result;
 }
 
 function drawRoundedRect(context, x, y, width, height, radius) {
