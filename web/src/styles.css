@@ -10,6 +10,13 @@ a { color: inherit; text-decoration: none; }
 .page-body { max-width: 1180px; margin: 0 auto; padding: 16px; }
 .card { border: 1px solid #334155; border-radius: 12px; background: #111827; }
 .list { display: grid; gap: 10px; }
+.lesson-category-group { display: grid; gap: 10px; }
+.lesson-category-title {
+  margin: 6px 2px 2px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #cbd5e1;
+}
 .lesson-item { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
 .lesson-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .button {
