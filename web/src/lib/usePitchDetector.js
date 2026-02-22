@@ -59,16 +59,20 @@ export function usePitchDetector(settings, enabled) {
   async function start() {
     await stop();
 
+    const fftSize = normalizeFftSize(settings.fftSize);
+    const pollMs = normalizePollMs(settings.pollMs);
+    const averageReadings = normalizeAverageReadings(settings.averageReadings);
+
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
     const context = new AudioContext({ sampleRate: Number(settings.sampleRate) });
     const source = context.createMediaStreamSource(stream);
     const analyser = context.createAnalyser();
-    analyser.fftSize = Number(settings.fftSize);
+    analyser.fftSize = fftSize;
     analyser.smoothingTimeConstant = 0;
     source.connect(analyser);
 
-    const detector = PitchDetector.forFloat32Array(analyser.fftSize);
-    const sampleBuffer = new Float32Array(analyser.fftSize);
+    const detector = PitchDetector.forFloat32Array(fftSize);
+    const sampleBuffer = new Float32Array(fftSize);
 
     resourcesRef.current = {
       context,
@@ -109,7 +113,7 @@ export function usePitchDetector(settings, enabled) {
           detectedHz <= Number(settings.maxFrequencyHz);
 
         if (valid) {
-          resources.averageWindow = [...resources.averageWindow, detectedHz].slice(-Number(settings.averageReadings));
+          resources.averageWindow = [...resources.averageWindow, detectedHz].slice(-averageReadings);
           pitchHz = resources.averageWindow.reduce((sum, value) => sum + value, 0) / resources.averageWindow.length;
           clarity = detectedClarity;
         }
@@ -123,7 +127,7 @@ export function usePitchDetector(settings, enabled) {
         const next = [...previous, { pitchHz, db }];
         return next.length > 220 ? next.slice(next.length - 220) : next;
       });
-    }, Number(settings.pollMs));
+    }, pollMs);
   }
 
   return {
@@ -140,4 +144,47 @@ function midiToNoteLabel(midi) {
   const name = NOTE_NAMES[roundedMidi % 12] ?? 'C';
   const octave = Math.floor(roundedMidi / 12) - 1;
   return `${name}${octave}`;
+}
+
+function normalizeFftSize(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 4096;
+  }
+
+  const rounded = Math.round(numeric);
+  const min = 32;
+  const max = 32768;
+  const clamped = Math.max(min, Math.min(max, rounded));
+
+  let powerOfTwo = 1;
+  while (powerOfTwo < clamped) {
+    powerOfTwo *= 2;
+  }
+
+  const lower = powerOfTwo / 2;
+  if (powerOfTwo > max) {
+    return max;
+  }
+  if (lower < min) {
+    return powerOfTwo;
+  }
+
+  return Math.abs(clamped - lower) <= Math.abs(powerOfTwo - clamped) ? lower : powerOfTwo;
+}
+
+function normalizePollMs(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 50;
+  }
+  return Math.max(10, Math.round(numeric));
+}
+
+function normalizeAverageReadings(value) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return 3;
+  }
+  return Math.max(1, Math.round(numeric));
 }

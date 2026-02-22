@@ -25,8 +25,8 @@ export function PitchLabPage() {
     canvas.height = Math.floor(rect.height * dpr);
     const context = canvas.getContext('2d');
     context?.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawChart(canvas, points, applied.minFrequencyHz, applied.maxFrequencyHz, -70, 0);
-  }, [applied.maxFrequencyHz, applied.minFrequencyHz, points]);
+    drawChart(canvas, points, draft.minFrequencyHz, draft.maxFrequencyHz, -70, 0);
+  }, [draft.maxFrequencyHz, draft.minFrequencyHz, points]);
 
   function update(key, value) {
     setDraft((previous) => ({ ...previous, [key]: Number(value) }));
@@ -73,7 +73,7 @@ export function PitchLabPage() {
           <Stat k="Clarity" v={Number.isFinite(current.clarity) ? current.clarity.toFixed(3) : '-'} />
         </div>
         <div className="card" style={{ padding: 12, marginTop: 12 }}>
-          <canvas ref={canvasRef} />
+          <canvas ref={canvasRef} className="mic-settings-canvas" />
         </div>
       </div>
     </div>
