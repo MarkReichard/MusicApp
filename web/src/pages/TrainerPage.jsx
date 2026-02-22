@@ -3,10 +3,10 @@ import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
+import { MicPitchGraphPanel } from '../components/MicPitchGraphPanel';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
 import { PianoInputMode } from '../components/trainer/PianoInputMode';
-import { SingInputMode } from '../components/trainer/SingInputMode';
 
 const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
 
@@ -286,54 +286,13 @@ export function TrainerPage() {
     registerInput(midi);
   }
 
-  const currentSungMidi = Number.isFinite(current.midi) ? current.midi : null;
-  const graphCenterMidi = Math.round(
-    Number.isFinite(currentSungMidi)
-      ? currentSungMidi
-      : Number.isFinite(expectedMidi)
-        ? expectedMidi
-        : 60,
-  );
-  const visibleHalf = 4;
-  const graphNoteMidis = Array.from({ length: 9 }, (_, idx) => graphCenterMidi + (visibleHalf - idx));
-  const historyMidiPoints = history
-    .map((entry) => {
-      if (!Number.isFinite(entry.pitchHz)) {
-        return null;
-      }
-      const midi = 69 + 12 * Math.log2(entry.pitchHz / 440);
-      return Number.isFinite(midi) ? midi : null;
-    })
-    .filter((value) => value !== null)
-    .slice(-60);
-
   return (
     <div className="trainer-grid">
       <div className="card controls">
-        <h3>{lesson.name}</h3>
-        {lessonExercises.length > 1 ? (
-          <div className="exercise-nav-row">
-            <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small>
-            <div className="exercise-nav-buttons">
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setExercise(exerciseIndex - 1)}
-                disabled={exerciseIndex <= 0}
-              >
-                Previous
-              </button>
-              <button
-                type="button"
-                className="button secondary"
-                onClick={() => setExercise(exerciseIndex + 1)}
-                disabled={exerciseIndex >= lessonExercises.length - 1}
-              >
-                Next
-              </button>
-            </div>
-          </div>
-        ) : null}
+        <div className="lesson-title-row">
+          <h3>{lesson.name}</h3>
+          {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : null}
+        </div>
 
         <TrainerOptionsSection
           optionsOpen={optionsOpen}
@@ -355,15 +314,34 @@ export function TrainerPage() {
         />
 
         <div style={{ display: 'flex', gap: 8 }}>
+          {lessonExercises.length > 1 ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setExercise(exerciseIndex - 1)}
+              disabled={exerciseIndex <= 0}
+            >
+              ⏮
+            </button>
+          ) : null}
           <button className="button" disabled={isPlayingTarget} onClick={() => void playMidiSequence(shiftedLessonNotes)}>
             {isPlayingTarget ? 'Playing…' : '▶'}
           </button>
-          <Link className="button secondary" to="/pitch-lab">Open Mic Settings</Link>
-          <Link className="button secondary" to="/lessons">Back</Link>
+          {lessonExercises.length > 1 ? (
+            <button
+              type="button"
+              className="button secondary"
+              onClick={() => setExercise(exerciseIndex + 1)}
+              disabled={exerciseIndex >= lessonExercises.length - 1}
+            >
+              ⏭
+            </button>
+          ) : null}
+          <Link className="button secondary" to="/lessons">⌂</Link>
         </div>
       </div>
 
-      <div className="card controls">
+      <div className="card controls trainer-input-panel">
         <div className="input-header">
           <h3>Input</h3>
           <div className="input-progress">
@@ -401,13 +379,15 @@ export function TrainerPage() {
         ) : null}
 
         {mode === 'sing' ? (
-          <SingInputMode
-            currentNote={current.note}
-            expectedMidi={expectedMidi}
-            currentSungMidi={currentSungMidi}
-            graphNoteMidis={graphNoteMidis}
-            historyMidiPoints={historyMidiPoints}
-            midiToNoteLabel={midiToNoteLabel}
+          <MicPitchGraphPanel
+            title="Sung Pitch"
+            settings={pitchSettings}
+            externalCurrent={current}
+            externalHistory={history}
+            showHeader={false}
+            showControls={false}
+            showReadouts={false}
+            maxHistoryPoints={220}
           />
         ) : null}
       </div>

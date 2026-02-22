@@ -1,4 +1,5 @@
 import React from 'react';
+import { Link } from 'react-router-dom';
 
 export function TrainerOptionsSection({
   optionsOpen,
@@ -20,9 +21,9 @@ export function TrainerOptionsSection({
 }) {
   return (
     <>
-      <div className="options-accordion card">
+      <div className="trainer-controls-row">
         <button
-          className="accordion-toggle"
+          className="accordion-toggle trainer-options-toggle"
           onClick={onToggleOptions}
           type="button"
         >
@@ -30,7 +31,26 @@ export function TrainerOptionsSection({
           <span>{optionsOpen ? '▾' : '▸'}</span>
         </button>
 
-        {optionsOpen ? (
+        <div className="trainer-inline-field">
+          <label>Input mode</label>
+          <select value={mode} onChange={(event) => onModeChange(event.target.value)}>
+            <option value="piano">Piano</option>
+            <option value="solfege">Solfege</option>
+            <option value="sing">Sing</option>
+          </select>
+        </div>
+
+        {mode === 'sing' ? (
+          <div className="trainer-detected-note">
+            <span>Detected note: </span>
+            <strong>{currentNote}</strong>
+          </div>
+        ) : null}
+
+      </div>
+
+      {optionsOpen ? (
+        <div className="options-accordion card">
           <div className="accordion-content">
             <div className="row">
               <label>Key</label>
@@ -78,23 +98,12 @@ export function TrainerOptionsSection({
                 <option value="no">No</option>
               </select>
             </div>
+
+            <div className="row">
+              <label>Mic settings</label>
+              <Link className="button secondary" to="/pitch-lab">Open Mic Settings</Link>
+            </div>
           </div>
-        ) : null}
-      </div>
-
-      <div className="row">
-        <label>Input mode</label>
-        <select value={mode} onChange={(event) => onModeChange(event.target.value)}>
-          <option value="piano">Piano</option>
-          <option value="solfege">Solfege</option>
-          <option value="sing">Sing</option>
-        </select>
-      </div>
-
-      {mode === 'sing' ? (
-        <div className="stat">
-          <div className="k">Detected note</div>
-          <div className="v">{currentNote}</div>
         </div>
       ) : null}
     </>

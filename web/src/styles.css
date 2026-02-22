@@ -26,6 +26,13 @@ a { color: inherit; text-decoration: none; }
 .button.secondary { background: #334155; }
 .grid { display: grid; gap: 12px; grid-template-columns: 340px 1fr; }
 .controls { padding: 12px; display: grid; gap: 10px; }
+.lesson-title-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 .options-accordion { padding: 0; overflow: hidden; }
 .accordion-toggle {
   width: 100%;
@@ -45,6 +52,45 @@ a { color: inherit; text-decoration: none; }
   padding: 10px;
   display: grid;
   gap: 8px;
+}
+.trainer-controls-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.trainer-options-toggle {
+  width: auto;
+  min-width: 190px;
+  border: 1px solid #334155;
+  border-radius: 8px;
+  padding: 8px 12px;
+}
+
+.trainer-inline-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.trainer-inline-field label {
+  font-size: 13px;
+  color: #cbd5e1;
+}
+
+.trainer-inline-field select {
+  width: 130px;
+}
+
+.trainer-detected-note {
+  font-size: 14px;
+  color: #cbd5e1;
+}
+
+.trainer-detected-note strong {
+  color: #f8fafc;
+  font-weight: 800;
 }
 .row { display: grid; grid-template-columns: 1fr 120px; align-items: center; gap: 8px; }
 .exercise-nav-row {
@@ -69,7 +115,11 @@ input, select { width: 100%; border: 1px solid #475569; border-radius: 8px; back
 .stat .v { margin-top: 4px; font-size: 18px; font-weight: 700; }
 canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 10px; background: #020617; }
 .mic-settings-canvas { height: 560px; }
-.trainer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.trainer-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
+.trainer-input-panel {
+  min-height: 620px;
+  align-content: start;
+}
 .note-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { padding: 4px 8px; border-radius: 999px; border: 1px solid #334155; background: #0b1220; font-size: 12px; }
 .current { border-color: #1d4ed8; }
@@ -79,6 +129,11 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
   gap: 8px;
+}
+
+.trainer-input-panel .solfege-btn {
+  padding: 14px 0;
+  font-size: 15px;
 }
 
 .solfege-btn {
@@ -101,6 +156,10 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   border-radius: 10px;
   background: #0b1220;
   padding: 6px;
+}
+
+.trainer-input-panel .piano-wrap {
+  height: 230px;
 }
 
 .piano-white-row {
@@ -130,6 +189,10 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   border-radius: 0 0 8px 8px;
 }
 
+.trainer-input-panel .piano-key.white {
+  height: 206px;
+}
+
 .piano-key.black {
   position: absolute;
   top: 6px;
@@ -139,6 +202,10 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   color: #f8fafc;
   border-radius: 0 0 6px 6px;
   z-index: 2;
+}
+
+.trainer-input-panel .piano-key.black {
+  height: 124px;
 }
 
 .piano-key.current {
@@ -194,6 +261,14 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
+}
+
+.trainer-input-panel .sing-graph-grid {
+  height: 340px;
+}
+
+.trainer-input-panel .mic-settings-canvas {
+  height: 340px;
 }
 
 .sing-guide-row {

@@ -2,14 +2,19 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { drawChart } from '../lib/drawChart';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
+import { PitchReadouts } from './PitchReadouts';
 
 export function MicPitchGraphPanel({
   title = 'Mic Pitch Graph',
   settings,
   running,
   onRunningChange,
+  externalCurrent,
+  externalHistory,
   autoStart = true,
+  showHeader = true,
   showControls = true,
+  showReadouts = true,
   maxHistoryPoints = 660,
 }) {
   const [internalSettings, setInternalSettings] = useState(() => loadPitchSettings());
@@ -17,14 +22,22 @@ export function MicPitchGraphPanel({
   const effectiveSettings = settings ?? internalSettings;
   const effectiveRunning = typeof running === 'boolean' ? running : internalRunning;
   const setRunningState = onRunningChange ?? setInternalRunning;
+  const usesExternalData = Boolean(externalCurrent || externalHistory);
+  const effectiveShowReadouts = showReadouts && !usesExternalData;
 
-  const { current, history, clearHistory } = usePitchDetector(effectiveSettings, effectiveRunning, { maxHistoryPoints });
+  const { current, history, clearHistory } = usePitchDetector(
+    effectiveSettings,
+    effectiveRunning && !usesExternalData,
+    { maxHistoryPoints },
+  );
+  const effectiveCurrent = externalCurrent ?? current;
+  const effectiveHistory = externalHistory ?? history;
   const canvasRef = useRef(null);
 
   const points = useMemo(() => {
-    const total = history.length || 1;
-    return history.map((entry, index) => ({ ...entry, x: total === 1 ? 0 : index / (total - 1) }));
-  }, [history]);
+    const total = effectiveHistory.length || 1;
+    return effectiveHistory.map((entry, index) => ({ ...entry, x: total === 1 ? 0 : index / (total - 1) }));
+  }, [effectiveHistory]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -42,6 +55,10 @@ export function MicPitchGraphPanel({
   }, [effectiveSettings.maxFrequencyHz, effectiveSettings.minFrequencyHz, points]);
 
   useEffect(() => {
+    if (usesExternalData) {
+      return undefined;
+    }
+
     function handleStorage() {
       if (!settings) {
         setInternalSettings(loadPitchSettings());
@@ -53,7 +70,7 @@ export function MicPitchGraphPanel({
     return () => {
       window.removeEventListener('storage', handleStorage);
     };
-  }, [clearHistory, settings]);
+  }, [clearHistory, settings, usesExternalData]);
 
   function refreshFromSavedSettings() {
     if (!settings) {
@@ -64,40 +81,29 @@ export function MicPitchGraphPanel({
 
   return (
     <div>
-      <div className="card controls">
-        <h3>{title}</h3>
-        {showControls ? (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="button" onClick={() => setRunningState((value) => !value)}>
-              {effectiveRunning ? 'Stop' : 'Start'}
-            </button>
-            <button className="button secondary" onClick={refreshFromSavedSettings}>
-              Reload Saved Settings
-            </button>
-          </div>
-        ) : null}
-      </div>
+      {showHeader ? (
+        <div className="card controls">
+          <h3>{title}</h3>
+          {showControls ? (
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              <button className="button" onClick={() => setRunningState((value) => !value)}>
+                {effectiveRunning ? 'Stop' : 'Start'}
+              </button>
+              {!usesExternalData ? (
+                <button className="button secondary" onClick={refreshFromSavedSettings}>
+                  Reload Saved Settings
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      ) : null}
 
-      <div className="card readouts" style={{ marginTop: 12 }}>
-        <Stat k="Pitch Hz" v={current.pitchHz ? current.pitchHz.toFixed(2) : '-'} />
-        <Stat k="MIDI" v={current.midi ? current.midi.toFixed(2) : '-'} />
-        <Stat k="Note" v={current.note} />
-        <Stat k="dB" v={Number.isFinite(current.db) ? current.db.toFixed(1) : '-'} />
-        <Stat k="Clarity" v={Number.isFinite(current.clarity) ? current.clarity.toFixed(3) : '-'} />
-      </div>
+      {effectiveShowReadouts ? <PitchReadouts current={effectiveCurrent} style={{ marginTop: 12 }} /> : null}
 
       <div className="card" style={{ padding: 12, marginTop: 12 }}>
         <canvas ref={canvasRef} className="mic-settings-canvas" />
       </div>
-    </div>
-  );
-}
-
-function Stat({ k, v }) {
-  return (
-    <div className="stat">
-      <div className="k">{k}</div>
-      <div className="v">{v}</div>
     </div>
   );
 }
