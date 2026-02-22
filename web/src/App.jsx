@@ -2,6 +2,7 @@ import React from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { LessonsPage } from './pages/LessonsPage';
 import { TrainerPage } from './pages/TrainerPage';
+import { SingTrainerPage } from './pages/SingTrainerPage';
 import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchGraphTestPage } from './pages/PitchGraphTestPage';
 
@@ -22,6 +23,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/lessons" replace />} />
           <Route path="/lessons" element={<LessonsPage />} />
           <Route path="/trainer/:lessonId" element={<TrainerPage />} />
+          <Route path="/trainer/:lessonId/sing" element={<SingTrainerPage />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/pitch-graph-test" element={<PitchGraphTestPage />} />
         </Routes>

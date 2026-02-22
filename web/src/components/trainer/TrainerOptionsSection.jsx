@@ -15,9 +15,6 @@ export function TrainerOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
-  mode,
-  onModeChange,
-  currentNote,
 }) {
   return (
     <>
@@ -32,30 +29,13 @@ export function TrainerOptionsSection({
           <span>Training Options</span>
           <span>{optionsOpen ? '▾' : '▸'}</span>
         </button>
-
-        <div className="trainer-inline-field">
-          <label>Input mode</label>
-          <select value={mode} onChange={(event) => onModeChange(event.target.value)}>
-            <option value="piano">Piano</option>
-            <option value="solfege">Solfege</option>
-            <option value="sing">Sing</option>
-          </select>
-        </div>
-
-        {mode === 'sing' ? (
-          <div className="trainer-detected-note">
-            <span>Detected note: </span>
-            <strong>{currentNote}</strong>
-          </div>
-        ) : null}
-
       </div>
 
       {optionsOpen ? (
         <div className="options-accordion card">
           <div className="accordion-content">
             <div className="row">
-              <label>Key</label>
+              <span>Key</span>
               <select value={selectedKey} onChange={(event) => onSelectedKeyChange(event.target.value)}>
                 {allowedKeys.map((key) => (
                   <option key={key} value={key}>{key}</option>
@@ -64,7 +44,7 @@ export function TrainerOptionsSection({
             </div>
 
             <div className="row">
-              <label>Tempo (BPM)</label>
+              <span>Tempo (BPM)</span>
               <input
                 type="number"
                 min={tempoRange.min}
@@ -82,7 +62,7 @@ export function TrainerOptionsSection({
             </div>
 
             <div className="row">
-              <label>Singing octave</label>
+              <span>Singing octave</span>
               <select value={singOctave} onChange={(event) => onSingOctaveChange(Number(event.target.value))}>
                 {allowedOctaves.map((octave) => (
                   <option key={octave} value={octave}>Oct {octave}</option>
@@ -91,7 +71,7 @@ export function TrainerOptionsSection({
             </div>
 
             <div className="row">
-              <label>Play I-IV-V-IV first</label>
+              <span>Play I-IV-V-IV first</span>
               <select
                 value={playTonicCadence ? 'yes' : 'no'}
                 onChange={(event) => onPlayTonicCadenceChange(event.target.value === 'yes')}
@@ -102,7 +82,7 @@ export function TrainerOptionsSection({
             </div>
 
             <div className="row">
-              <label>Mic settings</label>
+              <span>Mic settings</span>
               <Link
                 className="button secondary"
                 to="/pitch-lab"

@@ -10,24 +10,39 @@ const SOLFEGE_BUTTONS = [
   { label: 'Ti', semitone: 11 },
 ];
 
+const OCTAVE_OFFSETS = [-1, 0, 1];
+
 export function SolfegeInputMode({ singOctave, onInputPress, onInputRelease }) {
+  const noteButtons = OCTAVE_OFFSETS.flatMap((octaveOffset) => {
+    const octave = singOctave + octaveOffset;
+    return SOLFEGE_BUTTONS.map((button) => ({
+      ...button,
+      octave,
+      midi: 12 * (octave + 1) + button.semitone,
+    }));
+  });
+
   return (
-    <div className="solfege-grid">
-      {SOLFEGE_BUTTONS.map((button) => {
-        const midi = 12 * (singOctave + 1) + button.semitone;
+    <div className="solfege-scroll">
+      <div className="solfege-grid">
+        {noteButtons.map((button) => {
+          const noteLabel = `${button.label}${button.octave}`;
         return (
           <button
-            key={button.label}
+            key={`${button.label}-${button.octave}`}
             className="solfege-btn"
-            onPointerDown={() => onInputPress(midi)}
-            onPointerUp={() => onInputRelease(midi)}
-            onPointerLeave={() => onInputRelease(midi)}
-            onPointerCancel={() => onInputRelease(midi)}
+            title={noteLabel}
+            aria-label={noteLabel}
+            onPointerDown={() => onInputPress(button.midi)}
+            onPointerUp={() => onInputRelease(button.midi)}
+            onPointerLeave={() => onInputRelease(button.midi)}
+            onPointerCancel={() => onInputRelease(button.midi)}
           >
-            {button.label}
+            {noteLabel}
           </button>
         );
       })}
+      </div>
     </div>
   );
 }

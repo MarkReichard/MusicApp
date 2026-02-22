@@ -11,6 +11,7 @@ a { color: inherit; text-decoration: none; }
 .card { border: 1px solid #334155; border-radius: 12px; background: #111827; }
 .list { display: grid; gap: 10px; }
 .lesson-item { padding: 12px; display: flex; justify-content: space-between; align-items: center; }
+.lesson-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
 .button {
   border: 1px solid #334155;
   background: #1d4ed8;
@@ -38,6 +39,28 @@ a { color: inherit; text-decoration: none; }
   justify-content: space-between;
   gap: 10px;
   flex-wrap: wrap;
+}
+.lesson-title-right {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.trainer-mode-radios {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.trainer-mode-radios label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #cbd5e1;
+}
+.trainer-mode-radios input {
+  width: auto;
+  margin: 0;
 }
 .options-accordion { padding: 0; overflow: hidden; }
 .accordion-toggle {
@@ -131,15 +154,25 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
 .current { border-color: #1d4ed8; }
 .correct { border-color: #16a34a; color: #86efac; }
 
+.solfege-scroll {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid #334155;
+  border-radius: 10px;
+  background: #0b1220;
+  padding: 6px;
+}
+
 .solfege-grid {
   display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
+  grid-template-columns: repeat(21, minmax(56px, 56px));
   gap: 8px;
+  width: max-content;
 }
 
 .trainer-input-panel .solfege-btn {
-  padding: 14px 0;
-  font-size: 15px;
+  padding: 8px 0;
+  font-size: 13px;
 }
 
 .solfege-btn {

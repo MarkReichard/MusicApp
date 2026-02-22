@@ -1,17 +1,17 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
+import { loadPitchSettings } from '../lib/pitchSettings';
+import { usePitchDetector } from '../lib/usePitchDetector';
+import { MicPitchGraphPanel } from '../components/MicPitchGraphPanel';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
-import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
-import { PianoInputMode } from '../components/trainer/PianoInputMode';
 
 const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
 
-export function TrainerPage() {
+export function SingTrainerPage() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
-  const [mode, setMode] = useState('piano');
   const [selectedKey, setSelectedKey] = useState(lesson?.defaultKey ?? 'C');
   const [tempoBpm, setTempoBpm] = useState(lesson?.defaultTempoBpm ?? 90);
   const [playTonicCadence, setPlayTonicCadence] = useState(true);
@@ -21,8 +21,9 @@ export function TrainerPage() {
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
-  const inputAudioContextRef = useRef(null);
-  const activeInputTonesRef = useRef({});
+
+  const pitchSettings = useMemo(() => loadPitchSettings(), []);
+  const { current, history } = usePitchDetector(pitchSettings, true);
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
   const tempoRange = lesson.tempoRange ?? { min: 50, max: 180 };
@@ -159,7 +160,6 @@ export function TrainerPage() {
       : lesson.defaultOctave ?? 4;
     setSingOctave(nextOctave);
 
-    setMode('piano');
     setIndex(0);
     setCorrectIndices([]);
     setExerciseIndex(0);
@@ -169,105 +169,16 @@ export function TrainerPage() {
     saveStoredSingOctave(singOctave);
   }, [singOctave]);
 
-  const pianoKeys = useMemo(() => {
-    const startMidi = 12 * singOctave;
-    return Array.from({ length: 36 }, (_, offset) => {
-      const midi = startMidi + offset;
-      const pitchClass = midi % 12;
-      const noteName = NOTE_NAMES[pitchClass];
-      return {
-        midi,
-        noteName,
-        isBlack: noteName.includes('#'),
-      };
-    });
-  }, [singOctave]);
-
-  const whiteKeys = pianoKeys.filter((key) => !key.isBlack);
-  const blackKeys = pianoKeys
-    .map((key, keyIndex) => ({ ...key, keyIndex }))
-    .filter((key) => key.isBlack)
-    .map((key) => {
-      const whiteBefore = pianoKeys.slice(0, key.keyIndex).filter((candidate) => !candidate.isBlack).length;
-      return {
-        ...key,
-        left: whiteBefore * 44 - 13,
-      };
-    });
-
   useEffect(() => {
-    return () => {
-      Object.values(activeInputTonesRef.current).forEach((tone) => {
-        try {
-          tone.gain.gain.cancelScheduledValues(tone.context.currentTime);
-          tone.gain.gain.setTargetAtTime(0.0001, tone.context.currentTime, 0.02);
-          tone.oscillator.stop(tone.context.currentTime + 0.08);
-        } catch {
-          // ignore
-        }
-      });
-      activeInputTonesRef.current = {};
-
-      if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close().catch(() => undefined);
-        inputAudioContextRef.current = null;
-      }
-    };
-  }, []);
-
-  async function startInputTone(midi) {
-    if (activeInputTonesRef.current[midi]) {
+    if (!Number.isFinite(current.midi) || expectedMidi === null) {
       return;
     }
 
-    const frequency = midiToFrequencyHz(midi);
-    if (!Number.isFinite(frequency)) {
-      return;
+    const rounded = Math.round(current.midi);
+    if (rounded === expectedMidi) {
+      registerInput(rounded);
     }
-
-    const context = inputAudioContextRef.current ?? new AudioContext();
-    if (!inputAudioContextRef.current) {
-      inputAudioContextRef.current = context;
-    }
-
-    if (context.state === 'suspended') {
-      await context.resume();
-    }
-
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(frequency, now);
-
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.14, now + 0.015);
-
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-
-    activeInputTonesRef.current[midi] = { oscillator, gain, context };
-  }
-
-  function stopInputTone(midi) {
-    const tone = activeInputTonesRef.current[midi];
-    if (!tone) {
-      return;
-    }
-
-    const stopAt = tone.context.currentTime;
-    tone.gain.gain.cancelScheduledValues(stopAt);
-    tone.gain.gain.setTargetAtTime(0.0001, stopAt, 0.02);
-    tone.oscillator.stop(stopAt + 0.08);
-
-    delete activeInputTonesRef.current[midi];
-  }
-
-  function handleInputPress(midi) {
-    void startInputTone(midi);
-    registerInput(midi);
-  }
+  }, [current.midi, expectedMidi]);
 
   if (!lesson) {
     return (
@@ -282,32 +193,13 @@ export function TrainerPage() {
     <div className="trainer-grid">
       <div className="card controls">
         <div className="lesson-title-row">
-          <h3>{lesson.name}</h3>
-          <div className="lesson-title-right">
-            {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : null}
-            <div className="trainer-mode-radios" role="radiogroup" aria-label="Input mode">
-              <label>
-                <input
-                  type="radio"
-                  name="trainer-mode"
-                  value="piano"
-                  checked={mode === 'piano'}
-                  onChange={() => setMode('piano')}
-                />
-                Piano
-              </label>
-              <label>
-                <input
-                  type="radio"
-                  name="trainer-mode"
-                  value="solfege"
-                  checked={mode === 'solfege'}
-                  onChange={() => setMode('solfege')}
-                />
-                Solfege
-              </label>
-            </div>
-          </div>
+          <h3>{lesson.name} · Sing</h3>
+          {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : null}
+        </div>
+
+        <div className="trainer-detected-note">
+          <span>Detected note: </span>
+          <strong>{current.note}</strong>
         </div>
 
         <TrainerOptionsSection
@@ -400,23 +292,16 @@ export function TrainerPage() {
           </div>
         </div>
 
-        {mode === 'solfege' ? (
-          <SolfegeInputMode
-            singOctave={singOctave}
-            onInputPress={handleInputPress}
-            onInputRelease={stopInputTone}
-          />
-        ) : null}
-
-        {mode === 'piano' ? (
-          <PianoInputMode
-            whiteKeys={whiteKeys}
-            blackKeys={blackKeys}
-            onInputPress={handleInputPress}
-            onInputRelease={stopInputTone}
-            midiToNoteLabel={midiToNoteLabel}
-          />
-        ) : null}
+        <MicPitchGraphPanel
+          title="Sung Pitch"
+          settings={pitchSettings}
+          externalCurrent={current}
+          externalHistory={history}
+          showHeader={false}
+          showControls={false}
+          showReadouts={false}
+          maxHistoryPoints={220}
+        />
       </div>
     </div>
   );
@@ -449,14 +334,6 @@ function keyToSemitone(key) {
 
 function midiToFrequencyHz(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function midiToNoteLabel(midi) {
-  if (!Number.isFinite(midi)) return '-';
-  const roundedMidi = Math.round(midi);
-  const name = NOTE_NAMES[roundedMidi % 12] ?? 'C';
-  const octave = Math.floor(roundedMidi / 12) - 1;
-  return `${name}${octave}`;
 }
 
 function loadStoredSingOctave(fallback) {
