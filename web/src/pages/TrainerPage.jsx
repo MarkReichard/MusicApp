@@ -3,18 +3,12 @@ import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
+import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
+import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
+import { PianoInputMode } from '../components/trainer/PianoInputMode';
+import { SingInputMode } from '../components/trainer/SingInputMode';
 
 const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
-
-const SOLFEGE_BUTTONS = [
-  { label: 'Do', semitone: 0 },
-  { label: 'Re', semitone: 2 },
-  { label: 'Mi', semitone: 4 },
-  { label: 'Fa', semitone: 5 },
-  { label: 'Sol', semitone: 7 },
-  { label: 'La', semitone: 9 },
-  { label: 'Ti', semitone: 11 },
-];
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -30,7 +24,6 @@ export function TrainerPage() {
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
-  const [autoplayKey, setAutoplayKey] = useState(null);
   const inputAudioContextRef = useRef(null);
   const activeInputTonesRef = useRef({});
 
@@ -83,7 +76,6 @@ export function TrainerPage() {
     setExerciseIndex(clamped);
     setIndex(0);
     setCorrectIndices([]);
-    setAutoplayKey(null);
   }
 
   async function playMidiSequence(notes) {
@@ -176,7 +168,6 @@ export function TrainerPage() {
 
     setIndex(0);
     setCorrectIndices([]);
-    setAutoplayKey(null);
     setExerciseIndex(0);
   }, [lesson.id]);
 
@@ -194,16 +185,6 @@ export function TrainerPage() {
       registerInput(rounded);
     }
   }, [current.midi, expectedMidi, mode]);
-
-  useEffect(() => {
-    const nextAutoplayKey = `${lesson.id}:${exerciseIndex}:${selectedKey}:${tempoBpm}:${singOctave}:${playTonicCadence}`;
-    if (autoplayKey === nextAutoplayKey) {
-      return;
-    }
-
-    setAutoplayKey(nextAutoplayKey);
-    void playMidiSequence(shiftedLessonNotes);
-  }, [autoplayKey, exerciseIndex, lesson.id, playTonicCadence, selectedKey, singOctave, tempoBpm]);
 
   const pianoKeys = useMemo(() => {
     const startMidi = 12 * (singOctave + 1);
@@ -300,6 +281,11 @@ export function TrainerPage() {
     delete activeInputTonesRef.current[midi];
   }
 
+  function handleInputPress(midi) {
+    void startInputTone(midi);
+    registerInput(midi);
+  }
+
   const currentSungMidi = Number.isFinite(current.midi) ? current.midi : null;
   const graphCenterMidi = Math.round(
     Number.isFinite(currentSungMidi)
@@ -349,89 +335,29 @@ export function TrainerPage() {
           </div>
         ) : null}
 
-        <div className="options-accordion card">
-          <button
-            className="accordion-toggle"
-            onClick={() => setOptionsOpen((open) => !open)}
-            type="button"
-          >
-            <span>Training Options</span>
-            <span>{optionsOpen ? '▾' : '▸'}</span>
-          </button>
-
-          {optionsOpen ? (
-            <div className="accordion-content">
-              <div className="row">
-                <label>Key</label>
-                <select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)}>
-                  {allowedKeys.map((key) => (
-                    <option key={key} value={key}>{key}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="row">
-                <label>Tempo (BPM)</label>
-                <input
-                  type="number"
-                  min={tempoRange.min}
-                  max={tempoRange.max}
-                  value={tempoBpm}
-                  onChange={(event) => {
-                    const next = Number(event.target.value);
-                    if (!Number.isFinite(next)) {
-                      return;
-                    }
-                    const clamped = Math.max(tempoRange.min, Math.min(tempoRange.max, Math.round(next)));
-                    setTempoBpm(clamped);
-                  }}
-                />
-              </div>
-
-              <div className="row">
-                <label>Singing octave</label>
-                <select value={singOctave} onChange={(event) => setSingOctave(Number(event.target.value))}>
-                  {allowedOctaves.map((octave) => (
-                    <option key={octave} value={octave}>Oct {octave}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="row">
-                <label>Play I-IV-V-IV first</label>
-                <select
-                  value={playTonicCadence ? 'yes' : 'no'}
-                  onChange={(event) => setPlayTonicCadence(event.target.value === 'yes')}
-                >
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-            </div>
-          ) : null}
-        </div>
-
-        <div className="row">
-          <label>Input mode</label>
-          <select value={mode} onChange={(event) => setMode(event.target.value)}>
-            <option value="piano">Piano</option>
-            <option value="solfege">Solfege</option>
-            <option value="sing">Sing</option>
-          </select>
-        </div>
-
-        {mode === 'sing' ? (
-          <div className="stat">
-            <div className="k">Detected note</div>
-            <div className="v">{current.note}</div>
-          </div>
-        ) : null}
+        <TrainerOptionsSection
+          optionsOpen={optionsOpen}
+          onToggleOptions={() => setOptionsOpen((open) => !open)}
+          allowedKeys={allowedKeys}
+          selectedKey={selectedKey}
+          onSelectedKeyChange={setSelectedKey}
+          tempoRange={tempoRange}
+          tempoBpm={tempoBpm}
+          onTempoBpmChange={setTempoBpm}
+          allowedOctaves={allowedOctaves}
+          singOctave={singOctave}
+          onSingOctaveChange={setSingOctave}
+          playTonicCadence={playTonicCadence}
+          onPlayTonicCadenceChange={setPlayTonicCadence}
+          mode={mode}
+          onModeChange={setMode}
+          currentNote={current.note}
+        />
 
         <div style={{ display: 'flex', gap: 8 }}>
           <button className="button" disabled={isPlayingTarget} onClick={() => void playMidiSequence(shiftedLessonNotes)}>
-            {isPlayingTarget ? 'Playing…' : 'Replay Target Tones'}
+            {isPlayingTarget ? 'Playing…' : '▶'}
           </button>
-          <button className="button secondary" onClick={() => { setIndex(0); setCorrectIndices([]); }}>Reset</button>
           <Link className="button secondary" to="/pitch-lab">Open Mic Settings</Link>
           <Link className="button secondary" to="/lessons">Back</Link>
         </div>
@@ -457,105 +383,33 @@ export function TrainerPage() {
           </div>
         </div>
         {mode === 'solfege' ? (
-          <div className="solfege-grid">
-            {SOLFEGE_BUTTONS.map((button) => {
-              const midi = 12 * (singOctave + 1) + button.semitone;
-              return (
-                <button
-                  key={button.label}
-                  className="solfege-btn"
-                  onPointerDown={() => {
-                    void startInputTone(midi);
-                    registerInput(midi);
-                  }}
-                  onPointerUp={() => stopInputTone(midi)}
-                  onPointerLeave={() => stopInputTone(midi)}
-                  onPointerCancel={() => stopInputTone(midi)}
-                >
-                  {button.label}
-                </button>
-              );
-            })}
-          </div>
+          <SolfegeInputMode
+            singOctave={singOctave}
+            onInputPress={handleInputPress}
+            onInputRelease={stopInputTone}
+          />
         ) : null}
 
         {mode === 'piano' ? (
-          <div className="piano-wrap">
-            <div className="piano-white-row">
-              {whiteKeys.map((key) => (
-                <button
-                  key={key.midi}
-                  className="piano-key white"
-                  onPointerDown={() => {
-                    void startInputTone(key.midi);
-                    registerInput(key.midi);
-                  }}
-                  onPointerUp={() => stopInputTone(key.midi)}
-                  onPointerLeave={() => stopInputTone(key.midi)}
-                  onPointerCancel={() => stopInputTone(key.midi)}
-                >
-                  {midiToNoteLabel(key.midi)}
-                </button>
-              ))}
-            </div>
-            {blackKeys.map((key) => (
-              <button
-                key={key.midi}
-                className="piano-key black"
-                style={{ left: `${key.left}px` }}
-                onPointerDown={() => {
-                  void startInputTone(key.midi);
-                  registerInput(key.midi);
-                }}
-                onPointerUp={() => stopInputTone(key.midi)}
-                onPointerLeave={() => stopInputTone(key.midi)}
-                onPointerCancel={() => stopInputTone(key.midi)}
-              >
-                {midiToNoteLabel(key.midi)}
-              </button>
-            ))}
-          </div>
+          <PianoInputMode
+            whiteKeys={whiteKeys}
+            blackKeys={blackKeys}
+            onInputPress={handleInputPress}
+            onInputRelease={stopInputTone}
+            midiToNoteLabel={midiToNoteLabel}
+          />
         ) : null}
 
         {mode === 'sing' ? (
-          <div className="sing-graph card">
-            <div className="sing-graph-head">
-              <strong>Sung Pitch</strong>
-              <span>{current.note}</span>
-            </div>
-
-            <div className="sing-graph-grid">
-              {graphNoteMidis.map((midi) => {
-                const isExpected = Math.round(expectedMidi ?? -999) === midi;
-                const isCurrent = Math.round(currentSungMidi ?? -999) === midi;
-                return (
-                  <div key={`guide-${midi}`} className="sing-guide-row">
-                    <span className={`sing-note-label ${isExpected ? 'expected' : ''} ${isCurrent ? 'current' : ''}`}>
-                      {midiToNoteLabel(midi)}
-                    </span>
-                    <div className="sing-guide-line" />
-                  </div>
-                );
-              })}
-
-              <div className="sing-history-overlay">
-                {historyMidiPoints.map((midi, pointIdx) => {
-                  const left = historyMidiPoints.length <= 1 ? 0 : (pointIdx / (historyMidiPoints.length - 1)) * 100;
-                  const top = ((graphNoteMidis[0] + 0.5 - midi) / 9) * 100;
-                  return (
-                    <span
-                      key={`pt-${pointIdx}`}
-                      className="sing-history-point"
-                      style={{ left: `${left}%`, top: `${Math.max(0, Math.min(100, top))}%` }}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          </div>
+          <SingInputMode
+            currentNote={current.note}
+            expectedMidi={expectedMidi}
+            currentSungMidi={currentSungMidi}
+            graphNoteMidis={graphNoteMidis}
+            historyMidiPoints={historyMidiPoints}
+            midiToNoteLabel={midiToNoteLabel}
+          />
         ) : null}
-
-        {mode === 'sing' ? <small>Sing the expected note. Pitch settings come from Mic Settings (local storage).</small> : null}
       </div>
     </div>
   );
