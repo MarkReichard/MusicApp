@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { PitchDetector } from 'pitchy';
 
-export function usePitchDetector(settings, enabled) {
+export function usePitchDetector(settings, enabled, options = {}) {
   const [current, setCurrent] = useState({
     pitchHz: null,
     midi: null,
@@ -124,8 +124,11 @@ export function usePitchDetector(settings, enabled) {
 
       setCurrent({ pitchHz, midi, note, db, clarity });
       setHistory((previous) => {
+        const maxHistoryPoints = Number.isFinite(options.maxHistoryPoints)
+          ? Math.max(20, Math.round(options.maxHistoryPoints))
+          : 220;
         const next = [...previous, { pitchHz, db }];
-        return next.length > 220 ? next.slice(next.length - 220) : next;
+        return next.length > maxHistoryPoints ? next.slice(next.length - maxHistoryPoints) : next;
       });
     }, pollMs);
   }
