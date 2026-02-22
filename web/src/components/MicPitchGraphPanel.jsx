@@ -5,11 +5,20 @@ import { usePitchDetector } from '../lib/usePitchDetector';
 
 export function MicPitchGraphPanel({
   title = 'Mic Pitch Graph',
+  settings,
+  running,
+  onRunningChange,
   autoStart = true,
+  showControls = true,
+  maxHistoryPoints = 660,
 }) {
-  const [settings, setSettings] = useState(loadPitchSettings());
-  const [running, setRunning] = useState(autoStart);
-  const { current, history, clearHistory } = usePitchDetector(settings, running, { maxHistoryPoints: 660 });
+  const [internalSettings, setInternalSettings] = useState(() => loadPitchSettings());
+  const [internalRunning, setInternalRunning] = useState(autoStart);
+  const effectiveSettings = settings ?? internalSettings;
+  const effectiveRunning = typeof running === 'boolean' ? running : internalRunning;
+  const setRunningState = onRunningChange ?? setInternalRunning;
+
+  const { current, history, clearHistory } = usePitchDetector(effectiveSettings, effectiveRunning, { maxHistoryPoints });
   const canvasRef = useRef(null);
 
   const points = useMemo(() => {
@@ -29,12 +38,14 @@ export function MicPitchGraphPanel({
     const context = canvas.getContext('2d');
     context?.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-    drawChart(canvas, points, settings.minFrequencyHz, settings.maxFrequencyHz, -70, 0);
-  }, [points, settings.maxFrequencyHz, settings.minFrequencyHz]);
+    drawChart(canvas, points, effectiveSettings.minFrequencyHz, effectiveSettings.maxFrequencyHz, -70, 0);
+  }, [effectiveSettings.maxFrequencyHz, effectiveSettings.minFrequencyHz, points]);
 
   useEffect(() => {
     function handleStorage() {
-      setSettings(loadPitchSettings());
+      if (!settings) {
+        setInternalSettings(loadPitchSettings());
+      }
       clearHistory();
     }
 
@@ -42,10 +53,12 @@ export function MicPitchGraphPanel({
     return () => {
       window.removeEventListener('storage', handleStorage);
     };
-  }, [clearHistory]);
+  }, [clearHistory, settings]);
 
   function refreshFromSavedSettings() {
-    setSettings(loadPitchSettings());
+    if (!settings) {
+      setInternalSettings(loadPitchSettings());
+    }
     clearHistory();
   }
 
@@ -53,14 +66,16 @@ export function MicPitchGraphPanel({
     <div>
       <div className="card controls">
         <h3>{title}</h3>
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-          <button className="button" onClick={() => setRunning((value) => !value)}>
-            {running ? 'Stop' : 'Start'}
-          </button>
-          <button className="button secondary" onClick={refreshFromSavedSettings}>
-            Reload Saved Settings
-          </button>
-        </div>
+        {showControls ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="button" onClick={() => setRunningState((value) => !value)}>
+              {effectiveRunning ? 'Stop' : 'Start'}
+            </button>
+            <button className="button secondary" onClick={refreshFromSavedSettings}>
+              Reload Saved Settings
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <div className="card readouts" style={{ marginTop: 12 }}>

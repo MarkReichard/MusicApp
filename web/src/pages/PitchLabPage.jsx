@@ -1,48 +1,22 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { drawChart } from '../lib/drawChart';
+import React, { useState } from 'react';
+import { MicPitchGraphPanel } from '../components/MicPitchGraphPanel';
 import { defaultPitchSettings, loadPitchSettings, savePitchSettings } from '../lib/pitchSettings';
-import { usePitchDetector } from '../lib/usePitchDetector';
 
 export function PitchLabPage() {
   const [draft, setDraft] = useState(loadPitchSettings());
-  const [applied, setApplied] = useState(loadPitchSettings());
   const [running, setRunning] = useState(false);
-
-  const { current, history, clearHistory } = usePitchDetector(applied, running);
-  const canvasRef = useRef(null);
-
-  const points = useMemo(() => {
-    const total = history.length || 1;
-    return history.map((entry, index) => ({ ...entry, x: total === 1 ? 0 : index / (total - 1) }));
-  }, [history]);
-
-  useEffect(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.floor(rect.width * dpr);
-    canvas.height = Math.floor(rect.height * dpr);
-    const context = canvas.getContext('2d');
-    context?.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawChart(canvas, points, draft.minFrequencyHz, draft.maxFrequencyHz, -70, 0);
-  }, [draft.maxFrequencyHz, draft.minFrequencyHz, points]);
 
   function update(key, value) {
     setDraft((previous) => ({ ...previous, [key]: Number(value) }));
   }
 
   function apply() {
-    setApplied(draft);
     savePitchSettings(draft);
-    clearHistory();
   }
 
   function reset() {
     setDraft(defaultPitchSettings);
-    setApplied(defaultPitchSettings);
     savePitchSettings(defaultPitchSettings);
-    clearHistory();
   }
 
   return (
@@ -65,16 +39,14 @@ export function PitchLabPage() {
       </div>
 
       <div>
-        <div className="card readouts">
-          <Stat k="Pitch Hz" v={current.pitchHz ? current.pitchHz.toFixed(2) : '-'} />
-          <Stat k="MIDI" v={current.midi ? current.midi.toFixed(2) : '-'} />
-          <Stat k="Note" v={current.note} />
-          <Stat k="dB" v={Number.isFinite(current.db) ? current.db.toFixed(1) : '-'} />
-          <Stat k="Clarity" v={Number.isFinite(current.clarity) ? current.clarity.toFixed(3) : '-'} />
-        </div>
-        <div className="card" style={{ padding: 12, marginTop: 12 }}>
-          <canvas ref={canvasRef} className="mic-settings-canvas" />
-        </div>
+        <MicPitchGraphPanel
+          title="Mic Pitch Graph"
+          settings={draft}
+          running={running}
+          onRunningChange={setRunning}
+          showControls={false}
+          maxHistoryPoints={220}
+        />
       </div>
     </div>
   );
@@ -89,11 +61,3 @@ function Field({ label, value, onChange, step = '1' }) {
   );
 }
 
-function Stat({ k, v }) {
-  return (
-    <div className="stat">
-      <div className="k">{k}</div>
-      <div className="v">{v}</div>
-    </div>
-  );
-}
