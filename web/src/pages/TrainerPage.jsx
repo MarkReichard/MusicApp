@@ -1,21 +1,21 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
+import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
 import { PianoInputMode } from '../components/trainer/PianoInputMode';
-
-const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
   const [mode, setMode] = useState('piano');
-  const [selectedKey, setSelectedKey] = useState(lesson?.defaultKey ?? 'C');
-  const [tempoBpm, setTempoBpm] = useState(lesson?.defaultTempoBpm ?? 90);
-  const [playTonicCadence, setPlayTonicCadence] = useState(true);
-  const [singOctave, setSingOctave] = useState(loadStoredSingOctave(lesson?.defaultOctave ?? 4));
+  const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
+  const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
+  const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
+  const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [index, setIndex] = useState(0);
@@ -25,7 +25,7 @@ export function TrainerPage() {
   const activeInputTonesRef = useRef({});
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
-  const tempoRange = lesson.tempoRange ?? { min: 50, max: 180 };
+  const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
   const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? 4];
   const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
   const octaveShift = (singOctave - lesson.defaultOctave) * 12;
@@ -150,14 +150,12 @@ export function TrainerPage() {
       return;
     }
 
-    setSelectedKey(lesson.defaultKey ?? 'C');
-    setTempoBpm(lesson.defaultTempoBpm ?? 90);
+    const persistedOptions = getTrainerOptionsForLesson(lesson);
 
-    const storedOctave = loadStoredSingOctave(lesson.defaultOctave ?? 4);
-    const nextOctave = (lesson.allowedOctaves ?? []).includes(storedOctave)
-      ? storedOctave
-      : lesson.defaultOctave ?? 4;
-    setSingOctave(nextOctave);
+    setSelectedKey(persistedOptions.selectedKey);
+    setTempoBpm(persistedOptions.tempoBpm);
+    setPlayTonicCadence(persistedOptions.playTonicCadence);
+    setSingOctave(persistedOptions.singOctave);
 
     setMode('piano');
     setIndex(0);
@@ -166,8 +164,17 @@ export function TrainerPage() {
   }, [lesson]);
 
   useEffect(() => {
-    saveStoredSingOctave(singOctave);
-  }, [singOctave]);
+    if (!lesson) {
+      return;
+    }
+
+    saveTrainerOptionsSettings({
+      selectedKey,
+      tempoBpm,
+      playTonicCadence,
+      singOctave,
+    });
+  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm]);
 
   const pianoKeys = useMemo(() => {
     const startMidi = 12 * singOctave;
@@ -294,7 +301,8 @@ export function TrainerPage() {
                   checked={mode === 'piano'}
                   onChange={() => setMode('piano')}
                 />
-                Piano
+                {' '}
+                <span>Piano</span>
               </label>
               <label>
                 <input
@@ -304,7 +312,8 @@ export function TrainerPage() {
                   checked={mode === 'solfege'}
                   onChange={() => setMode('solfege')}
                 />
-                Solfege
+                {' '}
+                <span>Solfege</span>
               </label>
             </div>
           </div>
@@ -457,27 +466,6 @@ function midiToNoteLabel(midi) {
   const name = NOTE_NAMES[roundedMidi % 12] ?? 'C';
   const octave = Math.floor(roundedMidi / 12) - 1;
   return `${name}${octave}`;
-}
-
-function loadStoredSingOctave(fallback) {
-  try {
-    const raw = globalThis.localStorage.getItem(TRAINER_SING_OCTAVE_KEY);
-    if (!raw) {
-      return fallback;
-    }
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveStoredSingOctave(value) {
-  try {
-    globalThis.localStorage.setItem(TRAINER_SING_OCTAVE_KEY, String(value));
-  } catch {
-    // ignore storage failures in private/incognito modes
-  }
 }
 
 function normalizeLessonExercises(lesson) {

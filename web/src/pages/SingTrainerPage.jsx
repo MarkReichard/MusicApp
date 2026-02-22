@@ -2,36 +2,38 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
+import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
 import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 
-const TRAINER_SING_OCTAVE_KEY = 'musicapp.web.trainer.singOctave.v1';
 const SING_COUNTDOWN_BEATS = 2;
 
 export function SingTrainerPage() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
-  const [selectedKey, setSelectedKey] = useState(lesson?.defaultKey ?? 'C');
-  const [tempoBpm, setTempoBpm] = useState(lesson?.defaultTempoBpm ?? 90);
-  const [playTonicCadence, setPlayTonicCadence] = useState(true);
-  const [singOctave, setSingOctave] = useState(loadStoredSingOctave(lesson?.defaultOctave ?? 4));
+  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
+  const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
+  const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
+  const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
+  const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
-  const [toleranceCents, setToleranceCents] = useState(25);
+  const [toleranceCents, setToleranceCents] = useState(initialOptions.toleranceCents);
   const [session, setSession] = useState(null);
-  const [nowMs, setNowMs] = useState(() => performance.now());
+  const [barResults, setBarResults] = useState({});
   const evaluatedBarsRef = useRef(new Set());
+  const historyRef = useRef([]);
 
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const { current, history } = usePitchDetector(pitchSettings, true);
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
-  const tempoRange = lesson.tempoRange ?? { min: 50, max: 180 };
+  const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
   const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? 4];
   const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
   const octaveShift = (singOctave - lesson.defaultOctave) * 12;
@@ -57,6 +59,7 @@ export function SingTrainerPage() {
     setIndex(0);
     setCorrectIndices([]);
     setSession(null);
+    setBarResults({});
     evaluatedBarsRef.current = new Set();
   }
 
@@ -64,6 +67,7 @@ export function SingTrainerPage() {
     setIndex(0);
     setCorrectIndices([]);
     setSession(null);
+    setBarResults({});
     evaluatedBarsRef.current = new Set();
   }
 
@@ -85,9 +89,11 @@ export function SingTrainerPage() {
     evaluatedBarsRef.current = new Set();
     setIndex(0);
     setCorrectIndices([]);
+    setBarResults({});
     setSession({
       startMs,
       singStartSec: timeline.singStartSec,
+      stopScrollSec: timeline.stopScrollSec,
       playedBars: timeline.playedBars,
       expectedBars: timeline.expectedBars,
     });
@@ -170,78 +176,85 @@ export function SingTrainerPage() {
       return;
     }
 
-    setSelectedKey(lesson.defaultKey ?? 'C');
-    setTempoBpm(lesson.defaultTempoBpm ?? 90);
+    const persistedOptions = getTrainerOptionsForLesson(lesson);
 
-    const storedOctave = loadStoredSingOctave(lesson.defaultOctave ?? 4);
-    const nextOctave = (lesson.allowedOctaves ?? []).includes(storedOctave)
-      ? storedOctave
-      : lesson.defaultOctave ?? 4;
-    setSingOctave(nextOctave);
+    setSelectedKey(persistedOptions.selectedKey);
+    setTempoBpm(persistedOptions.tempoBpm);
+    setPlayTonicCadence(persistedOptions.playTonicCadence);
+    setSingOctave(persistedOptions.singOctave);
+    setToleranceCents(persistedOptions.toleranceCents);
 
     setIndex(0);
     setCorrectIndices([]);
     setExerciseIndex(0);
     setSession(null);
+    setBarResults({});
     evaluatedBarsRef.current = new Set();
   }, [lesson]);
 
   useEffect(() => {
-    saveStoredSingOctave(singOctave);
-  }, [singOctave]);
-
-  useEffect(() => {
-    let frameId = 0;
-    const tick = () => {
-      setNowMs(performance.now());
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, []);
-
-  const barResults = useMemo(() => {
-    if (!session?.expectedBars?.length) {
-      return {};
+    if (!lesson) {
+      return;
     }
 
-    return session.expectedBars.reduce((results, bar) => {
-      const matched = isBarMatched({
-        bar,
-        history,
-        sessionStartMs: session.startMs,
-        toleranceCents,
-      });
-      results[bar.id] = matched;
-      return results;
-    }, {});
-  }, [history, session, toleranceCents]);
+    saveTrainerOptionsSettings({
+      selectedKey,
+      tempoBpm,
+      playTonicCadence,
+      singOctave,
+      toleranceCents,
+    });
+  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, toleranceCents]);
+
+  useEffect(() => {
+    historyRef.current = history;
+  }, [history]);
 
   useEffect(() => {
     if (!session?.expectedBars?.length) {
       return;
     }
 
-    const elapsedSec = (nowMs - session.startMs) / 1000;
-    if (!Number.isFinite(elapsedSec) || elapsedSec < 0) {
-      return;
-    }
-
-    session.expectedBars.forEach((bar) => {
-      if (elapsedSec < bar.endSec || evaluatedBarsRef.current.has(bar.id)) {
+    const timerId = globalThis.setInterval(() => {
+      const elapsedSec = (performance.now() - session.startMs) / 1000;
+      if (!Number.isFinite(elapsedSec) || elapsedSec < 0) {
         return;
       }
 
-      evaluatedBarsRef.current.add(bar.id);
-      const matched = barResults[bar.id];
+      for (const bar of session.expectedBars) {
+        if (elapsedSec < bar.endSec || evaluatedBarsRef.current.has(bar.id)) {
+          continue;
+        }
 
-      if (matched) {
-        setCorrectIndices((previous) => (previous.includes(bar.index) ? previous : [...previous, bar.index]));
+        evaluatedBarsRef.current.add(bar.id);
+        const matched = isBarMatched({
+          bar,
+          history: historyRef.current,
+          sessionStartMs: session.startMs,
+          toleranceCents,
+        });
+
+        setBarResults((previous) => {
+          if (previous[bar.id] === matched) {
+            return previous;
+          }
+          return { ...previous, [bar.id]: matched };
+        });
+
+        applyBarEvaluation({
+          bar,
+          matched,
+          activeNotesLength: activeNotes.length,
+          setCorrectIndices,
+          setIndex,
+        });
       }
+    }, 60);
 
-      setIndex(Math.min(bar.index + 1, Math.max(0, activeNotes.length - 1)));
-    });
-  }, [activeNotes.length, barResults, nowMs, session]);
+    return () => {
+      globalThis.clearInterval(timerId);
+    };
+  }, [activeNotes.length, session, toleranceCents]);
 
   if (!lesson) {
     return (
@@ -412,8 +425,9 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
     cursor += noteDurationSeconds + gapSeconds;
   });
 
-  const singStartSec = cursor + beatSeconds * countdownBeats;
-  let singCursor = singStartSec;
+  const singStartSec = cursor;
+  const expectedStartSec = singStartSec + beatSeconds * countdownBeats;
+  let singCursor = expectedStartSec;
 
   notes.forEach((note, noteIndex) => {
     const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
@@ -429,7 +443,7 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
   });
 
   const lastExpectedEndSec = expectedBars.length
-    ? expectedBars[expectedBars.length - 1].endSec
+    ? expectedBars.at(-1).endSec
     : singStartSec;
   const stopScrollSec = lastExpectedEndSec + beatSeconds * 2;
 
@@ -456,6 +470,17 @@ function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
   const averageMidi = midiValues.reduce((sum, midi) => sum + midi, 0) / midiValues.length;
   const centsDiff = Math.abs((averageMidi - bar.midi) * 100);
   return centsDiff <= toleranceCents;
+}
+
+function applyBarEvaluation({ bar, matched, activeNotesLength, setCorrectIndices, setIndex }) {
+  if (matched) {
+    setCorrectIndices((previous) => (previous.includes(bar.index) ? previous : [...previous, bar.index]));
+  }
+
+  setIndex((previous) => {
+    const nextIndex = Math.min(bar.index + 1, Math.max(0, activeNotesLength - 1));
+    return previous === nextIndex ? previous : nextIndex;
+  });
 }
 
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
@@ -485,27 +510,6 @@ function keyToSemitone(key) {
 
 function midiToFrequencyHz(midi) {
   return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function loadStoredSingOctave(fallback) {
-  try {
-    const raw = globalThis.localStorage.getItem(TRAINER_SING_OCTAVE_KEY);
-    if (!raw) {
-      return fallback;
-    }
-    const value = Number(raw);
-    return Number.isFinite(value) ? value : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function saveStoredSingOctave(value) {
-  try {
-    globalThis.localStorage.setItem(TRAINER_SING_OCTAVE_KEY, String(value));
-  } catch {
-    // ignore storage failures in private/incognito modes
-  }
 }
 
 function normalizeLessonExercises(lesson) {

@@ -1,8 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import PropTypes from 'prop-types';
 
 const VIEWPORT_SECONDS = 12;
-const TARGET_CURSOR_RATIO = 0.75;
+const TARGET_CURSOR_RATIO = 0.35;
+const TARGET_FRAME_MS = 33;
 
 export function SingInputGraph({
   settings,
@@ -15,28 +16,30 @@ export function SingInputGraph({
   barResults = {},
 }) {
   const canvasRef = useRef(null);
-  const [nowMs, setNowMs] = useState(() => performance.now());
+  const frozenStateRef = useRef(null);
+  const latestRef = useRef({
+    history,
+    sessionStartMs,
+    singStartSec,
+    stopScrollSec,
+    playedBars,
+    expectedBars,
+    barResults,
+  });
+
+  latestRef.current = {
+    history,
+    sessionStartMs,
+    singStartSec,
+    stopScrollSec,
+    playedBars,
+    expectedBars,
+    barResults,
+  };
 
   useEffect(() => {
-    let frameId = 0;
-    const tick = () => {
-      setNowMs(performance.now());
-      frameId = requestAnimationFrame(tick);
-    };
-    frameId = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frameId);
-  }, []);
-
-  const nowSec = useMemo(() => {
-    if (!Number.isFinite(sessionStartMs)) {
-      return 0;
-    }
-    const elapsedSec = Math.max(0, (nowMs - sessionStartMs) / 1000);
-    if (!Number.isFinite(stopScrollSec)) {
-      return elapsedSec;
-    }
-    return Math.min(elapsedSec, stopScrollSec);
-  }, [nowMs, sessionStartMs, stopScrollSec]);
+    frozenStateRef.current = null;
+  }, [sessionStartMs]);
 
   const { minMidi, maxMidi } = useMemo(() => {
     const minFrequencyHz = Number(settings?.minFrequencyHz) || 80;
@@ -52,35 +55,77 @@ export function SingInputGraph({
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) {
-      return;
+      return undefined;
     }
-
-    const dpr = window.devicePixelRatio || 1;
-    const rect = canvas.getBoundingClientRect();
-    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
-    canvas.height = Math.max(1, Math.floor(rect.height * dpr));
 
     const context = canvas.getContext('2d');
     if (!context) {
-      return;
+      return undefined;
     }
 
-    context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    drawTimeline({
-      context,
-      width: rect.width,
-      height: rect.height,
-      minMidi,
-      maxMidi,
-      nowSec,
-      singStartSec,
-      playedBars,
-      expectedBars,
-      barResults,
-      history,
-      sessionStartMs,
-    });
-  }, [barResults, expectedBars, history, maxMidi, minMidi, nowSec, playedBars, sessionStartMs, singStartSec]);
+    let frameId = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    let lastDpr = 0;
+    let lastRenderTime = 0;
+
+    const renderFrame = (timestamp) => {
+      if (timestamp - lastRenderTime < TARGET_FRAME_MS) {
+        frameId = requestAnimationFrame(renderFrame);
+        return;
+      }
+      lastRenderTime = timestamp;
+
+      const dpr = globalThis.devicePixelRatio || 1;
+      const rectWidth = canvas.clientWidth;
+      const rectHeight = canvas.clientHeight;
+
+      if (rectWidth !== lastWidth || rectHeight !== lastHeight || dpr !== lastDpr) {
+        lastWidth = rectWidth;
+        lastHeight = rectHeight;
+        lastDpr = dpr;
+        canvas.width = Math.max(1, Math.floor(rectWidth * dpr));
+        canvas.height = Math.max(1, Math.floor(rectHeight * dpr));
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+      }
+
+      const latest = latestRef.current;
+      const liveNowSec = getNowSec(latest.sessionStartMs, latest.stopScrollSec);
+
+      if (!frozenStateRef.current && Number.isFinite(latest.stopScrollSec) && liveNowSec >= latest.stopScrollSec) {
+        frozenStateRef.current = {
+          nowSec: latest.stopScrollSec,
+          history: latest.history.slice(),
+          barResults: { ...latest.barResults },
+        };
+      }
+
+      const frozen = frozenStateRef.current;
+      const nowSec = frozen ? frozen.nowSec : liveNowSec;
+      const renderHistory = frozen ? frozen.history : latest.history;
+      const renderBarResults = frozen ? frozen.barResults : latest.barResults;
+
+      drawTimeline({
+        context,
+        width: rectWidth,
+        height: rectHeight,
+        minMidi,
+        maxMidi,
+        nowSec,
+        singStartSec: latest.singStartSec,
+        playedBars: latest.playedBars,
+        expectedBars: latest.expectedBars,
+        barResults: renderBarResults,
+        history: renderHistory,
+        sessionStartMs: latest.sessionStartMs,
+      });
+
+      frameId = requestAnimationFrame(renderFrame);
+    };
+
+    frameId = requestAnimationFrame(renderFrame);
+    return () => cancelAnimationFrame(frameId);
+  }, [maxMidi, minMidi]);
 
   return (
     <div className="card" style={{ padding: 12, marginTop: 12 }}>
@@ -231,17 +276,22 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
     return;
   }
 
-  const samples = history
-    .map((entry) => {
-      if (!Number.isFinite(entry.timeMs)) {
-        return null;
-      }
-      return {
-        timeSec: (entry.timeMs - sessionStartMs) / 1000,
-        midi: Number.isFinite(entry.midi) ? entry.midi : null,
-      };
-    })
-    .filter((entry) => entry && entry.timeSec >= singStartSec && entry.timeSec >= xStartSec && entry.timeSec <= xEndSec);
+  const samples = [];
+  for (const entry of history) {
+    if (!Number.isFinite(entry.timeMs)) {
+      continue;
+    }
+
+    const timeSec = (entry.timeMs - sessionStartMs) / 1000;
+    if (timeSec < singStartSec || timeSec < xStartSec || timeSec > xEndSec) {
+      continue;
+    }
+
+    samples.push({
+      timeSec,
+      midi: Number.isFinite(entry.midi) ? entry.midi : null,
+    });
+  }
 
   if (!samples.length) {
     return;
@@ -252,13 +302,15 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
     return;
   }
 
+  const decimated = decimatePoints(interpolated, 160);
+
   context.strokeStyle = '#22d3ee';
   context.lineWidth = 4;
   context.lineJoin = 'round';
   context.lineCap = 'round';
   context.beginPath();
 
-  interpolated.forEach((point, index) => {
+  decimated.forEach((point, index) => {
     if (!Number.isFinite(point.midi)) {
       return;
     }
@@ -272,6 +324,25 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
   });
 
   context.stroke();
+}
+
+function decimatePoints(points, maxPoints) {
+  if (points.length <= maxPoints) {
+    return points;
+  }
+
+  const step = Math.ceil(points.length / maxPoints);
+  const result = [];
+  for (let index = 0; index < points.length; index += step) {
+    result.push(points[index]);
+  }
+
+  const lastPoint = points[points.length - 1];
+  if (result[result.length - 1] !== lastPoint) {
+    result.push(lastPoint);
+  }
+
+  return result;
 }
 
 function interpolateMissingMidi(samples) {
@@ -324,6 +395,19 @@ function frequencyToMidi(frequency) {
     return 0;
   }
   return 69 + (12 * Math.log(frequency / 440)) / Math.log(2);
+}
+
+function getNowSec(sessionStartMs, stopScrollSec) {
+  if (!Number.isFinite(sessionStartMs)) {
+    return 0;
+  }
+
+  const elapsedSec = Math.max(0, (performance.now() - sessionStartMs) / 1000);
+  if (!Number.isFinite(stopScrollSec)) {
+    return elapsedSec;
+  }
+
+  return Math.min(elapsedSec, stopScrollSec);
 }
 
 SingInputGraph.propTypes = {
