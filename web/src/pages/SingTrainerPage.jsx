@@ -9,7 +9,7 @@ import { usePitchDetector } from '../lib/usePitchDetector';
 import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
 
-const SING_COUNTDOWN_BEATS = 2;
+const SING_COUNTDOWN_BEATS = 1;
 
 export function SingTrainerPage() {
   const { lessonId } = useParams();

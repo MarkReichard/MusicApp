@@ -1,7 +1,7 @@
 {
   "id": "song_will_the_circle_be_unbroken",
   "name": "Will The Circle Be Unbroken",
-  "category": "folk_songs",
+  "category": "imported_scores",
   "type": "song",
   "difficulty": "intermediate",
   "tags": [
@@ -35,14 +35,10 @@
     4,
     5
   ],
-  "source": {
-    "kind": "preloaded",
-    "version": "1.0.0"
-  },
-  "updatedAt": "2026-02-22T21:45:02.260Z",
+  "notes": [],
   "exercises": [
     {
-      "id": "set_1",
+      "id": "ex_1",
       "notes": [
         {
           "type": "note",
@@ -71,7 +67,12 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_2",
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -99,19 +100,19 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        }
-      ]
-    },
-    {
-      "id": "set_2",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
           "durationBeats": 2
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_3",
+      "notes": [
         {
           "type": "note",
           "pitch": "F#4",
@@ -146,7 +147,12 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_4",
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -160,19 +166,19 @@
           "midi": 59,
           "degree": "La",
           "durationBeats": 2
-        }
-      ]
-    },
-    {
-      "id": "set_3",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "A3",
           "midi": 57,
           "degree": "Sol",
           "durationBeats": 4
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_5",
+      "notes": [
         {
           "type": "note",
           "pitch": "A3",
@@ -207,7 +213,12 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_6",
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -221,12 +232,7 @@
           "midi": 66,
           "degree": "Mi",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "set_4",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "A4",
@@ -247,7 +253,12 @@
           "midi": 66,
           "degree": "Mi",
           "durationBeats": 2
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_7",
+      "notes": [
         {
           "type": "note",
           "pitch": "F#4",
@@ -286,7 +297,7 @@
       ]
     },
     {
-      "id": "set_5",
+      "id": "ex_8",
       "notes": [
         {
           "type": "note",
@@ -315,7 +326,12 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 4
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_9",
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -347,7 +363,7 @@
       ]
     },
     {
-      "id": "set_6",
+      "id": "ex_10",
       "notes": [
         {
           "type": "note",
@@ -365,5 +381,10 @@
         }
       ]
     }
-  ]
+  ],
+  "source": {
+    "kind": "preloaded",
+    "version": "1.0.0"
+  },
+  "updatedAt": "2026-02-23T18:59:17.735Z"
 }

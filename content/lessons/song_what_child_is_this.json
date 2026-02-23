@@ -1,7 +1,7 @@
 {
   "id": "song_what_child_is_this",
   "name": "What Child is This",
-  "category": "christmas_songs",
+  "category": "imported_scores",
   "type": "song",
   "difficulty": "intermediate",
   "tags": [
@@ -35,14 +35,10 @@
     4,
     5
   ],
-  "source": {
-    "kind": "preloaded",
-    "version": "1.0.0"
-  },
-  "updatedAt": "2026-02-22T21:45:02.112Z",
+  "notes": [],
   "exercises": [
     {
-      "id": "set_1",
+      "id": "ex_1",
       "notes": [
         {
           "type": "rest",
@@ -93,7 +89,12 @@
           "midi": 74,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_2",
+      "notes": [
         {
           "type": "note",
           "pitch": "C5",
@@ -121,12 +122,7 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "set_2",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "A4",
@@ -168,7 +164,12 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_3",
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -210,12 +211,7 @@
           "midi": 72,
           "degree": "Do",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "set_3",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "D5",
@@ -236,7 +232,12 @@
           "midi": 74,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_4",
+      "notes": [
         {
           "type": "note",
           "pitch": "C5",
@@ -299,12 +300,7 @@
           "midi": 66,
           "degree": "Fa",
           "durationBeats": 1.5
-        }
-      ]
-    },
-    {
-      "id": "set_4",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "E4",
@@ -318,7 +314,12 @@
           "midi": 66,
           "degree": "Fa",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_5",
+      "notes": [
         {
           "type": "note",
           "pitch": "G4",
@@ -360,7 +361,12 @@
           "midi": 74,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_6",
+      "notes": [
         {
           "type": "note",
           "pitch": "C5",
@@ -388,12 +394,7 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "set_5",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "A4",
@@ -435,7 +436,12 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_7",
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -477,19 +483,19 @@
           "midi": 76,
           "degree": "Mi",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "set_6",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "D5",
           "midi": 74,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_8",
+      "notes": [
         {
           "type": "note",
           "pitch": "C5",
@@ -570,7 +576,7 @@
       ]
     },
     {
-      "id": "set_7",
+      "id": "ex_9",
       "notes": [
         {
           "type": "note",
@@ -600,7 +606,12 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_10",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -649,12 +660,7 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "set_8",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "F4",
@@ -675,7 +681,12 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_11",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -742,7 +753,7 @@
       ]
     },
     {
-      "id": "set_9",
+      "id": "ex_12",
       "notes": [
         {
           "type": "note",
@@ -813,7 +824,12 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_13",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -827,12 +843,7 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "set_10",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "G4",
@@ -874,7 +885,12 @@
           "midi": 67,
           "degree": "Sol",
           "durationBeats": 3
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_14",
+      "notes": [
         {
           "type": "note",
           "pitch": "F5",
@@ -916,12 +932,7 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "set_11",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "F4",
@@ -942,7 +953,12 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_15",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -998,19 +1014,19 @@
           "midi": 62,
           "degree": "Re",
           "durationBeats": 3
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_16",
+      "notes": [
         {
           "type": "note",
           "pitch": "F5",
           "midi": 77,
           "degree": "Fa",
           "durationBeats": 3
-        }
-      ]
-    },
-    {
-      "id": "set_12",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "F5",
@@ -1066,7 +1082,12 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_17",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -1094,12 +1115,7 @@
           "midi": 66,
           "degree": "Fa",
           "durationBeats": 1.5
-        }
-      ]
-    },
-    {
-      "id": "set_13",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "E4",
@@ -1141,7 +1157,12 @@
           "midi": 69,
           "degree": "La",
           "durationBeats": 0.5
-        },
+        }
+      ]
+    },
+    {
+      "id": "ex_18",
+      "notes": [
         {
           "type": "note",
           "pitch": "A#4",
@@ -1186,5 +1207,10 @@
         }
       ]
     }
-  ]
+  ],
+  "source": {
+    "kind": "preloaded",
+    "version": "1.0.0"
+  },
+  "updatedAt": "2026-02-23T18:59:17.725Z"
 }

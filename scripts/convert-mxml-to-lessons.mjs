@@ -76,7 +76,9 @@ function firstPart(score) {
   return score?.['score-partwise']?.part ?? score?.['score-timewise']?.part;
 }
 
-function parseScoreToLesson(scoreXml, filePath, defaults) {
+
+// Returns a single lesson object with an exercises array, each exercise is two measures
+function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '',
@@ -108,75 +110,81 @@ function parseScoreToLesson(scoreXml, filePath, defaults) {
   let beatType = 4;
   let selectedVoice = null;
 
-  const notes = [];
-
-  for (const measure of measures) {
-    const attrs = measure?.attributes;
-    if (attrs) {
-      divisions = maybeNumber(attrs?.divisions, divisions);
-      keyFifths = maybeNumber(attrs?.key?.fifths, keyFifths);
-      keyMode = attrs?.key?.mode ?? keyMode;
-      beatsPerMeasure = maybeNumber(attrs?.time?.beats, beatsPerMeasure);
-      beatType = maybeNumber(attrs?.time?.['beat-type'], beatType);
-    }
-
-    const direction = asArray(measure?.direction)[0];
-    const dirTempo = direction?.sound?.tempo ?? direction?.['direction-type']?.metronome?.['per-minute'];
-    detectedTempo = maybeNumber(dirTempo, detectedTempo);
-
-    for (const note of asArray(measure?.note)) {
-      if (note?.grace !== undefined) {
-        continue;
+  // Split measures into chunks of 2, each becomes an exercise
+  const exercises = [];
+  for (let i = 0; i < measures.length; i += 2) {
+    const lessonMeasures = measures.slice(i, i + 2);
+    const notes = [];
+    for (const measure of lessonMeasures) {
+      const attrs = measure?.attributes;
+      if (attrs) {
+        divisions = maybeNumber(attrs?.divisions, divisions);
+        keyFifths = maybeNumber(attrs?.key?.fifths, keyFifths);
+        keyMode = attrs?.key?.mode ?? keyMode;
+        beatsPerMeasure = maybeNumber(attrs?.time?.beats, beatsPerMeasure);
+        beatType = maybeNumber(attrs?.time?.['beat-type'], beatType);
       }
 
-      const voice = note?.voice;
-      if (selectedVoice === null && voice !== undefined) {
-        selectedVoice = String(voice);
-      }
-      if (selectedVoice !== null && voice !== undefined && String(voice) !== selectedVoice) {
-        continue;
-      }
+      const direction = asArray(measure?.direction)[0];
+      const dirTempo = direction?.sound?.tempo ?? direction?.['direction-type']?.metronome?.['per-minute'];
+      detectedTempo = maybeNumber(dirTempo, detectedTempo);
 
-      if (note?.chord !== undefined) {
-        continue;
-      }
+      for (const note of asArray(measure?.note)) {
+        if (note?.grace !== undefined) {
+          continue;
+        }
 
-      const durationDivisions = maybeNumber(note?.duration, 0);
-      if (durationDivisions <= 0) {
-        continue;
-      }
+        const voice = note?.voice;
+        if (selectedVoice === null && voice !== undefined) {
+          selectedVoice = String(voice);
+        }
+        if (selectedVoice !== null && voice !== undefined && String(voice) !== selectedVoice) {
+          continue;
+        }
 
-      const durationBeats = Number((durationDivisions / Math.max(1, divisions)).toFixed(4));
-      if (note?.rest !== undefined) {
+        if (note?.chord !== undefined) {
+          continue;
+        }
+
+        const durationDivisions = maybeNumber(note?.duration, 0);
+        if (durationDivisions <= 0) {
+          continue;
+        }
+
+        const durationBeats = Number((durationDivisions / Math.max(1, divisions)).toFixed(4));
+        if (note?.rest !== undefined) {
+          notes.push({
+            type: 'rest',
+            durationBeats,
+          });
+          continue;
+        }
+
+        const step = note?.pitch?.step;
+        const alter = maybeNumber(note?.pitch?.alter, 0);
+        const octave = maybeNumber(note?.pitch?.octave, defaults.defaultOctave);
+        const midi = midiFromPitch(step, alter, octave);
+        if (!Number.isFinite(midi)) {
+          continue;
+        }
+
+        const pitchName = `${PITCH_CLASS_BY_SEMITONE[((midi % 12) + 12) % 12]}${octave}`;
+        const keyRoot = keyRootFromFifths(keyFifths, keyMode);
         notes.push({
-          type: 'rest',
+          type: 'note',
+          pitch: pitchName,
+          midi,
+          degree: degreeFromMidi(midi, keyRoot),
           durationBeats,
         });
-        continue;
       }
-
-      const step = note?.pitch?.step;
-      const alter = maybeNumber(note?.pitch?.alter, 0);
-      const octave = maybeNumber(note?.pitch?.octave, defaults.defaultOctave);
-      const midi = midiFromPitch(step, alter, octave);
-      if (!Number.isFinite(midi)) {
-        continue;
-      }
-
-      const pitchName = `${PITCH_CLASS_BY_SEMITONE[((midi % 12) + 12) % 12]}${octave}`;
-      const keyRoot = keyRootFromFifths(keyFifths, keyMode);
-      notes.push({
-        type: 'note',
-        pitch: pitchName,
-        midi,
-        degree: degreeFromMidi(midi, keyRoot),
-        durationBeats,
+    }
+    if (notes.length) {
+      exercises.push({
+        id: `ex_${i / 2 + 1}`,
+        notes
       });
     }
-  }
-
-  if (!notes.length) {
-    throw new Error('No convertible notes/rests found in score');
   }
 
   const rawId = sanitizeId(scoreTitle);
@@ -199,7 +207,8 @@ function parseScoreToLesson(scoreXml, filePath, defaults) {
     chunkSizeRange: defaults.chunkSizeRange,
     defaultOctave: defaults.defaultOctave,
     allowedOctaves: defaults.allowedOctaves,
-    notes,
+    notes: [],
+    exercises,
     source: {
       kind: 'preloaded',
       version: defaults.version,
@@ -305,14 +314,14 @@ function main() {
   fs.mkdirSync(args.outputDir, { recursive: true });
 
   const results = [];
+
   for (const filePath of files) {
     const xml = parseXmlFromFile(filePath);
-    const lesson = parseScoreToLesson(xml, filePath, args);
-
+    const lesson = parseScoreToLessonWithExercises(xml, filePath, args);
     const outputName = `${lesson.id}.json`;
     const outputPath = path.join(args.outputDir, outputName);
     fs.writeFileSync(outputPath, `${JSON.stringify(lesson, null, 2)}\n`, 'utf8');
-    results.push({ input: filePath, output: outputPath, notes: lesson.notes.length });
+    results.push({ input: filePath, output: outputPath, exercises: lesson.exercises.length });
   }
 
   console.log(`Converted ${results.length} file(s):`);
