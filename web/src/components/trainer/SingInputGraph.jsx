@@ -68,6 +68,7 @@ export function SingInputGraph({
     let lastHeight = 0;
     let lastDpr = 0;
     let lastRenderTime = 0;
+    let gridCanvas = null;
 
     const renderFrame = (timestamp) => {
       if (timestamp - lastRenderTime < TARGET_FRAME_MS) {
@@ -87,6 +88,15 @@ export function SingInputGraph({
         canvas.width = Math.max(1, Math.floor(rectWidth * dpr));
         canvas.height = Math.max(1, Math.floor(rectHeight * dpr));
         context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        // Rebuild offscreen grid cache
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const gc = offscreen.getContext('2d');
+        gc.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrid(gc, rectWidth, rectHeight, minMidi, maxMidi);
+        gridCanvas = offscreen;
       }
 
       const latest = latestRef.current;
@@ -111,6 +121,7 @@ export function SingInputGraph({
         height: rectHeight,
         minMidi,
         maxMidi,
+        gridCanvas,
         nowSec,
         singStartSec: latest.singStartSec,
         playedBars: latest.playedBars,
@@ -147,6 +158,7 @@ function drawTimeline({
   height,
   minMidi,
   maxMidi,
+  gridCanvas,
   nowSec,
   singStartSec,
   playedBars,
@@ -156,8 +168,14 @@ function drawTimeline({
   sessionStartMs,
 }) {
   context.clearRect(0, 0, width, height);
-  context.fillStyle = '#020617';
-  context.fillRect(0, 0, width, height);
+
+  // Composite the cached grid instead of redrawing every line
+  if (gridCanvas) {
+    context.drawImage(gridCanvas, 0, 0, width, height);
+  } else {
+    context.fillStyle = '#020617';
+    context.fillRect(0, 0, width, height);
+  }
 
   const xStartSec = Math.max(0, nowSec - VIEWPORT_SECONDS * TARGET_CURSOR_RATIO);
   const xEndSec = xStartSec + VIEWPORT_SECONDS;
@@ -167,16 +185,6 @@ function drawTimeline({
     const ratio = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
     return height - ratio * height;
   };
-
-  for (let midi = minMidi; midi <= maxMidi; midi += 1) {
-    const y = toY(midi);
-    context.strokeStyle = midi % 12 === 0 ? '#334155' : '#1e293b';
-    context.lineWidth = midi % 12 === 0 ? 1.2 : 0.7;
-    context.beginPath();
-    context.moveTo(0, y);
-    context.lineTo(width, y);
-    context.stroke();
-  }
 
   drawBars(context, playedBars, {
     toX,
@@ -224,6 +232,21 @@ function drawTimeline({
   context.moveTo(nowX, 0);
   context.lineTo(nowX, height);
   context.stroke();
+}
+
+function drawGrid(context, width, height, minMidi, maxMidi) {
+  context.fillStyle = '#020617';
+  context.fillRect(0, 0, width, height);
+  const midiRange = Math.max(1, maxMidi - minMidi);
+  for (let midi = minMidi; midi <= maxMidi; midi += 1) {
+    const y = height - ((midi - minMidi) / midiRange) * height;
+    context.strokeStyle = midi % 12 === 0 ? '#334155' : '#1e293b';
+    context.lineWidth = midi % 12 === 0 ? 1.2 : 0.7;
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
 }
 
 function drawBars(context, bars, { toX, toY, xStartSec, xEndSec, fillStyle, strokeStyle }) {
