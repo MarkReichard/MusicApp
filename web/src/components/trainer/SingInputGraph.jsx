@@ -3,7 +3,7 @@ import PropTypes from 'prop-types';
 
 const VIEWPORT_SECONDS = 12;
 const TARGET_CURSOR_RATIO = 0.35;
-const TARGET_FRAME_MS = 16;
+const TARGET_FRAME_MS = 33;
 
 export function SingInputGraph({
   settings,
