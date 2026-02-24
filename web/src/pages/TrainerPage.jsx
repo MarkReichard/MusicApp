@@ -48,7 +48,6 @@ export function TrainerPage() {
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [isPlayingCadence, setIsPlayingCadence] = useState(false);
-  const inputAudioContextRef = useRef(null);
   const activeInputTonesRef = useRef({});
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
@@ -263,15 +262,10 @@ export function TrainerPage() {
         stopHeldTone(tone);
       });
       activeInputTonesRef.current = {};
-
-      if (inputAudioContextRef.current) {
-        inputAudioContextRef.current.close().catch(() => undefined);
-        inputAudioContextRef.current = null;
-      }
     };
   }, []);
 
-  async function startInputTone(midi) {
+  function startInputTone(midi) {
     if (activeInputTonesRef.current[midi]) {
       return;
     }
@@ -281,16 +275,7 @@ export function TrainerPage() {
       return;
     }
 
-    const context = inputAudioContextRef.current ?? new AudioContext();
-    if (!inputAudioContextRef.current) {
-      inputAudioContextRef.current = context;
-    }
-
-    if (context.state === 'suspended') {
-      await context.resume();
-    }
-
-    activeInputTonesRef.current[midi] = startHeldPianoTone(context, frequency, INPUT_TONE_GAIN);
+    activeInputTonesRef.current[midi] = startHeldPianoTone(frequency, INPUT_TONE_GAIN);
   }
 
   function stopInputTone(midi) {
@@ -304,7 +289,7 @@ export function TrainerPage() {
   }
 
   function handleInputPress(midi) {
-    void startInputTone(midi);
+    startInputTone(midi);
     registerInput(midi);
   }
 

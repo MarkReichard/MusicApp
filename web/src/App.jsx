@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { loadPiano } from './lib/pianoSynth';
 import { LessonsPage } from './pages/LessonsPage';
 import { TrainerPage } from './pages/TrainerPage';
 import { SingTrainerPage } from './pages/SingTrainerPage';
@@ -8,6 +9,8 @@ import { PitchRangePage } from './pages/PitchRangePage';
 import { PitchMatchPage } from './pages/PitchMatchPage';
 
 export function App() {
+  useEffect(() => { loadPiano(); }, []);
+
   return (
     <div className="app-shell">
       <header className="topbar">

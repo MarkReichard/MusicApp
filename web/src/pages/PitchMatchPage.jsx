@@ -14,11 +14,12 @@ const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
 const SOLFEGE_NAMES      = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
 const AVAILABLE_KEYS     = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
-const DEFAULT_NOTE_COUNT   = 5;
+const DEFAULT_NOTE_COUNT      = 5;
 const DEFAULT_TOLERANCE_CENTS = 50;
-const HOLD_READINGS_NEEDED = 8;      // ~400 ms at 50 ms poll
-const NOTE_TIMEOUT_MS      = 7000;
-const FEEDBACK_LINGER_MS   = 800;
+const DEFAULT_TONE_DURATION_S = 1.2; // how long the played note sounds
+const HOLD_READINGS_NEEDED    = 8;   // ~400 ms at 50 ms poll
+const NOTE_TIMEOUT_MS         = 7000;
+const FEEDBACK_LINGER_MS      = 800;
 
 const TARGET_TONE_GAIN = 0.18;
 
@@ -66,6 +67,7 @@ export function PitchMatchPage() {
   const [selectedKey, setSelectedKey]         = useState('C');
   const [noteCount, setNoteCount]             = useState(DEFAULT_NOTE_COUNT);
   const [toleranceCents, setToleranceCents]   = useState(DEFAULT_TOLERANCE_CENTS);
+  const [toneDurationS, setToneDurationS]     = useState(DEFAULT_TONE_DURATION_S);
   const [exercise, setExercise]               = useState([]);
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
@@ -73,9 +75,8 @@ export function PitchMatchPage() {
   const [phase, setPhase]                     = useState('setup'); // setup | playing_tone | listening | feedback | done
   const [feedback, setFeedback]               = useState(null); // 'correct' | 'wrong'
 
-  const holdCountRef  = useRef(0);
-  const timeoutRef    = useRef(null);
-  const audioCtxRef   = useRef(null);
+  const holdCountRef = useRef(0);
+  const timeoutRef   = useRef(null);
 
   const { current } = usePitchDetector(pitchSettings, true);
 
@@ -83,17 +84,6 @@ export function PitchMatchPage() {
   const minMidi    = hasPitchRange ? pitchRange.minMidi : 48; // C3 default
   const maxMidi    = hasPitchRange ? pitchRange.maxMidi : 72; // C5 default
   const targetNote = exercise[noteIndex] ?? null;
-
-  // ── Audio context ──────────────────────────────────────────────────────────
-  function getAudioCtx() {
-    if (!audioCtxRef.current || audioCtxRef.current.state === 'closed') {
-      audioCtxRef.current = new AudioContext();
-    }
-    if (audioCtxRef.current.state === 'suspended') {
-      audioCtxRef.current.resume();
-    }
-    return audioCtxRef.current;
-  }
 
   // ── Advance to next note ───────────────────────────────────────────────────
   const advanceNote = useCallback((wasCorrect) => {
@@ -122,17 +112,20 @@ export function PitchMatchPage() {
         setPhase('done');
       } else {
         setNoteIndex(next);
-        setPhase('listening');
-        startTimeout();
+        setPhase('playing_tone');
+        const delayMs = playPianoNoteNow(exercise[next].midi, toneDurationS, TARGET_TONE_GAIN);
+        timeoutRef.current = setTimeout(() => {
+          setPhase('listening');
+          startTimeout();
+        }, delayMs);
       }
     }, FEEDBACK_LINGER_MS);
-  }, [noteIndex, exercise.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [noteIndex, exercise, toneDurationS]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startTimeout() {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      const ctx = getAudioCtx();
-      playBuzz(ctx);
+      playBuzz();
       advanceNote(false);
     }, NOTE_TIMEOUT_MS);
   }
@@ -154,8 +147,7 @@ export function PitchMatchPage() {
     }
 
     setPhase('playing_tone');
-    const ctx = getAudioCtx();
-    const delayMs = playPianoNoteNow(ctx, ex[0].midi, 1.2, TARGET_TONE_GAIN);
+    const delayMs = playPianoNoteNow(ex[0].midi, toneDurationS, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
       setPhase('listening');
       startTimeout();
@@ -168,8 +160,7 @@ export function PitchMatchPage() {
     clearTimeout(timeoutRef.current);
     holdCountRef.current = 0;
     setPhase('playing_tone');
-    const ctx = getAudioCtx();
-    const delayMs = playPianoNoteNow(ctx, targetNote.midi, 1.2, TARGET_TONE_GAIN);
+    const delayMs = playPianoNoteNow(targetNote.midi, toneDurationS, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
       setPhase('listening');
       startTimeout();
@@ -193,8 +184,7 @@ export function PitchMatchPage() {
       if (holdCountRef.current >= HOLD_READINGS_NEEDED) {
         holdCountRef.current = 0;
         clearTimeout(timeoutRef.current);
-        const ctx = getAudioCtx();
-        playBing(ctx);
+        playBing();
         advanceNote(true);
       }
     } else {
@@ -269,6 +259,19 @@ export function PitchMatchPage() {
               step={5}
               value={toleranceCents}
               onChange={(e) => setToleranceCents(Number(e.target.value))}
+              style={{ width: 100 }}
+            />
+          </label>
+
+          <label className="pitch-match-label">
+            Note length: {toneDurationS.toFixed(1)}s
+            <input
+              type="range"
+              min={3}
+              max={30}
+              step={1}
+              value={Math.round(toneDurationS * 10)}
+              onChange={(e) => setToneDurationS(Number(e.target.value) / 10)}
               style={{ width: 100 }}
             />
           </label>

@@ -1,16 +1,33 @@
-/**
- * Piano-like additive synthesis using the Web Audio API.
+﻿/**
+ * Piano synthesis via the Salamander Grand Piano samples (smplr / SplendidGrandPiano).
  *
- * A note is built from 5 sine-wave partials at the fundamental and its first
- * four harmonics, each at decreasing amplitudes. This gives the characteristic
- * "struck string" timbre instead of a plain oscillator wave.
+ * Manages a single shared AudioContext + SplendidGrandPiano instance for the
+ * whole app. All functions degrade gracefully to additive synthesis when samples
+ * haven't loaded yet (e.g. on the first render before network fetch completes).
  *
- * All scheduling functions take an AudioContext as their first argument.
+ * Call `loadPiano()` once during app initialisation so samples are ready by the
+ * time the user first interacts.
  */
 
-import { midiToFrequencyHz } from './musicTheory';
+import { SplendidGrandPiano } from 'smplr';
+import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz } from './musicTheory';
 
-// ── Harmonic spectrum ──────────────────────────────────────────────────────────
+// ── Singleton state ────────────────────────────────────────────────────────────
+let _ctx = null;
+let _piano = null;
+let _loadPromise = null;
+
+// ── Constants ──────────────────────────────────────────────────────────────────
+const NEAR_ZERO           = 0.0001;
+const NOTE_START_OFFSET_S = 0.01;   // tiny lookahead to avoid AudioContext click
+
+// Feedback tones (always synthesised — no need for samples)
+const BING_FREQ_HZ    = 1047;       // C6
+const BING_DURATION_S = 0.9;
+const BUZZ_FREQ_HZ    = 160;
+const BUZZ_DURATION_S = 0.45;
+
+// Additive-synth fallback
 const HARMONICS = [
   { multiplier: 1, weight: 1    },
   { multiplier: 2, weight: 0.5  },
@@ -18,174 +35,231 @@ const HARMONICS = [
   { multiplier: 4, weight: 0.1  },
   { multiplier: 5, weight: 0.05 },
 ];
-const HARMONIC_TOTAL = HARMONICS.reduce((sum, h) => sum + h.weight, 0);
+const HARMONIC_TOTAL              = HARMONICS.reduce((s, h) => s + h.weight, 0);
+const SYNTH_ATTACK_S              = 0.006;
+const SYNTH_HELD_SUSTAIN_RATIO    = 0.22;
+const SYNTH_HELD_DECAY_S          = 0.28;
+const SYNTH_RELEASE_TIME_CONSTANT = 0.02;
+const SYNTH_RELEASE_S             = 0.09;
 
-// ── Timing ────────────────────────────────────────────────────────────────────
-const PIANO_ATTACK_S        = 0.006;  // ~6 ms — snappy key-strike attack
-const HELD_DECAY_S          = 0.28;   // fast drop into sustain level
-const HELD_SUSTAIN_RATIO    = 0.22;   // sustain at 22 % of peak after decay
-const RELEASE_TIME_CONSTANT = 0.02;   // setTargetAtTime τ for key release
-const RELEASE_S             = 0.09;   // oscillator stop delay after release
-const NOTE_START_OFFSET_S   = 0.01;   // tiny lookahead to avoid AudioContext click
+// ── Context management ─────────────────────────────────────────────────────────
 
-// ── Internal constants ────────────────────────────────────────────────────────
-const NEAR_ZERO = 0.0001;
+function getOrCreateContext() {
+  if (!_ctx || _ctx.state === 'closed') {
+    _ctx = new AudioContext();
+  }
+  if (_ctx.state === 'suspended') {
+    _ctx.resume().catch(() => undefined);
+  }
+  return _ctx;
+}
 
-// ── Feedback tone parameters ──────────────────────────────────────────────────
-const BING_FREQ_HZ    = 1047;   // C6
-const BING_DURATION_S = 0.9;
-const BUZZ_FREQ_HZ    = 160;
-const BUZZ_DURATION_S = 0.45;
+/** Returns the shared AudioContext, creating it if necessary. */
+export function getAudioContext() {
+  return getOrCreateContext();
+}
 
-// ── Internal helpers ──────────────────────────────────────────────────────────
+// ── Piano loading ──────────────────────────────────────────────────────────────
 
 /**
- * Creates one sine oscillator per harmonic, all routed into `masterGain`.
- * Returns the array of oscillators so the caller can schedule `.stop()`.
+ * Begins loading the Salamander Grand Piano samples.
+ * Safe to call multiple times — subsequent calls return the same Promise.
+ * Call once in App on mount so samples are ready before the user plays anything.
+ *
+ * @returns {Promise<SplendidGrandPiano | null>}
  */
-function createPartials(ctx, freq, masterGain, startAt) {
+export function loadPiano() {
+  if (_loadPromise) return _loadPromise;
+  const ctx = getOrCreateContext();
+  const piano = new SplendidGrandPiano(ctx);
+  _loadPromise = piano.load
+    .then(() => {
+      _piano = piano;
+      return piano;
+    })
+    .catch((err) => {
+      console.warn('[pianoSynth] Sample load failed — falling back to additive synth:', err);
+      _loadPromise = null; // allow retry on next call
+      return null;
+    });
+  return _loadPromise;
+}
+
+// ── Internal helpers ───────────────────────────────────────────────────────────
+
+function freqToMidi(freq) {
+  return Math.round(CONCERT_A_MIDI + SEMITONES_PER_OCTAVE * Math.log2(freq / CONCERT_A_HZ));
+}
+
+/**
+ * Maps our typical gain range (0.08–0.18 → velocity 56–126).
+ * Formula: gain × 700, clamped to [1, 127].
+ */
+function gainToVelocity(peakGain) {
+  return Math.max(1, Math.min(127, Math.round(peakGain * 700)));
+}
+
+/**
+ * Translates a future AudioContext time expressed relative to `externalCtx`
+ * into the equivalent absolute time in the shared `_ctx`.
+ */
+function translateTime(startAt, externalCtx) {
+  const offset = startAt - externalCtx.currentTime;
+  return _ctx.currentTime + Math.max(0, offset);
+}
+
+// ── Additive-synth fallback helpers ───────────────────────────────────────────
+
+function createSynthPartials(ctx, freq, masterGain, startAt) {
   return HARMONICS.map(({ multiplier, weight }) => {
     const osc = ctx.createOscillator();
     osc.type = 'sine';
     osc.frequency.value = freq * multiplier;
-
-    const harmGain = ctx.createGain();
-    harmGain.gain.value = weight / HARMONIC_TOTAL;
-
-    osc.connect(harmGain);
-    harmGain.connect(masterGain);
+    const hg = ctx.createGain();
+    hg.gain.value = weight / HARMONIC_TOTAL;
+    osc.connect(hg);
+    hg.connect(masterGain);
     osc.start(startAt);
     return osc;
   });
 }
 
-// ── Public API ────────────────────────────────────────────────────────────────
-
-/**
- * Schedules a piano note at absolute AudioContext time `startAt`.
- * The envelope is: fast attack → exponential decay over `durationS`.
- *
- * @param {AudioContext} ctx
- * @param {number} freq        Frequency in Hz
- * @param {number} startAt     Absolute AudioContext time to start
- * @param {number} durationS   Total note duration in seconds
- * @param {number} peakGain    Peak amplitude (0–1 range)
- */
-export function schedulePianoNote(ctx, freq, startAt, durationS, peakGain) {
+function scheduleSynthNote(ctx, freq, startAt, durationS, peakGain) {
   const masterGain = ctx.createGain();
   masterGain.gain.setValueAtTime(NEAR_ZERO, startAt);
-  masterGain.gain.linearRampToValueAtTime(peakGain, startAt + PIANO_ATTACK_S);
+  masterGain.gain.linearRampToValueAtTime(peakGain, startAt + SYNTH_ATTACK_S);
   masterGain.gain.exponentialRampToValueAtTime(NEAR_ZERO, startAt + durationS);
   masterGain.connect(ctx.destination);
-
   const stopAt = startAt + durationS + 0.05;
-  const partials = createPartials(ctx, freq, masterGain, startAt);
-  partials.forEach((osc) => osc.stop(stopAt));
+  createSynthPartials(ctx, freq, masterGain, startAt).forEach((osc) => osc.stop(stopAt));
+}
+
+function startSynthHeld(ctx, freq, peakGain) {
+  const now = ctx.currentTime;
+  const masterGain = ctx.createGain();
+  masterGain.gain.setValueAtTime(NEAR_ZERO, now);
+  masterGain.gain.linearRampToValueAtTime(peakGain, now + SYNTH_ATTACK_S);
+  masterGain.gain.exponentialRampToValueAtTime(
+    peakGain * SYNTH_HELD_SUSTAIN_RATIO,
+    now + SYNTH_HELD_DECAY_S,
+  );
+  masterGain.connect(ctx.destination);
+  const oscillators = createSynthPartials(ctx, freq, masterGain, now);
+  return {
+    stop() {
+      const stopAt = ctx.currentTime;
+      try {
+        masterGain.gain.cancelScheduledValues(stopAt);
+        masterGain.gain.setTargetAtTime(NEAR_ZERO, stopAt, SYNTH_RELEASE_TIME_CONSTANT);
+      } catch { /* ignore */ }
+      oscillators.forEach((osc) => {
+        try { osc.stop(stopAt + SYNTH_RELEASE_S); } catch { /* ignore */ }
+      });
+    },
+  };
+}
+
+// ── Public API ─────────────────────────────────────────────────────────────────
+
+/**
+ * Schedules a piano note at a future time expressed relative to `externalCtx`.
+ * Falls back to additive synth when samples have not loaded yet.
+ *
+ * @param {AudioContext} externalCtx  Caller's reference context (used only for time translation)
+ * @param {number}       freq         Frequency in Hz
+ * @param {number}       startAt      Absolute time in `externalCtx` to start
+ * @param {number}       durationS    Duration in seconds
+ * @param {number}       peakGain     Peak amplitude (0–1)
+ */
+export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGain) {
+  if (_piano && _ctx) {
+    const midi = freqToMidi(freq);
+    const time = translateTime(startAt, externalCtx);
+    _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  } else {
+    scheduleSynthNote(externalCtx, freq, startAt, durationS, peakGain);
+  }
 }
 
 /**
- * Plays a piano note immediately (offset by a tiny lookahead).
- * Returns the number of milliseconds until the note finishes (for setTimeout chaining).
+ * Plays a piano note immediately using the shared context.
+ * Returns milliseconds until the note finishes (for setTimeout chaining).
  *
- * @param {AudioContext} ctx
- * @param {number} midi        MIDI note number
- * @param {number} [durationS=1.2]  Duration in seconds
- * @param {number} [peakGain=0.18]  Peak amplitude
- * @returns {number} Delay in ms until tone ends
+ * @param {number} midi       MIDI note number
+ * @param {number} durationS  Duration in seconds (default 1.2)
+ * @param {number} peakGain   Peak amplitude (default 0.18)
+ * @returns {number} Delay in ms
  */
-export function playPianoNoteNow(ctx, midi, durationS = 1.2, peakGain = 0.18) {
-  const freq    = midiToFrequencyHz(midi);
-  const startAt = ctx.currentTime + NOTE_START_OFFSET_S;
-  schedulePianoNote(ctx, freq, startAt, durationS, peakGain);
+export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
+  const ctx = getOrCreateContext();
+  if (_piano) {
+    const time = ctx.currentTime + NOTE_START_OFFSET_S;
+    _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  } else {
+    const freq = midiToFrequencyHz(midi);
+    scheduleSynthNote(ctx, freq, ctx.currentTime + NOTE_START_OFFSET_S, durationS, peakGain);
+  }
   return durationS * 1000 + 200;
 }
 
 /**
- * Starts a sustained "held" piano note (attack → quick decay → sustain).
- * Returns a HeldTone object to pass to `stopHeldTone()` when the key is released.
+ * Starts a sustained held note (attack → decay → sustain until released).
+ * Returns an object with a `stop()` method; pass it to `stopHeldTone()`.
  *
- * @param {AudioContext} ctx
- * @param {number} freq    Frequency in Hz
- * @param {number} peakGain Peak amplitude
- * @returns {{ oscillators: OscillatorNode[], masterGain: GainNode, context: AudioContext }}
+ * @param {number} freq      Frequency in Hz
+ * @param {number} peakGain  Peak amplitude
+ * @returns {{ stop: Function }}
  */
-export function startHeldPianoTone(ctx, freq, peakGain) {
-  const now = ctx.currentTime;
-
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(NEAR_ZERO, now);
-  masterGain.gain.linearRampToValueAtTime(peakGain, now + PIANO_ATTACK_S);
-  masterGain.gain.exponentialRampToValueAtTime(peakGain * HELD_SUSTAIN_RATIO, now + HELD_DECAY_S);
-  masterGain.connect(ctx.destination);
-
-  const oscillators = createPartials(ctx, freq, masterGain, now);
-  return { oscillators, masterGain, context: ctx };
+export function startHeldPianoTone(freq, peakGain) {
+  const ctx = getOrCreateContext();
+  if (_piano) {
+    const midi = freqToMidi(freq);
+    const stopNote = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
+    return { stop: stopNote };
+  }
+  return startSynthHeld(ctx, freq, peakGain);
 }
 
 /**
- * Releases a HeldTone object returned by `startHeldPianoTone()`.
- * Applies a short release envelope and stops all oscillators.
- *
- * @param {{ oscillators: OscillatorNode[], masterGain: GainNode, context: AudioContext }} held
+ * Releases a held tone returned by `startHeldPianoTone()`.
+ * @param {{ stop: Function } | null} held
  */
 export function stopHeldTone(held) {
   if (!held) return;
-  const { oscillators, masterGain, context } = held;
-  const stopAt = context.currentTime;
-  try {
-    masterGain.gain.cancelScheduledValues(stopAt);
-    masterGain.gain.setTargetAtTime(NEAR_ZERO, stopAt, RELEASE_TIME_CONSTANT);
-  } catch {
-    // ignore if already disconnected
-  }
-  oscillators.forEach((osc) => {
-    try { osc.stop(stopAt + RELEASE_S); } catch { /* ignore */ }
-  });
+  try { held.stop(); } catch { /* ignore */ }
 }
 
-/**
- * Plays a short "bing" success sound (rising triangle + harmonic partials).
- * @param {AudioContext} ctx
- */
-export function playBing(ctx) {
-  const now  = ctx.currentTime + NOTE_START_OFFSET_S;
-  const freq = BING_FREQ_HZ;
+/** Plays a short "bing" success sound. */
+export function playBing() {
+  const ctx = getOrCreateContext();
+  const now = ctx.currentTime + NOTE_START_OFFSET_S;
   const masterGain = ctx.createGain();
   masterGain.gain.setValueAtTime(NEAR_ZERO, now);
   masterGain.gain.linearRampToValueAtTime(0.22, now + 0.015);
   masterGain.gain.exponentialRampToValueAtTime(NEAR_ZERO, now + BING_DURATION_S);
   masterGain.connect(ctx.destination);
-
-  // Use two partials at fundamental and 2× for a bell-like tone
   [1, 2].forEach((mult) => {
     const osc = ctx.createOscillator();
     osc.type = 'sine';
-    osc.frequency.setValueAtTime(freq * mult, now);
-    // slight pitch rise on attack for a struck-bell feel
-    osc.frequency.exponentialRampToValueAtTime(freq * mult * 1.004, now + 0.04);
-
-    const harmGain = ctx.createGain();
-    harmGain.gain.value = mult === 1 ? 0.7 : 0.3;
-
-    osc.connect(harmGain);
-    harmGain.connect(masterGain);
+    osc.frequency.setValueAtTime(BING_FREQ_HZ * mult, now);
+    osc.frequency.exponentialRampToValueAtTime(BING_FREQ_HZ * mult * 1.004, now + 0.04);
+    const hg = ctx.createGain();
+    hg.gain.value = mult === 1 ? 0.7 : 0.3;
+    osc.connect(hg);
+    hg.connect(masterGain);
     osc.start(now);
     osc.stop(now + BING_DURATION_S + 0.05);
   });
 }
 
-/**
- * Plays a short "buzz" failure sound.
- * @param {AudioContext} ctx
- */
-export function playBuzz(ctx) {
+/** Plays a short "buzz" failure sound. */
+export function playBuzz() {
+  const ctx = getOrCreateContext();
   const now = ctx.currentTime + NOTE_START_OFFSET_S;
-
   const masterGain = ctx.createGain();
   masterGain.gain.setValueAtTime(0.18, now);
   masterGain.gain.exponentialRampToValueAtTime(NEAR_ZERO, now + BUZZ_DURATION_S);
   masterGain.connect(ctx.destination);
-
   const osc = ctx.createOscillator();
   osc.type = 'sawtooth';
   osc.frequency.value = BUZZ_FREQ_HZ;
