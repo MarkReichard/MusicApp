@@ -1,0 +1,17 @@
+1. Change bar color to gradient based on percentage match in singing
+2. Manually divide songs into lessons to get phrases
+
+
+Ideas
+1. Add instrument tuner
+2. Add history to track notes that are problematic
+3. Generate exercises - arpeggios, ascending scales, etc.
+4. In soflege and piano, highlight octave of starting note.
+5. Make soflege buttons taller and color coded - 
+do red
+ti purple
+la dark blue
+so light bluefa green
+mi yellow
+re orange
+

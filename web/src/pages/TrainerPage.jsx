@@ -48,6 +48,11 @@ export function TrainerPage() {
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
 
+  const firstNotePitch = activeNotes[0]?.pitch ?? null;
+  const firstNoteOctave = firstNotePitch
+    ? Number(firstNotePitch.match(/\d+/)?.[0]) + (singOctave - lesson.defaultOctave)
+    : null;
+
   const expectedBaseMidi = activeNotes[index]?.midi ?? null;
   const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
@@ -230,6 +235,7 @@ export function TrainerPage() {
       return {
         midi,
         noteName,
+        octave: Math.floor(midi / 12) - 1,
         isBlack: noteName.includes('#'),
       };
     });
@@ -460,6 +466,7 @@ export function TrainerPage() {
         {mode === 'solfege' ? (
           <SolfegeInputMode
             singOctave={singOctave}
+            firstNoteOctave={firstNoteOctave}
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
           />
@@ -472,6 +479,7 @@ export function TrainerPage() {
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
             midiToNoteLabel={midiToNoteLabel}
+            activeOctave={firstNoteOctave}
           />
         ) : null}
       </div>
