@@ -409,11 +409,14 @@ export function SingTrainerPage() {
               {activeNotes.map((note, noteIndex) => {
                 const isCurrent = noteIndex === index;
                 const isCorrect = correctIndices.includes(noteIndex);
+                const label = note.degree ?? note.pitch ?? '?';
                 return (
                   <span
                     key={note.id ?? `${note.midi}-${noteIndex}`}
-                    className={`dot ${isCurrent ? 'current' : ''} ${isCorrect ? 'correct' : ''}`}
-                  />
+                    className={`note-chip ${isCurrent ? 'current' : ''} ${isCorrect ? 'correct' : 'pending'}`}
+                  >
+                    {isCorrect ? label : '_'}
+                  </span>
                 );
               })}
             </div>

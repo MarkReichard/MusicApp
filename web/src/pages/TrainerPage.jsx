@@ -35,6 +35,7 @@ export function TrainerPage() {
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
+  const [isPlayingCadence, setIsPlayingCadence] = useState(false);
   const inputAudioContextRef = useRef(null);
   const activeInputTonesRef = useRef({});
 
@@ -107,6 +108,51 @@ export function TrainerPage() {
     setSingOctave(rangeRecommendation.octave);
   }
 
+  function scheduleCadence(context, startAt, beatSeconds) {
+    const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
+    const cadenceOffsets = [0, 5, 7, 5];
+    const triadOffsets = [0, 4, 7];
+    const chordDurationSeconds = beatSeconds * 1;
+    const fadeOutSeconds = beatSeconds * 0.05;
+    let at = startAt;
+    cadenceOffsets.forEach((offset) => {
+      const chordRoot = tonicMidi + offset;
+      triadOffsets.forEach((triadOffset) => {
+        const frequency = midiToFrequencyHz(chordRoot + triadOffset);
+        const oscillator = context.createOscillator();
+        oscillator.type = 'triangle';
+        oscillator.frequency.value = frequency;
+        const gain = context.createGain();
+        gain.gain.setValueAtTime(0.0001, at);
+        gain.gain.exponentialRampToValueAtTime(0.08, at + 0.02);
+        gain.gain.setValueAtTime(0.08, at + Math.max(0.02, chordDurationSeconds - fadeOutSeconds));
+        gain.gain.exponentialRampToValueAtTime(0.0001, at + chordDurationSeconds);
+        oscillator.connect(gain);
+        gain.connect(context.destination);
+        oscillator.start(at);
+        oscillator.stop(at + chordDurationSeconds);
+      });
+      at += chordDurationSeconds;
+    });
+    return at;
+  }
+
+  async function playTonicOnly() {
+    if (isPlayingCadence || isPlayingTarget) return;
+    setIsPlayingCadence(true);
+    const context = new AudioContext();
+    await context.resume().catch(() => undefined);
+    try {
+      const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
+      const endAt = scheduleCadence(context, context.currentTime + 0.03, beatSeconds);
+      const totalMs = Math.ceil((endAt - context.currentTime) * 1000) + 40;
+      await new Promise((resolve) => globalThis.setTimeout(resolve, totalMs));
+    } finally {
+      await context.close().catch(() => undefined);
+      setIsPlayingCadence(false);
+    }
+  }
+
   async function playMidiSequence(notes) {
     if (!notes.length || isPlayingTarget) {
       return;
@@ -122,37 +168,7 @@ export function TrainerPage() {
       let startAt = context.currentTime + 0.03;
 
       if (playTonicCadence) {
-        const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
-        const cadenceOffsets = [0, 5, 7, 5];
-        const triadOffsets = [0, 4, 7];
-        const chordBeats = 1;
-        const chordDurationSeconds = beatSeconds * chordBeats;
-        const fadeOutSeconds = beatSeconds * 0.05;
-
-        cadenceOffsets.forEach((offset) => {
-          const chordRoot = tonicMidi + offset;
-          triadOffsets.forEach((triadOffset) => {
-            const frequency = midiToFrequencyHz(chordRoot + triadOffset);
-            const oscillator = context.createOscillator();
-            oscillator.type = 'triangle';
-            oscillator.frequency.value = frequency;
-
-            const gain = context.createGain();
-            gain.gain.setValueAtTime(0.0001, startAt);
-            gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
-            gain.gain.setValueAtTime(0.08, startAt + Math.max(0.02, chordDurationSeconds - fadeOutSeconds));
-            gain.gain.exponentialRampToValueAtTime(0.0001, startAt + chordDurationSeconds);
-
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-
-            oscillator.start(startAt);
-            oscillator.stop(startAt + chordDurationSeconds);
-          });
-
-          startAt += chordDurationSeconds;
-        });
-
+        startAt = scheduleCadence(context, startAt, beatSeconds);
         startAt += gapSeconds * 2;
       }
 
@@ -414,6 +430,16 @@ export function TrainerPage() {
           <button
             type="button"
             className="button secondary"
+            disabled={isPlayingCadence || isPlayingTarget}
+            onClick={() => void playTonicOnly()}
+            title="Play tonic cadence (I–IV–V–IV)"
+            aria-label="Play tonic cadence"
+          >
+            {isPlayingCadence ? '…' : '♩'}
+          </button>
+          <button
+            type="button"
+            className="button secondary"
             onClick={resetInputProgress}
             title="Reset input progress"
             aria-label="Reset input progress"
@@ -452,11 +478,14 @@ export function TrainerPage() {
               {activeNotes.map((note, noteIndex) => {
                 const isCurrent = noteIndex === index;
                 const isCorrect = correctIndices.includes(noteIndex);
+                const label = note.degree ?? note.pitch ?? '?';
                 return (
                   <span
                     key={note.id ?? `${note.midi}-${noteIndex}`}
-                    className={`dot ${isCurrent ? 'current' : ''} ${isCorrect ? 'correct' : ''}`}
-                  />
+                    className={`note-chip ${isCurrent ? 'current' : ''} ${isCorrect ? 'correct' : 'pending'}`}
+                  >
+                    {isCorrect ? label : '_'}
+                  </span>
                 );
               })}
             </div>
