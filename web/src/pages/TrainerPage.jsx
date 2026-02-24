@@ -7,6 +7,16 @@ import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
 import { SolfegeInputMode } from '../components/trainer/SolfegeInputMode';
 import { PianoInputMode } from '../components/trainer/PianoInputMode';
+import {
+  NOTE_NAMES,
+  SEMITONES_PER_OCTAVE,
+  CADENCE_CHORD_OFFSETS,
+  TRIAD_INTERVALS,
+  keyToSemitone,
+  beatSecondsFromTempo,
+  midiToFrequencyHz,
+  midiToNoteLabel,
+} from '../lib/musicTheory';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -40,10 +50,10 @@ export function TrainerPage() {
   const activeInputTonesRef = useRef({});
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
-  const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
-  const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? 4];
+  const tempoRange = lesson.tempoRange ?? DEFAULT_TEMPO_RANGE;
+  const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? DEFAULT_OCTAVE];
   const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
-  const octaveShift = (singOctave - lesson.defaultOctave) * 12;
+  const octaveShift = (singOctave - lesson.defaultOctave) * SEMITONES_PER_OCTAVE;
   const totalMidiShift = keySemitoneShift + octaveShift;
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
@@ -67,11 +77,15 @@ export function TrainerPage() {
       midi: note.midi + totalMidiShift,
     };
   });
-  const rangeSuggestionText = !hasSavedPitchRange
-    ? 'No saved pitch range yet. Use the Pitch Range page first.'
-    : rangeRecommendation
-      ? `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${rangeRecommendation.fitsCompletely ? '' : ' (closest fit)'}.`
-      : 'No key/octave recommendation available for this lesson.';
+  let rangeSuggestionText;
+  if (!hasSavedPitchRange) {
+    rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
+  } else if (rangeRecommendation) {
+    const fitNote = rangeRecommendation.fitsCompletely ? '' : ' (closest fit)';
+    rangeSuggestionText = `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${fitNote}.`;
+  } else {
+    rangeSuggestionText = 'No key/octave recommendation available for this lesson.';
+  }
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
@@ -109,24 +123,22 @@ export function TrainerPage() {
   }
 
   function scheduleCadence(context, startAt, beatSeconds) {
-    const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
-    const cadenceOffsets = [0, 5, 7, 5];
-    const triadOffsets = [0, 4, 7];
-    const chordDurationSeconds = beatSeconds * 1;
-    const fadeOutSeconds = beatSeconds * 0.05;
+    const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
+    const chordDurationSeconds = beatSeconds;
+    const fadeOutSeconds = beatSeconds * CADENCE_FADE_RATIO;
     let at = startAt;
-    cadenceOffsets.forEach((offset) => {
+    CADENCE_CHORD_OFFSETS.forEach((offset) => {
       const chordRoot = tonicMidi + offset;
-      triadOffsets.forEach((triadOffset) => {
+      TRIAD_INTERVALS.forEach((triadOffset) => {
         const frequency = midiToFrequencyHz(chordRoot + triadOffset);
         const oscillator = context.createOscillator();
         oscillator.type = 'triangle';
         oscillator.frequency.value = frequency;
         const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, at);
-        gain.gain.exponentialRampToValueAtTime(0.08, at + 0.02);
-        gain.gain.setValueAtTime(0.08, at + Math.max(0.02, chordDurationSeconds - fadeOutSeconds));
-        gain.gain.exponentialRampToValueAtTime(0.0001, at + chordDurationSeconds);
+        gain.gain.setValueAtTime(NEAR_ZERO_GAIN, at);
+        gain.gain.exponentialRampToValueAtTime(CADENCE_CHORD_GAIN, at + CHORD_ATTACK_SECONDS);
+        gain.gain.setValueAtTime(CADENCE_CHORD_GAIN, at + Math.max(CHORD_ATTACK_SECONDS, chordDurationSeconds - fadeOutSeconds));
+        gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, at + chordDurationSeconds);
         oscillator.connect(gain);
         gain.connect(context.destination);
         oscillator.start(at);
@@ -143,9 +155,9 @@ export function TrainerPage() {
     const context = new AudioContext();
     await context.resume().catch(() => undefined);
     try {
-      const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
-      const endAt = scheduleCadence(context, context.currentTime + 0.03, beatSeconds);
-      const totalMs = Math.ceil((endAt - context.currentTime) * 1000) + 40;
+      const beatSeconds = beatSecondsFromTempo(tempoBpm);
+      const endAt = scheduleCadence(context, context.currentTime + AUDIO_START_OFFSET_SECONDS, beatSeconds);
+      const totalMs = Math.ceil((endAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
       await new Promise((resolve) => globalThis.setTimeout(resolve, totalMs));
     } finally {
       await context.close().catch(() => undefined);
@@ -163,20 +175,19 @@ export function TrainerPage() {
     await context.resume().catch(() => undefined);
 
     try {
-      const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
-      const gapSeconds = 0.03;
-      let startAt = context.currentTime + 0.03;
+      const beatSeconds = beatSecondsFromTempo(tempoBpm);
+      let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
       if (playTonicCadence) {
         startAt = scheduleCadence(context, startAt, beatSeconds);
-        startAt += gapSeconds * 2;
+        startAt += NOTE_GAP_SECONDS * 2;
       }
 
       for (const note of notes) {
         const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-        const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+        const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
         if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
-          startAt += noteDurationSeconds + gapSeconds;
+          startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
           continue;
         }
 
@@ -186,9 +197,9 @@ export function TrainerPage() {
         oscillator.frequency.value = frequency;
 
         const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.16, startAt + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + noteDurationSeconds);
+        gain.gain.setValueAtTime(NEAR_ZERO_GAIN, startAt);
+        gain.gain.exponentialRampToValueAtTime(TARGET_NOTE_GAIN, startAt + NOTE_ATTACK_SECONDS);
+        gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, startAt + noteDurationSeconds);
 
         oscillator.connect(gain);
         gain.connect(context.destination);
@@ -196,10 +207,10 @@ export function TrainerPage() {
         oscillator.start(startAt);
         oscillator.stop(startAt + noteDurationSeconds);
 
-        startAt += noteDurationSeconds + gapSeconds;
+        startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
 
-      const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + 40;
+      const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
       await new Promise((resolve) => globalThis.setTimeout(resolve, totalDurationMs));
     } finally {
       await context.close().catch(() => undefined);
@@ -243,15 +254,15 @@ export function TrainerPage() {
   }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm]);
 
   const pianoKeys = useMemo(() => {
-    const startMidi = 12 * singOctave;
-    return Array.from({ length: 36 }, (_, offset) => {
+    const startMidi = SEMITONES_PER_OCTAVE * singOctave;
+    return Array.from({ length: PIANO_KEYS_COUNT }, (_, offset) => {
       const midi = startMidi + offset;
-      const pitchClass = midi % 12;
+      const pitchClass = midi % SEMITONES_PER_OCTAVE;
       const noteName = NOTE_NAMES[pitchClass];
       return {
         midi,
         noteName,
-        octave: Math.floor(midi / 12) - 1,
+        octave: Math.floor(midi / SEMITONES_PER_OCTAVE) - 1,
         isBlack: noteName.includes('#'),
       };
     });
@@ -265,7 +276,7 @@ export function TrainerPage() {
       const whiteBefore = pianoKeys.slice(0, key.keyIndex).filter((candidate) => !candidate.isBlack).length;
       return {
         ...key,
-        left: whiteBefore * 44 - 13,
+        left: whiteBefore * WHITE_KEY_WIDTH_PX - BLACK_KEY_OFFSET_PX,
       };
     });
 
@@ -274,8 +285,8 @@ export function TrainerPage() {
       Object.values(activeInputTonesRef.current).forEach((tone) => {
         try {
           tone.gain.gain.cancelScheduledValues(tone.context.currentTime);
-          tone.gain.gain.setTargetAtTime(0.0001, tone.context.currentTime, 0.02);
-          tone.oscillator.stop(tone.context.currentTime + 0.08);
+          tone.gain.gain.setTargetAtTime(NEAR_ZERO_GAIN, tone.context.currentTime, TONE_RELEASE_TIME_CONSTANT);
+          tone.oscillator.stop(tone.context.currentTime + TONE_RELEASE_SECONDS);
         } catch {
           // ignore
         }
@@ -314,8 +325,8 @@ export function TrainerPage() {
     oscillator.frequency.setValueAtTime(frequency, now);
 
     const gain = context.createGain();
-    gain.gain.setValueAtTime(0.0001, now);
-    gain.gain.exponentialRampToValueAtTime(0.14, now + 0.015);
+    gain.gain.setValueAtTime(NEAR_ZERO_GAIN, now);
+    gain.gain.exponentialRampToValueAtTime(INPUT_TONE_GAIN, now + NOTE_ATTACK_SECONDS);
 
     oscillator.connect(gain);
     gain.connect(context.destination);
@@ -332,8 +343,8 @@ export function TrainerPage() {
 
     const stopAt = tone.context.currentTime;
     tone.gain.gain.cancelScheduledValues(stopAt);
-    tone.gain.gain.setTargetAtTime(0.0001, stopAt, 0.02);
-    tone.oscillator.stop(stopAt + 0.08);
+    tone.gain.gain.setTargetAtTime(NEAR_ZERO_GAIN, stopAt, TONE_RELEASE_TIME_CONSTANT);
+    tone.oscillator.stop(stopAt + TONE_RELEASE_SECONDS);
 
     delete activeInputTonesRef.current[midi];
   }
@@ -419,6 +430,7 @@ export function TrainerPage() {
             </button>
           ) : null}
           <button
+            type="button"
             className="button"
             disabled={isPlayingTarget}
             onClick={() => void playMidiSequence(shiftedLessonNotes)}
@@ -516,43 +528,32 @@ export function TrainerPage() {
   );
 }
 
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const KEY_TO_SEMITONE = {
-  C: 0,
-  'C#': 1,
-  Db: 1,
-  D: 2,
-  'D#': 3,
-  Eb: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  Gb: 6,
-  G: 7,
-  'G#': 8,
-  Ab: 8,
-  A: 9,
-  'A#': 10,
-  Bb: 10,
-  B: 11,
-};
+// ── Piano layout ──────────────────────────────────────────────────────────────
+const PIANO_KEYS_COUNT = 36;      // 3 octaves displayed
+const WHITE_KEY_WIDTH_PX = 44;
+const BLACK_KEY_OFFSET_PX = 13;
 
-function keyToSemitone(key) {
-  return KEY_TO_SEMITONE[key] ?? 0;
-}
+// ── Audio – gain levels ───────────────────────────────────────────────────────
+const NEAR_ZERO_GAIN = 0.0001;    // effectively silent for exponential ramps
+const CADENCE_CHORD_GAIN = 0.08;
+const TARGET_NOTE_GAIN = 0.16;
+const INPUT_TONE_GAIN = 0.14;
 
-function midiToFrequencyHz(midi) {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
+// ── Audio – timing ────────────────────────────────────────────────────────────
+const CHORD_ATTACK_SECONDS = 0.02;          // ramp-up time for cadence chord tones
+const NOTE_ATTACK_SECONDS = 0.015;          // ramp-up time for individual note tones
+const TONE_RELEASE_TIME_CONSTANT = 0.02;    // setTargetAtTime τ for input tone release
+const TONE_RELEASE_SECONDS = 0.08;          // oscillator stop delay after release
+const NOTE_DURATION_SCALE = 0.92;           // fraction of beat used for note sound
+const MIN_NOTE_DURATION_SECONDS = 0.12;     // floor on note playback duration
+const CADENCE_FADE_RATIO = 0.05;            // chord fade-out as fraction of beat
+const AUDIO_START_OFFSET_SECONDS = 0.03;    // initial delay before first scheduled event
+const NOTE_GAP_SECONDS = 0.03;              // silence between consecutive notes
+const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after last note
 
-function midiToNoteLabel(midi) {
-  if (!Number.isFinite(midi)) return '-';
-  const roundedMidi = Math.round(midi);
-  const name = NOTE_NAMES[roundedMidi % 12] ?? 'C';
-  const octave = Math.floor(roundedMidi / 12) - 1;
-  return `${name}${octave}`;
-}
-
+// ── Lesson / UI defaults ──────────────────────────────────────────────────────
+const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
+const DEFAULT_OCTAVE = 4;
 function normalizeLessonExercises(lesson) {
   if (!lesson) {
     return [];
