@@ -1,13 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
 import {
   SEMITONES_PER_OCTAVE,
   keyToSemitone,
-  midiToFrequencyHz,
   midiToNoteLabel,
 } from '../lib/musicTheory';
+import { playBing, playBuzz, playPianoNoteNow } from '../lib/pianoSynth';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
@@ -20,61 +20,7 @@ const HOLD_READINGS_NEEDED = 8;      // ~400 ms at 50 ms poll
 const NOTE_TIMEOUT_MS      = 7000;
 const FEEDBACK_LINGER_MS   = 800;
 
-const TARGET_TONE_GAIN     = 0.18;
-const BING_FREQ_HZ         = 1047;   // C6
-const BING_DURATION_S      = 0.9;
-const BUZZ_FREQ_HZ         = 160;
-const BUZZ_DURATION_S      = 0.45;
-const NEAR_ZERO_GAIN       = 0.0001;
-
-// ── Audio helpers  ─────────────────────────────────────────────────────────────
-function playBing(ctx) {
-  const now = ctx.currentTime + 0.01;
-  const osc  = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(BING_FREQ_HZ, now);
-  osc.frequency.exponentialRampToValueAtTime(BING_FREQ_HZ * 1.5, now + 0.03);
-  gain.gain.setValueAtTime(NEAR_ZERO_GAIN, now);
-  gain.gain.linearRampToValueAtTime(0.22, now + 0.015);
-  gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, now + BING_DURATION_S);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + BING_DURATION_S + 0.05);
-}
-
-function playBuzz(ctx) {
-  const now = ctx.currentTime + 0.01;
-  const osc  = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'sawtooth';
-  osc.frequency.setValueAtTime(BUZZ_FREQ_HZ, now);
-  gain.gain.setValueAtTime(0.18, now);
-  gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, now + BUZZ_DURATION_S);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + BUZZ_DURATION_S + 0.05);
-}
-
-function playTargetTone(ctx, midi, durationS = 1.2) {
-  const freq = midiToFrequencyHz(midi);
-  const now  = ctx.currentTime + 0.01;
-  const osc  = ctx.createOscillator();
-  const gain = ctx.createGain();
-  osc.type = 'triangle';
-  osc.frequency.setValueAtTime(freq, now);
-  gain.gain.setValueAtTime(NEAR_ZERO_GAIN, now);
-  gain.gain.linearRampToValueAtTime(TARGET_TONE_GAIN, now + 0.02);
-  gain.gain.setValueAtTime(TARGET_TONE_GAIN, now + durationS - 0.1);
-  gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, now + durationS);
-  osc.connect(gain);
-  gain.connect(ctx.destination);
-  osc.start(now);
-  osc.stop(now + durationS + 0.05);
-  return durationS * 1000 + 200; // return ms until tone ends
-}
+const TARGET_TONE_GAIN = 0.18;
 
 // ── Note generation ────────────────────────────────────────────────────────────
 function generateDiatonicCandidates(selectedKey, minMidi, maxMidi) {
@@ -209,7 +155,7 @@ export function PitchMatchPage() {
 
     setPhase('playing_tone');
     const ctx = getAudioCtx();
-    const delayMs = playTargetTone(ctx, ex[0].midi);
+    const delayMs = playPianoNoteNow(ctx, ex[0].midi, 1.2, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
       setPhase('listening');
       startTimeout();
@@ -223,7 +169,7 @@ export function PitchMatchPage() {
     holdCountRef.current = 0;
     setPhase('playing_tone');
     const ctx = getAudioCtx();
-    const delayMs = playTargetTone(ctx, targetNote.midi);
+    const delayMs = playPianoNoteNow(ctx, targetNote.midi, 1.2, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
       setPhase('listening');
       startTimeout();

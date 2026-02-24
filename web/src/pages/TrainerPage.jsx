@@ -18,6 +18,7 @@ import {
   midiToNoteLabel,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
+import { schedulePianoNote, startHeldPianoTone, stopHeldTone } from '../lib/pianoSynth';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -126,24 +127,12 @@ export function TrainerPage() {
   function scheduleCadence(context, startAt, beatSeconds) {
     const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
     const chordDurationSeconds = beatSeconds;
-    const fadeOutSeconds = beatSeconds * CADENCE_FADE_RATIO;
     let at = startAt;
     CADENCE_CHORD_OFFSETS.forEach((offset) => {
       const chordRoot = tonicMidi + offset;
       TRIAD_INTERVALS.forEach((triadOffset) => {
         const frequency = midiToFrequencyHz(chordRoot + triadOffset);
-        const oscillator = context.createOscillator();
-        oscillator.type = 'triangle';
-        oscillator.frequency.value = frequency;
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(NEAR_ZERO_GAIN, at);
-        gain.gain.exponentialRampToValueAtTime(CADENCE_CHORD_GAIN, at + CHORD_ATTACK_SECONDS);
-        gain.gain.setValueAtTime(CADENCE_CHORD_GAIN, at + Math.max(CHORD_ATTACK_SECONDS, chordDurationSeconds - fadeOutSeconds));
-        gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, at + chordDurationSeconds);
-        oscillator.connect(gain);
-        gain.connect(context.destination);
-        oscillator.start(at);
-        oscillator.stop(at + chordDurationSeconds);
+        schedulePianoNote(context, frequency, at, chordDurationSeconds, CADENCE_CHORD_GAIN);
       });
       at += chordDurationSeconds;
     });
@@ -193,20 +182,7 @@ export function TrainerPage() {
         }
 
         const frequency = midiToFrequencyHz(note.midi);
-        const oscillator = context.createOscillator();
-        oscillator.type = 'triangle';
-        oscillator.frequency.value = frequency;
-
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(NEAR_ZERO_GAIN, startAt);
-        gain.gain.exponentialRampToValueAtTime(TARGET_NOTE_GAIN, startAt + NOTE_ATTACK_SECONDS);
-        gain.gain.exponentialRampToValueAtTime(NEAR_ZERO_GAIN, startAt + noteDurationSeconds);
-
-        oscillator.connect(gain);
-        gain.connect(context.destination);
-
-        oscillator.start(startAt);
-        oscillator.stop(startAt + noteDurationSeconds);
+        schedulePianoNote(context, frequency, startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
 
         startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
@@ -284,13 +260,7 @@ export function TrainerPage() {
   useEffect(() => {
     return () => {
       Object.values(activeInputTonesRef.current).forEach((tone) => {
-        try {
-          tone.gain.gain.cancelScheduledValues(tone.context.currentTime);
-          tone.gain.gain.setTargetAtTime(NEAR_ZERO_GAIN, tone.context.currentTime, TONE_RELEASE_TIME_CONSTANT);
-          tone.oscillator.stop(tone.context.currentTime + TONE_RELEASE_SECONDS);
-        } catch {
-          // ignore
-        }
+        stopHeldTone(tone);
       });
       activeInputTonesRef.current = {};
 
@@ -320,20 +290,7 @@ export function TrainerPage() {
       await context.resume();
     }
 
-    const now = context.currentTime;
-    const oscillator = context.createOscillator();
-    oscillator.type = 'triangle';
-    oscillator.frequency.setValueAtTime(frequency, now);
-
-    const gain = context.createGain();
-    gain.gain.setValueAtTime(NEAR_ZERO_GAIN, now);
-    gain.gain.exponentialRampToValueAtTime(INPUT_TONE_GAIN, now + NOTE_ATTACK_SECONDS);
-
-    oscillator.connect(gain);
-    gain.connect(context.destination);
-    oscillator.start(now);
-
-    activeInputTonesRef.current[midi] = { oscillator, gain, context };
+    activeInputTonesRef.current[midi] = startHeldPianoTone(context, frequency, INPUT_TONE_GAIN);
   }
 
   function stopInputTone(midi) {
@@ -342,11 +299,7 @@ export function TrainerPage() {
       return;
     }
 
-    const stopAt = tone.context.currentTime;
-    tone.gain.gain.cancelScheduledValues(stopAt);
-    tone.gain.gain.setTargetAtTime(NEAR_ZERO_GAIN, stopAt, TONE_RELEASE_TIME_CONSTANT);
-    tone.oscillator.stop(stopAt + TONE_RELEASE_SECONDS);
-
+    stopHeldTone(tone);
     delete activeInputTonesRef.current[midi];
   }
 
@@ -535,19 +488,13 @@ const WHITE_KEY_WIDTH_PX = 44;
 const BLACK_KEY_OFFSET_PX = 13;
 
 // ── Audio – gain levels ───────────────────────────────────────────────────────
-const NEAR_ZERO_GAIN = 0.0001;    // effectively silent for exponential ramps
 const CADENCE_CHORD_GAIN = 0.08;
 const TARGET_NOTE_GAIN = 0.16;
 const INPUT_TONE_GAIN = 0.14;
 
 // ── Audio – timing ────────────────────────────────────────────────────────────
-const CHORD_ATTACK_SECONDS = 0.02;          // ramp-up time for cadence chord tones
-const NOTE_ATTACK_SECONDS = 0.015;          // ramp-up time for individual note tones
-const TONE_RELEASE_TIME_CONSTANT = 0.02;    // setTargetAtTime τ for input tone release
-const TONE_RELEASE_SECONDS = 0.08;          // oscillator stop delay after release
 const NOTE_DURATION_SCALE = 0.92;           // fraction of beat used for note sound
 const MIN_NOTE_DURATION_SECONDS = 0.12;     // floor on note playback duration
-const CADENCE_FADE_RATIO = 0.05;            // chord fade-out as fraction of beat
 const AUDIO_START_OFFSET_SECONDS = 0.03;    // initial delay before first scheduled event
 const NOTE_GAP_SECONDS = 0.03;              // silence between consecutive notes
 const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after last note
