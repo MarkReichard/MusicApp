@@ -8,7 +8,7 @@
     "imported",
     "musicxml"
   ],
-  "defaultKey": "C",
+  "defaultKey": "G",
   "allowedKeys": [
     "C",
     "D",
@@ -21,7 +21,7 @@
   "defaultTempoBpm": 90,
   "tempoRange": {
     "min": 30,
-    "max": 200
+    "max": 240
   },
   "defaultChunkSize": 4,
   "chunkSizeRange": {
@@ -81,12 +81,7 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "ex_2",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "G4",
@@ -160,7 +155,7 @@
       ]
     },
     {
-      "id": "ex_3",
+      "id": "ex_2",
       "notes": [
         {
           "type": "note",
@@ -217,12 +212,7 @@
           "midi": 64,
           "degree": "La",
           "durationBeats": 0.5
-        }
-      ]
-    },
-    {
-      "id": "ex_4",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "G4",
@@ -282,7 +272,7 @@
       ]
     },
     {
-      "id": "ex_5",
+      "id": "ex_3",
       "notes": [
         {
           "type": "note",
@@ -311,12 +301,7 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "ex_6",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "B4",
@@ -369,7 +354,7 @@
       ]
     },
     {
-      "id": "ex_7",
+      "id": "ex_4",
       "notes": [
         {
           "type": "note",
@@ -419,12 +404,7 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "ex_8",
-      "notes": [
+        },
         {
           "type": "note",
           "pitch": "B4",
@@ -498,7 +478,7 @@
       ]
     },
     {
-      "id": "ex_9",
+      "id": "ex_5",
       "notes": [
         {
           "type": "note",
@@ -521,5 +501,5 @@
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-02-23T18:59:17.652Z"
+  "updatedAt": "2026-02-24T18:38:19.623Z"
 }

@@ -7,6 +7,16 @@ import { XMLParser } from 'fast-xml-parser';
 const SOLFEGE_BY_SEMITONE = ['Do', 'Do', 'Re', 'Re', 'Mi', 'Fa', 'Fa', 'Sol', 'Sol', 'La', 'La', 'Ti'];
 const PITCH_CLASS_BY_SEMITONE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
+const MEASURES_PER_EXERCISE = 4;       // how many measures are grouped into one exercise
+const MAX_LESSON_ID_LENGTH = 80;       // character limit for sanitized lesson IDs
+const FIFTHS_ARRAY_LENGTH = 15;        // circle-of-fifths lookup arrays span Cb(−7) … C#(+7)
+const FIFTHS_CENTER_OFFSET = 7;        // index of C (0 fifths) in those arrays
+const QUARTER_NOTE_BEAT_TYPE = 4;      // MusicXML beat-type value for a quarter note
+const MIN_TEMPO_BPM = 30;
+const MAX_TEMPO_BPM = 240;
+const MIN_CHUNK_SIZE = 2;
+const MAX_CHUNK_SIZE = 12;
+
 function asArray(value) {
   if (value === undefined || value === null) return [];
   return Array.isArray(value) ? value : [value];
@@ -17,7 +27,7 @@ function sanitizeId(input) {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '_')
     .replace(/^_+|_+$/g, '')
-    .slice(0, 80);
+    .slice(0, MAX_LESSON_ID_LENGTH);
 }
 
 function maybeNumber(value, fallback) {
@@ -40,7 +50,7 @@ function degreeFromMidi(midi, keyRootSemitone = 0) {
 function keyRootFromFifths(fifths = 0, mode = 'major') {
   const majorByFifths = ['Cb', 'Gb', 'Db', 'Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#'];
   const minorByFifths = ['Ab', 'Eb', 'Bb', 'F', 'C', 'G', 'D', 'A', 'E', 'B', 'F#', 'C#', 'G#', 'D#', 'A#'];
-  const idx = Math.max(0, Math.min(14, maybeNumber(fifths, 0) + 7));
+  const idx = Math.max(0, Math.min(FIFTHS_ARRAY_LENGTH - 1, maybeNumber(fifths, 0) + FIFTHS_CENTER_OFFSET));
   const keyName = String(mode).toLowerCase().startsWith('min') ? minorByFifths[idx] : majorByFifths[idx];
   const normalized = keyName.replace('b', '#');
   const map = { C: 0, 'C#': 1, D: 2, 'D#': 3, E: 4, F: 5, 'F#': 6, G: 7, 'G#': 8, A: 9, 'A#': 10, B: 11 };
@@ -110,10 +120,10 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
   let beatType = 4;
   let selectedVoice = null;
 
-  // Split measures into chunks of 2, each becomes an exercise
+  // Split measures into chunks of MEASURES_PER_EXERCISE, each becomes an exercise
   const exercises = [];
-  for (let i = 0; i < measures.length; i += 2) {
-    const lessonMeasures = measures.slice(i, i + 2);
+  for (let i = 0; i < measures.length; i += MEASURES_PER_EXERCISE) {
+    const lessonMeasures = measures.slice(i, i + MEASURES_PER_EXERCISE);
     const notes = [];
     for (const measure of lessonMeasures) {
       const attrs = measure?.attributes;
@@ -181,7 +191,7 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
     }
     if (notes.length) {
       exercises.push({
-        id: `ex_${i / 2 + 1}`,
+        id: `ex_${i / MEASURES_PER_EXERCISE + 1}`,
         notes
       });
     }
@@ -189,8 +199,12 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
 
   const rawId = sanitizeId(scoreTitle);
   const lessonId = rawId.startsWith('song_') ? rawId : `song_${rawId}`;
-  const normalizedTempo = Math.round(Math.max(30, Math.min(240, detectedTempo || defaults.defaultTempoBpm)));
-  const inferredChunk = Math.max(2, Math.min(12, Math.round(beatsPerMeasure * (4 / Math.max(1, beatType)))));
+  const normalizedTempo = Math.round(Math.max(MIN_TEMPO_BPM, Math.min(MAX_TEMPO_BPM, detectedTempo || defaults.defaultTempoBpm)));
+  const inferredChunk = Math.max(MIN_CHUNK_SIZE, Math.min(MAX_CHUNK_SIZE, Math.round(beatsPerMeasure * (QUARTER_NOTE_BEAT_TYPE / Math.max(1, beatType)))));
+
+  const keyRootSemitone = keyRootFromFifths(keyFifths, keyMode);
+  const derivedDefaultKey = PITCH_CLASS_BY_SEMITONE[keyRootSemitone] ?? defaults.defaultKey;
+  const effectiveDefaultKey = defaults.allowedKeys.includes(derivedDefaultKey) ? derivedDefaultKey : defaults.defaultKey;
 
   return {
     id: lessonId,
@@ -199,7 +213,7 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
     type: 'song',
     difficulty: defaults.difficulty,
     tags: defaults.tags,
-    defaultKey: defaults.defaultKey,
+    defaultKey: effectiveDefaultKey,
     allowedKeys: defaults.allowedKeys,
     defaultTempoBpm: normalizedTempo,
     tempoRange: defaults.tempoRange,
@@ -228,8 +242,8 @@ function parseArgs(argv) {
     defaultOctave: 4,
     defaultTempoBpm: 90,
     tags: ['imported', 'musicxml'],
-    tempoRange: { min: 30, max: 200 },
-    chunkSizeRange: { min: 2, max: 12 },
+    tempoRange: { min: MIN_TEMPO_BPM, max: MAX_TEMPO_BPM },
+    chunkSizeRange: { min: MIN_CHUNK_SIZE, max: MAX_CHUNK_SIZE },
     allowedOctaves: [2, 3, 4, 5],
     version: '1.0.0',
   };
@@ -326,7 +340,7 @@ function main() {
 
   console.log(`Converted ${results.length} file(s):`);
   for (const item of results) {
-    console.log(`- ${path.basename(item.input)} -> ${item.output} (${item.notes} events)`);
+    console.log(`- ${path.basename(item.input)} -> ${item.output} (${item.exercises} exercises)`);
   }
 }
 
