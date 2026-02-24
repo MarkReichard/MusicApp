@@ -37,6 +37,7 @@ export function TrainerPage() {
     [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
   );
   const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
+  const isDebug = searchParams.get('debug') === 'true';
   const [mode, setMode] = useState(requestedMode);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
@@ -48,6 +49,7 @@ export function TrainerPage() {
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [isPlayingCadence, setIsPlayingCadence] = useState(false);
+  const [lastNoteMidi, setLastNoteMidi] = useState(null);
   const activeInputTonesRef = useRef({});
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
@@ -60,10 +62,8 @@ export function TrainerPage() {
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
 
-  const firstNotePitch = activeNotes[0]?.pitch ?? null;
-  const firstNoteOctave = firstNotePitch
-    ? Number(firstNotePitch.match(/\d+/)?.[0]) + (singOctave - lesson.defaultOctave)
-    : null;
+  const firstNoteShiftedMidi = Number.isFinite(activeNotes[0]?.midi) ? activeNotes[0].midi + totalMidiShift : null;
+  const firstNoteOctave = firstNoteShiftedMidi !== null ? Math.floor(firstNoteShiftedMidi / SEMITONES_PER_OCTAVE) - 1 : null;
 
   const expectedBaseMidi = activeNotes[index]?.midi ?? null;
   const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
@@ -289,6 +289,7 @@ export function TrainerPage() {
   }
 
   function handleInputPress(midi) {
+    setLastNoteMidi(midi);
     startInputTone(midi);
     registerInput(midi);
   }
@@ -429,7 +430,11 @@ export function TrainerPage() {
               {activeNotes.map((note, noteIndex) => {
                 const isCurrent = noteIndex === index;
                 const isCorrect = correctIndices.includes(noteIndex);
-                const label = note.degree ?? note.pitch ?? '?';
+                const shiftedMidi = note.midi + totalMidiShift;
+                const noteOctave = Math.floor(shiftedMidi / SEMITONES_PER_OCTAVE) - 1;
+                const label = mode === 'piano'
+                  ? midiToNoteLabel(shiftedMidi)
+                  : (note.degree ? `${note.degree}${noteOctave}` : midiToNoteLabel(shiftedMidi));
                 return (
                   <span
                     key={note.id ?? `${note.midi}-${noteIndex}`}
@@ -447,6 +452,7 @@ export function TrainerPage() {
           <SolfegeInputMode
             singOctave={singOctave}
             firstNoteOctave={firstNoteOctave}
+            keySemitoneShift={keySemitoneShift}
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
           />
@@ -459,9 +465,52 @@ export function TrainerPage() {
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
             midiToNoteLabel={midiToNoteLabel}
-            activeOctave={firstNoteOctave}
+            activeMidi={firstNoteShiftedMidi}
           />
         ) : null}
+
+        {isDebug ? (() => {
+          const lastNoteActiveMatch = lastNoteMidi === null ? null : activeNotes.find((n) => n.midi + totalMidiShift === lastNoteMidi);
+          const lastNoteSolfege = lastNoteActiveMatch?.degree ?? null;
+          const shiftedActive = shiftedLessonNotes.filter((n) => n.type !== 'rest' && Number.isFinite(n.midi));
+          return (
+            <div style={{ marginTop: 12, padding: '8px 10px', background: '#1a1a2e', border: '1px solid #444', borderRadius: 6, fontSize: 12, fontFamily: 'monospace', color: '#ccc' }}>
+              <div><strong style={{ color: '#f90' }}>DEBUG</strong></div>
+              <div style={{ marginTop: 4 }}>
+                <strong>Last note played:</strong>{' '}
+                {lastNoteMidi === null
+                  ? <em>none</em>
+                  : <>{midiToNoteLabel(lastNoteMidi)} · MIDI {lastNoteMidi} · solfege: {lastNoteSolfege ?? '—'}{lastNoteMidi === expectedMidi ? ' ✓' : ` ✗ expected ${expectedMidi === null ? 'none' : `${midiToNoteLabel(expectedMidi)} (MIDI ${expectedMidi})`}`}</>}
+              </div>
+              <div style={{ marginTop: 4 }}>
+                <strong>Lesson notes (shifted):</strong>
+                <table style={{ marginTop: 4, borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ color: '#888' }}>
+                      <td style={{ paddingRight: 12 }}>#</td>
+                      <td style={{ paddingRight: 12 }}>Note</td>
+                      <td style={{ paddingRight: 12 }}>MIDI</td>
+                      <td>Solfege</td>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {shiftedActive.map((n, i) => {
+                      const isCur = i === index;
+                      return (
+                        <tr key={i} style={{ color: isCur ? '#7ef' : '#aaa', fontWeight: isCur ? 'bold' : 'normal' }}>
+                          <td style={{ paddingRight: 12 }}>{isCur ? '▶' : i + 1}</td>
+                          <td style={{ paddingRight: 12 }}>{midiToNoteLabel(n.midi)}</td>
+                          <td style={{ paddingRight: 12 }}>{n.midi}</td>
+                          <td>{n.degree ?? '—'}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })() : null}
       </div>
     </div>
   );

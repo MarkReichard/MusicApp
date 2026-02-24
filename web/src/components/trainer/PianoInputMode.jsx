@@ -1,14 +1,14 @@
 import React from 'react';
 import PropTypes from 'prop-types';
 
-export function PianoInputMode({ whiteKeys, blackKeys, onInputPress, onInputRelease, midiToNoteLabel, activeOctave }) {
+export function PianoInputMode({ whiteKeys, blackKeys, onInputPress, onInputRelease, midiToNoteLabel, activeMidi }) {
   return (
     <div className="piano-wrap">
       <div className="piano-white-row">
         {whiteKeys.map((key) => (
           <button
             key={key.midi}
-            className={`piano-key white${Number.isFinite(activeOctave) && key.octave === activeOctave ? ' piano-key--octave-active' : ''}`}
+            className={`piano-key white${Number.isFinite(activeMidi) && key.midi >= activeMidi && key.midi < activeMidi + 12 ? ' piano-key--octave-active' : ''}`}
             onPointerDown={() => onInputPress(key.midi)}
             onPointerUp={() => onInputRelease(key.midi)}
             onPointerLeave={() => onInputRelease(key.midi)}
@@ -49,9 +49,9 @@ PianoInputMode.propTypes = {
   onInputPress: PropTypes.func.isRequired,
   onInputRelease: PropTypes.func.isRequired,
   midiToNoteLabel: PropTypes.func.isRequired,
-  activeOctave: PropTypes.number,
+  activeMidi: PropTypes.number,
 };
 
 PianoInputMode.defaultProps = {
-  activeOctave: null,
+  activeMidi: null,
 };

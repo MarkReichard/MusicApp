@@ -13,13 +13,13 @@ const SOLFEGE_BUTTONS = [
 
 const OCTAVE_OFFSETS = [-1, 0, 1];
 
-export function SolfegeInputMode({ singOctave, firstNoteOctave, onInputPress, onInputRelease }) {
+export function SolfegeInputMode({ singOctave, firstNoteOctave, keySemitoneShift, onInputPress, onInputRelease }) {
   const octaveGroups = OCTAVE_OFFSETS.map((octaveOffset) => {
     const octave = singOctave + octaveOffset;
     const buttons = SOLFEGE_BUTTONS.map((button) => ({
       ...button,
       octave,
-      midi: 12 * (octave + 1) + button.semitone,
+      midi: 12 * (octave + 1) + button.semitone + keySemitoneShift,
     }));
     return { octave, buttons };
   });
@@ -66,10 +66,12 @@ export function SolfegeInputMode({ singOctave, firstNoteOctave, onInputPress, on
 SolfegeInputMode.propTypes = {
   singOctave: PropTypes.number.isRequired,
   firstNoteOctave: PropTypes.number,
+  keySemitoneShift: PropTypes.number,
   onInputPress: PropTypes.func.isRequired,
   onInputRelease: PropTypes.func.isRequired,
 };
 
 SolfegeInputMode.defaultProps = {
   firstNoteOctave: null,
+  keySemitoneShift: 0,
 };
