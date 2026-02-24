@@ -5,6 +5,7 @@ import { TrainerPage } from './pages/TrainerPage';
 import { SingTrainerPage } from './pages/SingTrainerPage';
 import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchRangePage } from './pages/PitchRangePage';
+import { PitchMatchPage } from './pages/PitchMatchPage';
 
 export function App() {
   return (
@@ -13,6 +14,7 @@ export function App() {
         <h1>Music Trainer</h1>
         <nav>
           <NavLink to="/lessons">Lessons</NavLink>
+          <NavLink to="/pitch-match">Pitch Match</NavLink>
           <NavLink to="/pitch-lab">Mic Settings</NavLink>
           <NavLink to="/pitch-range">Pitch Range</NavLink>
         </nav>
@@ -26,6 +28,7 @@ export function App() {
           <Route path="/trainer/:lessonId/sing" element={<SingTrainerPage />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/pitch-range" element={<PitchRangePage />} />
+          <Route path="/pitch-match" element={<PitchMatchPage />} />
         </Routes>
       </main>
     </div>

@@ -8,6 +8,8 @@ import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/t
 import { usePitchDetector } from '../lib/usePitchDetector';
 import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
+import { keyToSemitone, midiToFrequencyHz, SEMITONES_PER_OCTAVE } from '../lib/musicTheory';
+import { normalizeLessonExercises } from '../lib/lessonUtils';
 
 const SING_COUNTDOWN_BEATS = 1;
 
@@ -66,11 +68,17 @@ export function SingTrainerPage() {
       midi: note.midi + totalMidiShift,
     };
   });
-  const rangeSuggestionText = !hasSavedPitchRange
-    ? 'No saved pitch range yet. Use the Pitch Range page first.'
-    : rangeRecommendation
-      ? `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${rangeRecommendation.fitsCompletely ? '' : ' (closest fit)'}.`
-      : 'No key/octave recommendation available for this lesson.';
+  let rangeSuggestionText;
+  if (hasSavedPitchRange) {
+    if (rangeRecommendation) {
+      const fitNote = rangeRecommendation.fitsCompletely ? '' : ' (closest fit)';
+      rangeSuggestionText = `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${fitNote}.`;
+    } else {
+      rangeSuggestionText = 'No key/octave recommendation available for this lesson.';
+    }
+  } else {
+    rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
+  }
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
@@ -144,7 +152,7 @@ export function SingTrainerPage() {
       let maxScheduledEndAt = startAt;
 
       if (playTonicCadence) {
-        const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
+        const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
         const cadenceOffsets = [0, 5, 7, 5];
         const triadOffsets = [0, 4, 7];
         const chordBeats = 1;
@@ -446,7 +454,7 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
   const expectedBars = [];
 
   if (playTonicCadence) {
-    const tonicMidi = 12 * (singOctave + 1) + keyToSemitone(selectedKey);
+    const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
     const cadenceOffsets = [0, 5, 7, 5];
     const triadOffsets = [0, 4, 7];
     const chordDurationSeconds = beatSeconds;
@@ -545,54 +553,4 @@ function applyBarEvaluation({ bar, matched, activeNotesLength, setCorrectIndices
     const nextIndex = Math.min(bar.index + 1, Math.max(0, activeNotesLength - 1));
     return previous === nextIndex ? previous : nextIndex;
   });
-}
-
-const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const KEY_TO_SEMITONE = {
-  C: 0,
-  'C#': 1,
-  Db: 1,
-  D: 2,
-  'D#': 3,
-  Eb: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  Gb: 6,
-  G: 7,
-  'G#': 8,
-  Ab: 8,
-  A: 9,
-  'A#': 10,
-  Bb: 10,
-  B: 11,
-};
-
-function keyToSemitone(key) {
-  return KEY_TO_SEMITONE[key] ?? 0;
-}
-
-function midiToFrequencyHz(midi) {
-  return 440 * Math.pow(2, (midi - 69) / 12);
-}
-
-function normalizeLessonExercises(lesson) {
-  if (!lesson) {
-    return [];
-  }
-
-  if (Array.isArray(lesson.exercises) && lesson.exercises.length) {
-    return lesson.exercises
-      .filter((exercise) => exercise && Array.isArray(exercise.notes) && exercise.notes.length)
-      .map((exercise, index) => ({
-        id: exercise.id ?? `${lesson.id}-exercise-${index + 1}`,
-        notes: exercise.notes,
-      }));
-  }
-
-  if (Array.isArray(lesson.notes) && lesson.notes.length) {
-    return [{ id: `${lesson.id}-exercise-1`, notes: lesson.notes }];
-  }
-
-  return [];
 }

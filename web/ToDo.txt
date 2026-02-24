@@ -1,6 +1,6 @@
 1. Change bar color to gradient based on percentage match in singing
 2. Manually divide songs into lessons to get phrases
-
+3. Extract the piano and soflege stuff from trainer page to the related components or a separate helper file
 
 Ideas
 1. Add instrument tuner

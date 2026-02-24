@@ -17,6 +17,7 @@ import {
   midiToFrequencyHz,
   midiToNoteLabel,
 } from '../lib/musicTheory';
+import { normalizeLessonExercises } from '../lib/lessonUtils';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -554,23 +555,3 @@ const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after la
 // ── Lesson / UI defaults ──────────────────────────────────────────────────────
 const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
 const DEFAULT_OCTAVE = 4;
-function normalizeLessonExercises(lesson) {
-  if (!lesson) {
-    return [];
-  }
-
-  if (Array.isArray(lesson.exercises) && lesson.exercises.length) {
-    return lesson.exercises
-      .filter((exercise) => exercise && Array.isArray(exercise.notes) && exercise.notes.length)
-      .map((exercise, index) => ({
-        id: exercise.id ?? `${lesson.id}-exercise-${index + 1}`,
-        notes: exercise.notes,
-      }));
-  }
-
-  if (Array.isArray(lesson.notes) && lesson.notes.length) {
-    return [{ id: `${lesson.id}-exercise-1`, notes: lesson.notes }];
-  }
-
-  return [];
-}
