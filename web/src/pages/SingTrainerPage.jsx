@@ -8,8 +8,26 @@ import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/t
 import { usePitchDetector } from '../lib/usePitchDetector';
 import { SingInputGraph } from '../components/trainer/SingInputGraph';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
-import { keyToSemitone, midiToFrequencyHz, SEMITONES_PER_OCTAVE } from '../lib/musicTheory';
+import {
+  keyToSemitone,
+  midiToFrequencyHz,
+  midiToNoteLabel,
+  SEMITONES_PER_OCTAVE,
+  CADENCE_CHORD_OFFSETS,
+  TRIAD_INTERVALS,
+  beatSecondsFromTempo,
+} from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
+import { schedulePianoNote, loadInstrument } from '../lib/pianoSynth';
+
+// ── Audio timing (shared with buildSingTimeline) ──────────────────────────────
+const NOTE_DURATION_SCALE       = 0.92;
+const MIN_NOTE_DURATION_SECONDS = 0.12;
+const AUDIO_START_OFFSET_SECONDS = 0.03;
+const NOTE_GAP_SECONDS          = 0.03;
+const PLAYBACK_BUFFER_MS        = 40;
+const CADENCE_CHORD_GAIN        = 0.08;
+const TARGET_NOTE_GAIN          = 0.16;
 
 const SING_COUNTDOWN_BEATS = 1;
 
@@ -39,6 +57,7 @@ export function SingTrainerPage() {
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [toleranceCents, setToleranceCents] = useState(initialOptions.toleranceCents);
   const [gracePeriodPercent, setGracePeriodPercent] = useState(initialOptions.gracePeriodPercent);
+  const [instrument, setInstrument] = useState(initialOptions.instrument);
   const [session, setSession] = useState(null);
   const [barResults, setBarResults] = useState({});
   const evaluatedBarsRef = useRef(new Set());
@@ -146,76 +165,33 @@ export function SingTrainerPage() {
     await context.resume().catch(() => undefined);
 
     try {
-      const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
-      const gapSeconds = 0.03;
-      let startAt = context.currentTime + 0.03;
-      let maxScheduledEndAt = startAt;
+      const beatSeconds = beatSecondsFromTempo(tempoBpm);
+      let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
       if (playTonicCadence) {
         const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
-        const cadenceOffsets = [0, 5, 7, 5];
-        const triadOffsets = [0, 4, 7];
-        const chordBeats = 1;
-        const chordDurationSeconds = beatSeconds * chordBeats;
-        const fadeOutSeconds = beatSeconds * 0.05;
-
-        cadenceOffsets.forEach((offset) => {
+        CADENCE_CHORD_OFFSETS.forEach((offset) => {
           const chordRoot = tonicMidi + offset;
-          triadOffsets.forEach((triadOffset) => {
-            const frequency = midiToFrequencyHz(chordRoot + triadOffset);
-            const oscillator = context.createOscillator();
-            oscillator.type = 'triangle';
-            oscillator.frequency.value = frequency;
-
-            const gain = context.createGain();
-            gain.gain.setValueAtTime(0.0001, startAt);
-            gain.gain.exponentialRampToValueAtTime(0.08, startAt + 0.02);
-            gain.gain.setValueAtTime(0.08, startAt + Math.max(0.02, chordDurationSeconds - fadeOutSeconds));
-            gain.gain.exponentialRampToValueAtTime(0.0001, startAt + chordDurationSeconds);
-
-            oscillator.connect(gain);
-            gain.connect(context.destination);
-
-            oscillator.start(startAt);
-            oscillator.stop(startAt + chordDurationSeconds);
-            maxScheduledEndAt = Math.max(maxScheduledEndAt, startAt + chordDurationSeconds);
+          TRIAD_INTERVALS.forEach((triadOffset) => {
+            schedulePianoNote(context, midiToFrequencyHz(chordRoot + triadOffset), startAt, beatSeconds, CADENCE_CHORD_GAIN);
           });
-
-          startAt += chordDurationSeconds;
+          startAt += beatSeconds;
         });
-
-        startAt += gapSeconds * 2;
+        startAt += NOTE_GAP_SECONDS * 2;
       }
 
       for (const note of notes) {
         const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-        const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+        const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
         if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
-          startAt += noteDurationSeconds + gapSeconds;
+          startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
           continue;
         }
-
-        const frequency = midiToFrequencyHz(note.midi);
-        const oscillator = context.createOscillator();
-        oscillator.type = 'triangle';
-        oscillator.frequency.value = frequency;
-
-        const gain = context.createGain();
-        gain.gain.setValueAtTime(0.0001, startAt);
-        gain.gain.exponentialRampToValueAtTime(0.16, startAt + 0.015);
-        gain.gain.exponentialRampToValueAtTime(0.0001, startAt + noteDurationSeconds);
-
-        oscillator.connect(gain);
-        gain.connect(context.destination);
-
-        oscillator.start(startAt);
-        oscillator.stop(startAt + noteDurationSeconds);
-        maxScheduledEndAt = Math.max(maxScheduledEndAt, startAt + noteDurationSeconds);
-
-        startAt += noteDurationSeconds + gapSeconds;
+        schedulePianoNote(context, midiToFrequencyHz(note.midi), startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
+        startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
 
-      const totalDurationMs = Math.ceil((maxScheduledEndAt - context.currentTime) * 1000) + 40;
+      const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
       await new Promise((resolve) => globalThis.setTimeout(resolve, totalDurationMs));
     } finally {
       await context.close().catch(() => undefined);
@@ -236,6 +212,7 @@ export function SingTrainerPage() {
     setSingOctave(persistedOptions.singOctave);
     setToleranceCents(persistedOptions.toleranceCents);
     setGracePeriodPercent(persistedOptions.gracePeriodPercent);
+    setInstrument(persistedOptions.instrument);
 
     setIndex(0);
     setCorrectIndices([]);
@@ -257,8 +234,13 @@ export function SingTrainerPage() {
       singOctave,
       toleranceCents,
       gracePeriodPercent,
+      instrument,
     });
-  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent]);
+  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
+
+  useEffect(() => {
+    void loadInstrument(instrument);
+  }, [instrument]);
 
   useEffect(() => {
     historyRef.current = history;
@@ -348,6 +330,8 @@ export function SingTrainerPage() {
           rangeSuggestionText={rangeSuggestionText}
           onApplyRangeDefaults={applyRangeDefaults}
           disableApplyRangeDefaults={disableApplyRangeDefaults}
+          instrument={instrument}
+          onInstrumentChange={setInstrument}
           toleranceCents={toleranceCents}
           onToleranceCentsChange={setToleranceCents}
           gracePeriodPercent={gracePeriodPercent}
@@ -417,7 +401,9 @@ export function SingTrainerPage() {
               {activeNotes.map((note, noteIndex) => {
                 const isCurrent = noteIndex === index;
                 const isCorrect = correctIndices.includes(noteIndex);
-                const label = note.degree ?? note.pitch ?? '?';
+                const shiftedMidi = note.midi + totalMidiShift;
+                const noteOctave = Math.floor(shiftedMidi / SEMITONES_PER_OCTAVE) - 1;
+                const label = note.degree ? `${note.degree}${noteOctave}` : midiToNoteLabel(shiftedMidi);
                 return (
                   <span
                     key={note.id ?? `${note.midi}-${noteIndex}`}
@@ -447,38 +433,32 @@ export function SingTrainerPage() {
 }
 
 function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonicCadence, gracePeriodPercent, countdownBeats }) {
-  const beatSeconds = 60 / Math.max(40, Number(tempoBpm) || 90);
-  const gapSeconds = 0.03;
-  let cursor = 0.03;
+  const beatSeconds = beatSecondsFromTempo(tempoBpm);
+  let cursor = AUDIO_START_OFFSET_SECONDS;
   const playedBars = [];
   const expectedBars = [];
 
   if (playTonicCadence) {
     const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
-    const cadenceOffsets = [0, 5, 7, 5];
-    const triadOffsets = [0, 4, 7];
-    const chordDurationSeconds = beatSeconds;
-
-    cadenceOffsets.forEach((offset, cadenceIndex) => {
+    CADENCE_CHORD_OFFSETS.forEach((offset, cadenceIndex) => {
       const chordRoot = tonicMidi + offset;
-      triadOffsets.forEach((triadOffset, triadIndex) => {
+      TRIAD_INTERVALS.forEach((triadOffset, triadIndex) => {
         playedBars.push({
           id: `cadence-${cadenceIndex}-${triadIndex}`,
           startSec: cursor,
-          endSec: cursor + chordDurationSeconds,
+          endSec: cursor + beatSeconds,
           midi: chordRoot + triadOffset,
         });
       });
-      cursor += chordDurationSeconds;
+      cursor += beatSeconds;
     });
-
-    cursor += gapSeconds * 2;
+    cursor += NOTE_GAP_SECONDS * 2;
   }
 
   notes.forEach((note, noteIndex) => {
     const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-    const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
-    if (note.type !== "rest") {
+    const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
+    if (note.type !== 'rest') {
       playedBars.push({
         id: `played-${noteIndex}`,
         startSec: cursor,
@@ -486,7 +466,7 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
         midi: note.midi,
       });
     }
-    cursor += noteDurationSeconds + gapSeconds;
+    cursor += noteDurationSeconds + NOTE_GAP_SECONDS;
   });
 
   const singStartSec = cursor;
@@ -495,10 +475,10 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
 
   notes.forEach((note, noteIndex) => {
     const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-    const noteDurationSeconds = Math.max(0.12, beatSeconds * beats * 0.92);
+    const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
     const graceRatio = Math.max(0.5, Math.min(1, Number(gracePeriodPercent) / 100));
     const scoreDurationSeconds = noteDurationSeconds * graceRatio;
-    if (note.type !== "rest") {
+    if (note.type !== 'rest') {
       expectedBars.push({
         id: `expected-${noteIndex}`,
         index: noteIndex,
@@ -508,7 +488,7 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
         midi: note.midi,
       });
     }
-    singCursor += noteDurationSeconds + gapSeconds;
+    singCursor += noteDurationSeconds + NOTE_GAP_SECONDS;
   });
 
   const lastExpectedEndSec = expectedBars.length
