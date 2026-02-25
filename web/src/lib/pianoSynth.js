@@ -24,6 +24,7 @@ export const INSTRUMENT_OPTIONS = [
 let _ctx = null;
 let _piano = null;
 let _loadPromise = null;
+let _loadedInstrument = null;
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const NEAR_ZERO           = 0.0001;
@@ -83,6 +84,7 @@ export function loadPiano() {
   _loadPromise = piano.load
     .then(() => {
       _piano = piano;
+      _loadedInstrument = 'acoustic_grand_piano';
       return piano;
     })
     .catch((err) => {
@@ -101,13 +103,18 @@ export function loadPiano() {
  * @returns {Promise<void>}
  */
 export async function loadInstrument(instrumentName) {
+  if (_loadedInstrument === instrumentName && _piano) {
+    return; // already loaded, nothing to do
+  }
   _piano = null; // use additive synth fallback while loading
   _loadPromise = null;
+  _loadedInstrument = null;
   const ctx = getOrCreateContext();
   try {
     const sf = new Soundfont(ctx, { instrument: instrumentName });
     await sf.load;
     _piano = sf;
+    _loadedInstrument = instrumentName;
     _loadPromise = Promise.resolve(sf);
   } catch (err) {
     console.warn('[pianoSynth] Soundfont load failed:', err);
