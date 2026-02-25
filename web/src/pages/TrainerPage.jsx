@@ -18,7 +18,7 @@ import {
   midiToNoteLabel,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
-import { schedulePianoNote, startHeldPianoTone, stopHeldTone } from '../lib/pianoSynth';
+import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument } from '../lib/pianoSynth';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -43,6 +43,7 @@ export function TrainerPage() {
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
+  const [instrument, setInstrument] = useState(initialOptions.instrument);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
   const [index, setIndex] = useState(0);
@@ -205,6 +206,7 @@ export function TrainerPage() {
     setTempoBpm(persistedOptions.tempoBpm);
     setPlayTonicCadence(persistedOptions.playTonicCadence);
     setSingOctave(persistedOptions.singOctave);
+    setInstrument(persistedOptions.instrument);
 
     setMode(requestedMode);
     setIndex(0);
@@ -226,8 +228,13 @@ export function TrainerPage() {
       tempoBpm,
       playTonicCadence,
       singOctave,
+      instrument,
     });
-  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm]);
+  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, instrument]);
+
+  useEffect(() => {
+    void loadInstrument(instrument);
+  }, [instrument]);
 
   const pianoKeys = useMemo(() => {
     const startMidi = SEMITONES_PER_OCTAVE * singOctave;
@@ -351,6 +358,8 @@ export function TrainerPage() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
+          instrument={instrument}
+          onInstrumentChange={setInstrument}
           rangeSuggestionText={rangeSuggestionText}
           onApplyRangeDefaults={applyRangeDefaults}
           disableApplyRangeDefaults={disableApplyRangeDefaults}

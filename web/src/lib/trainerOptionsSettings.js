@@ -4,6 +4,7 @@ const defaultTrainerOptions = {
   playTonicCadence: true,
   toleranceCents: 25,
   gracePeriodPercent: 95,
+  instrument: 'acoustic_grand_piano',
 };
 
 export function getTrainerOptionsForLesson(lesson) {
@@ -45,6 +46,10 @@ export function getTrainerOptionsForLesson(lesson) {
     ? Math.max(50, Math.min(100, Math.round(graceRaw)))
     : defaultTrainerOptions.gracePeriodPercent;
 
+  const instrument = typeof stored.instrument === 'string' && stored.instrument
+    ? stored.instrument
+    : defaultTrainerOptions.instrument;
+
   return {
     selectedKey,
     tempoBpm,
@@ -52,6 +57,7 @@ export function getTrainerOptionsForLesson(lesson) {
     playTonicCadence: Boolean(stored.playTonicCadence),
     toleranceCents,
     gracePeriodPercent,
+    instrument,
   };
 }
 

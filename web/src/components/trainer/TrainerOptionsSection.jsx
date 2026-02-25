@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { INSTRUMENT_OPTIONS } from '../../lib/pianoSynth';
 
 export function TrainerOptionsSection({
   optionsOpen,
@@ -15,6 +16,8 @@ export function TrainerOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
+  instrument,
+  onInstrumentChange,
   rangeSuggestionText,
   onApplyRangeDefaults,
   disableApplyRangeDefaults,
@@ -69,6 +72,15 @@ export function TrainerOptionsSection({
               <select value={singOctave} onChange={(event) => onSingOctaveChange(Number(event.target.value))}>
                 {allowedOctaves.map((octave) => (
                   <option key={octave} value={octave}>Oct {octave}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="row">
+              <span>Instrument</span>
+              <select value={instrument} onChange={(event) => onInstrumentChange(event.target.value)}>
+                {INSTRUMENT_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>
             </div>

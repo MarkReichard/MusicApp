@@ -9,8 +9,16 @@
  * time the user first interacts.
  */
 
-import { SplendidGrandPiano } from 'smplr';
+import { SplendidGrandPiano, Soundfont } from 'smplr';
 import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz } from './musicTheory';
+
+export const INSTRUMENT_OPTIONS = [
+  { value: 'acoustic_grand_piano', label: 'Grand Piano' },
+  { value: 'flute',                label: 'Flute' },
+  { value: 'violin',               label: 'Violin' },
+  { value: 'electric_guitar_clean',label: 'Electric Guitar' },
+  { value: 'choir_aahs',           label: 'Choir' },
+];
 
 // ── Singleton state ────────────────────────────────────────────────────────────
 let _ctx = null;
@@ -83,6 +91,27 @@ export function loadPiano() {
       return null;
     });
   return _loadPromise;
+}
+
+/**
+ * Switches the playback instrument to any Soundfont instrument name.
+ * Falls back to additive synth while loading.
+ *
+ * @param {string} instrumentName  e.g. 'flute', 'violin', 'acoustic_grand_piano'
+ * @returns {Promise<void>}
+ */
+export async function loadInstrument(instrumentName) {
+  _piano = null; // use additive synth fallback while loading
+  _loadPromise = null;
+  const ctx = getOrCreateContext();
+  try {
+    const sf = new Soundfont(ctx, { instrument: instrumentName });
+    await sf.load;
+    _piano = sf;
+    _loadPromise = Promise.resolve(sf);
+  } catch (err) {
+    console.warn('[pianoSynth] Soundfont load failed:', err);
+  }
 }
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
