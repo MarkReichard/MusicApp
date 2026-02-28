@@ -1,12 +1,11 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
-import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
-import { usePitchDetector } from '../lib/usePitchDetector';
-import { SingInputGraph } from '../components/trainer/SingInputGraph';
+import { useStablePitchTracker } from '../lib/useStablePitchTracker';
+import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
 import {
   keyToSemitone,
@@ -28,9 +27,7 @@ import {
 import { normalizeLessonExercises } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument } from '../lib/pianoSynth';
 
-// ── Audio timing (shared with buildSingTimeline) ──────────────────────────────
-
-export function SingTrainerPage() {
+export function SingTrainerV2Page() {
   const { lessonId } = useParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
@@ -62,8 +59,13 @@ export function SingTrainerPage() {
   const evaluatedBarsRef = useRef(new Set());
   const historyRef = useRef([]);
 
-  const pitchSettings = useMemo(() => loadPitchSettings(), []);
-  const { current, history } = usePitchDetector(pitchSettings, true, { maxHistoryPoints: 300 });
+  const {
+    current,
+    history,
+    detectorLogSummary,
+    clearDetectorLog,
+    getDetectorLogRows,
+  } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000 });
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
   const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
@@ -74,6 +76,34 @@ export function SingTrainerPage() {
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
+  const guidedHistory = useMemo(() => {
+    if (!session?.expectedBars?.length || !Number.isFinite(session.startMs)) {
+      return history;
+    }
+
+    return history.map((entry) => {
+      if (!Number.isFinite(entry?.timeMs) || !Number.isFinite(entry?.midi)) {
+        return entry;
+      }
+
+      const relativeSec = (entry.timeMs - session.startMs) / 1000;
+      const referenceMidi = getReferenceMidiForTime(relativeSec, session.expectedBars);
+      if (!Number.isFinite(referenceMidi)) {
+        return entry;
+      }
+
+      const normalizedMidi = nearestMidiByOctave(entry.midi, referenceMidi);
+      if (!Number.isFinite(normalizedMidi) || normalizedMidi === entry.midi) {
+        return entry;
+      }
+
+      return {
+        ...entry,
+        midi: normalizedMidi,
+        pitchHz: midiToFrequencyHz(normalizedMidi),
+      };
+    });
+  }, [history, session]);
 
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
   const shiftedLessonNotes = activeEvents.map((note) => {
@@ -86,6 +116,7 @@ export function SingTrainerPage() {
       midi: note.midi + totalMidiShift,
     };
   });
+
   let rangeSuggestionText;
   if (hasSavedPitchRange) {
     if (rangeRecommendation) {
@@ -97,6 +128,7 @@ export function SingTrainerPage() {
   } else {
     rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
   }
+
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
@@ -129,6 +161,60 @@ export function SingTrainerPage() {
 
     setSelectedKey(rangeRecommendation.key);
     setSingOctave(rangeRecommendation.octave);
+  }
+
+  function handleExportDetectorLog() {
+    const rows = getDetectorLogRows();
+    if (!rows.length) {
+      return;
+    }
+
+    const header = [
+      'tick',
+      'timeSec',
+      'db',
+      'rawHz',
+      'rawClarity',
+      'acceptedHz',
+      'midi',
+      'clarity',
+      'voiced',
+      'gateReason',
+      'minDbThreshold',
+      'minClarityThreshold',
+      'minFreqHz',
+      'maxFreqHz',
+    ];
+    const csvLines = [header.join(',')];
+    rows.forEach((row) => {
+      csvLines.push([
+        row.tick,
+        formatCsvNumber(row.timeSec),
+        formatCsvNumber(row.db),
+        formatCsvNumber(row.rawHz),
+        formatCsvNumber(row.rawClarity),
+        formatCsvNumber(row.acceptedHz),
+        formatCsvNumber(row.midi),
+        formatCsvNumber(row.clarity),
+        row.voiced ? '1' : '0',
+        row.gateReason,
+        formatCsvNumber(row.minDbThreshold),
+        formatCsvNumber(row.minClarityThreshold),
+        formatCsvNumber(row.minFreqHz),
+        formatCsvNumber(row.maxFreqHz),
+      ].join(','));
+    });
+
+    const blob = new Blob([`${csvLines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
+    anchor.href = url;
+    anchor.download = `sing-trainer-v2-detector-log-${stamp}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    document.body.removeChild(anchor);
+    URL.revokeObjectURL(url);
   }
 
   async function playMidiSequence(notes) {
@@ -242,8 +328,8 @@ export function SingTrainerPage() {
   }, [instrument]);
 
   useEffect(() => {
-    historyRef.current = history;
-  }, [history]);
+    historyRef.current = guidedHistory;
+  }, [guidedHistory]);
 
   useEffect(() => {
     if (!session?.expectedBars?.length) {
@@ -304,12 +390,24 @@ export function SingTrainerPage() {
     <div className="trainer-grid">
       <div className="card controls">
         <div className="lesson-title-row sing-title-row">
-          <h3>{lesson.name} · Sing</h3>
+          <h3>{lesson.name} · Sing V2</h3>
           <div className="trainer-detected-note sing-title-detected">
             <span>Detected note: </span>
             <strong>{current.note}</strong>
           </div>
           {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : <span className="sing-title-spacer" />}
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+          <button type="button" className="button secondary" onClick={handleExportDetectorLog}>
+            Export Detector Log CSV
+          </button>
+          <button type="button" className="button secondary" onClick={clearDetectorLog}>
+            Clear Log
+          </button>
+          <span className="badge">Log Rows: {detectorLogSummary.count}</span>
+          <span className="badge">Last Gate: {detectorLogSummary.lastGate}</span>
+          <span className="badge">Last Raw Hz: {Number.isFinite(detectorLogSummary.lastRawHz) ? detectorLogSummary.lastRawHz.toFixed(2) : '-'}</span>
         </div>
 
         <SingTrainingOptionsSection
@@ -382,11 +480,11 @@ export function SingTrainerPage() {
           ) : null}
           <Link
             className="button secondary"
-            to={`/trainer/${lessonId}/sing-v2`}
-            title="Open V2 sing trainer"
-            aria-label="Open V2 sing trainer"
+            to={`/trainer/${lessonId}/sing`}
+            title="Open classic sing trainer"
+            aria-label="Open classic sing trainer"
           >
-            V2
+            Classic
           </Link>
           <Link
             className="button secondary home-icon-button"
@@ -424,9 +522,10 @@ export function SingTrainerPage() {
           </div>
         </div>
 
-        <SingInputGraph
-          settings={pitchSettings}
-          history={history}
+        <SingInputGraphV2
+          minFrequencyHz={55}
+          maxFrequencyHz={1200}
+          history={guidedHistory}
           sessionStartMs={session?.startMs}
           singStartSec={session?.singStartSec}
           stopScrollSec={session?.stopScrollSec}
@@ -540,4 +639,40 @@ function applyBarEvaluation({ bar, matched, activeNotesLength, setCorrectIndices
     const nextIndex = Math.min(bar.index + 1, Math.max(0, activeNotesLength - 1));
     return previous === nextIndex ? previous : nextIndex;
   });
+}
+
+function formatCsvNumber(value) {
+  return Number.isFinite(value) ? String(value) : '';
+}
+
+function getReferenceMidiForTime(relativeSec, expectedBars) {
+  if (!Number.isFinite(relativeSec) || !Array.isArray(expectedBars) || !expectedBars.length) {
+    return null;
+  }
+
+  for (const bar of expectedBars) {
+    if (!Number.isFinite(bar?.midi) || !Number.isFinite(bar?.startSec) || !Number.isFinite(bar?.endSec)) {
+      continue;
+    }
+    if (relativeSec >= (bar.startSec - 0.25) && relativeSec <= (bar.endSec + 0.25)) {
+      return bar.midi;
+    }
+  }
+
+  return null;
+}
+
+function nearestMidiByOctave(candidateMidi, referenceMidi) {
+  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
+    return candidateMidi;
+  }
+
+  let best = candidateMidi;
+  while (best - referenceMidi > 6) {
+    best -= 12;
+  }
+  while (referenceMidi - best > 6) {
+    best += 12;
+  }
+  return best;
 }

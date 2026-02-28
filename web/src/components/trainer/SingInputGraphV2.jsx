@@ -1,0 +1,516 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import PropTypes from 'prop-types';
+
+const MIN_TIMELINE_SECONDS = 12;
+const TIMELINE_RIGHT_PAD_SECONDS = 1;
+const PIXELS_PER_SECOND = 90;
+const FOLLOW_CURSOR_RATIO = 0.35;
+const TARGET_FRAME_MS = 33;
+const SCROLL_SMOOTHING_FACTOR = 0.18;
+const MAX_DRAW_JUMP_SEMITONES = 5;
+const MAX_DRAW_GAP_SEC = 0.32;
+const MAX_DRAW_GAP_HIGH_ENERGY_SEC = 0.9;
+const HIGH_ENERGY_DB_THRESHOLD = -55;
+
+export function SingInputGraphV2({
+  minFrequencyHz = 55,
+  maxFrequencyHz = 1200,
+  history = [],
+  sessionStartMs,
+  singStartSec,
+  stopScrollSec,
+  playedBars = [],
+  expectedBars = [],
+  barResults = {},
+}) {
+  const canvasRef = useRef(null);
+  const scrollContainerRef = useRef(null);
+  const frozenStateRef = useRef(null);
+  const desiredScrollLeftRef = useRef(0);
+  const [timelineEndSec, setTimelineEndSec] = useState(MIN_TIMELINE_SECONDS);
+  const [contentWidthPx, setContentWidthPx] = useState(1200);
+  const latestRef = useRef({
+    history,
+    sessionStartMs,
+    singStartSec,
+    stopScrollSec,
+    playedBars,
+    expectedBars,
+    barResults,
+  });
+
+  latestRef.current = {
+    history,
+    sessionStartMs,
+    singStartSec,
+    stopScrollSec,
+    playedBars,
+    expectedBars,
+    barResults,
+  };
+
+  useEffect(() => {
+    frozenStateRef.current = null;
+    desiredScrollLeftRef.current = 0;
+    setTimelineEndSec(MIN_TIMELINE_SECONDS);
+  }, [sessionStartMs]);
+
+  useEffect(() => {
+    const timerId = globalThis.setInterval(() => {
+      const latest = latestRef.current;
+      const nowSec = getNowSec(latest.sessionStartMs, latest.stopScrollSec);
+      const barMax = Math.max(
+        0,
+        ...latest.playedBars.map((bar) => bar.endSec ?? 0),
+        ...latest.expectedBars.map((bar) => bar.endSec ?? 0),
+      );
+      const nextTimelineEnd = Math.max(MIN_TIMELINE_SECONDS, nowSec + TIMELINE_RIGHT_PAD_SECONDS, barMax + TIMELINE_RIGHT_PAD_SECONDS);
+      setTimelineEndSec((previous) => (Math.abs(previous - nextTimelineEnd) < 0.001 ? previous : nextTimelineEnd));
+
+      const scroller = scrollContainerRef.current;
+      if (scroller && Number.isFinite(latest.sessionStartMs)) {
+        const timelineWidthPx = Math.max(1200, Math.ceil(nextTimelineEnd * PIXELS_PER_SECOND));
+        const nowX = (nowSec / Math.max(0.001, nextTimelineEnd)) * timelineWidthPx;
+        const targetScrollLeft = nowX - scroller.clientWidth * FOLLOW_CURSOR_RATIO;
+        const clampedScrollLeft = Math.max(0, Math.min(targetScrollLeft, Math.max(0, timelineWidthPx - scroller.clientWidth)));
+        desiredScrollLeftRef.current = clampedScrollLeft;
+      }
+    }, 120);
+
+    return () => globalThis.clearInterval(timerId);
+  }, []);
+
+  useEffect(() => {
+    const targetWidth = Math.max(1200, Math.ceil(timelineEndSec * PIXELS_PER_SECOND));
+    setContentWidthPx((previous) => (previous === targetWidth ? previous : targetWidth));
+  }, [timelineEndSec]);
+
+  const { minMidi, maxMidi } = useMemo(() => {
+    const minFromSettings = frequencyToMidi(minFrequencyHz);
+    const maxFromSettings = frequencyToMidi(maxFrequencyHz);
+    return {
+      minMidi: Math.floor(minFromSettings) - 1,
+      maxMidi: Math.ceil(maxFromSettings) + 1,
+    };
+  }, [maxFrequencyHz, minFrequencyHz]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) {
+      return undefined;
+    }
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      return undefined;
+    }
+
+    let frameId = 0;
+    let lastWidth = 0;
+    let lastHeight = 0;
+    let lastDpr = 0;
+    let lastRenderTime = 0;
+    let gridCanvas = null;
+
+    const renderFrame = (timestamp) => {
+      if (timestamp - lastRenderTime < TARGET_FRAME_MS) {
+        frameId = requestAnimationFrame(renderFrame);
+        return;
+      }
+      lastRenderTime = timestamp;
+
+      const dpr = globalThis.devicePixelRatio || 1;
+      const rectWidth = canvas.clientWidth;
+      const rectHeight = canvas.clientHeight;
+
+      if (rectWidth !== lastWidth || rectHeight !== lastHeight || dpr !== lastDpr) {
+        lastWidth = rectWidth;
+        lastHeight = rectHeight;
+        lastDpr = dpr;
+        canvas.width = Math.max(1, Math.floor(rectWidth * dpr));
+        canvas.height = Math.max(1, Math.floor(rectHeight * dpr));
+        context.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+        const offscreen = document.createElement('canvas');
+        offscreen.width = canvas.width;
+        offscreen.height = canvas.height;
+        const gc = offscreen.getContext('2d');
+        gc.setTransform(dpr, 0, 0, dpr, 0, 0);
+        drawGrid(gc, rectWidth, rectHeight, minMidi, maxMidi);
+        gridCanvas = offscreen;
+      }
+
+      const latest = latestRef.current;
+      const liveNowSec = getNowSec(latest.sessionStartMs, latest.stopScrollSec);
+
+      if (!frozenStateRef.current && Number.isFinite(latest.stopScrollSec) && liveNowSec >= latest.stopScrollSec) {
+        frozenStateRef.current = {
+          nowSec: latest.stopScrollSec,
+          history: latest.history.slice(),
+          barResults: { ...latest.barResults },
+        };
+      }
+
+      const frozen = frozenStateRef.current;
+      const nowSec = frozen ? frozen.nowSec : liveNowSec;
+      const renderHistory = frozen ? frozen.history : latest.history;
+      const renderBarResults = frozen ? frozen.barResults : latest.barResults;
+
+      drawTimeline({
+        context,
+        width: rectWidth,
+        height: rectHeight,
+        minMidi,
+        maxMidi,
+        gridCanvas,
+        nowSec,
+        timelineEndSec,
+        singStartSec: latest.singStartSec,
+        playedBars: latest.playedBars,
+        expectedBars: latest.expectedBars,
+        barResults: renderBarResults,
+        history: renderHistory,
+        sessionStartMs: latest.sessionStartMs,
+      });
+
+      const scroller = scrollContainerRef.current;
+      if (scroller && Number.isFinite(latest.sessionStartMs)) {
+        const currentScrollLeft = scroller.scrollLeft;
+        const targetScrollLeft = desiredScrollLeftRef.current;
+        const delta = targetScrollLeft - currentScrollLeft;
+        if (Math.abs(delta) > 0.1) {
+          scroller.scrollLeft = currentScrollLeft + delta * SCROLL_SMOOTHING_FACTOR;
+        } else {
+          scroller.scrollLeft = targetScrollLeft;
+        }
+      }
+
+      const hasActiveSession = Number.isFinite(latest.sessionStartMs);
+      if (!hasActiveSession) {
+        frameId = 0;
+        return;
+      }
+
+      frameId = requestAnimationFrame(renderFrame);
+    };
+
+    frameId = requestAnimationFrame(renderFrame);
+    return () => cancelAnimationFrame(frameId);
+  }, [maxMidi, minMidi, sessionStartMs, timelineEndSec]);
+
+  return (
+    <div className="card" style={{ padding: 12, marginTop: 12, maxWidth: '100%', overflow: 'hidden' }}>
+      <div
+        ref={scrollContainerRef}
+        style={{
+          width: '100%',
+          maxWidth: '100%',
+          overflowX: 'auto',
+          overflowY: 'hidden',
+        }}
+      >
+        <canvas
+          ref={canvasRef}
+          className="mic-settings-canvas"
+          style={{
+            display: 'block',
+            width: `${contentWidthPx}px`,
+            minWidth: `${contentWidthPx}px`,
+            maxWidth: 'none',
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+function drawTimeline({
+  context,
+  width,
+  height,
+  minMidi,
+  maxMidi,
+  gridCanvas,
+  nowSec,
+  timelineEndSec,
+  singStartSec,
+  playedBars,
+  expectedBars,
+  barResults,
+  history,
+  sessionStartMs,
+}) {
+  context.clearRect(0, 0, width, height);
+
+  if (gridCanvas) {
+    context.drawImage(gridCanvas, 0, 0, width, height);
+  } else {
+    context.fillStyle = '#020617';
+    context.fillRect(0, 0, width, height);
+  }
+
+  const xStartSec = 0;
+  const xEndSec = Math.max(MIN_TIMELINE_SECONDS, timelineEndSec);
+
+  const toX = (seconds) => ((seconds - xStartSec) / Math.max(0.001, (xEndSec - xStartSec))) * width;
+  const toY = (midi) => {
+    const ratio = (midi - minMidi) / Math.max(1, maxMidi - minMidi);
+    return height - ratio * height;
+  };
+
+  drawBars(context, playedBars, {
+    toX,
+    toY,
+    xStartSec,
+    xEndSec,
+    fillStyle: '#2563eb',
+    strokeStyle: '#60a5fa',
+  });
+
+  drawExpectedBars(context, expectedBars, {
+    toX,
+    toY,
+    xStartSec,
+    xEndSec,
+    nowSec,
+    barResults,
+  });
+
+  drawPitchLine(context, history, {
+    toX,
+    toY,
+    xStartSec,
+    xEndSec,
+    singStartSec,
+    sessionStartMs,
+  });
+
+  if (Number.isFinite(singStartSec)) {
+    const countdownX = toX(singStartSec);
+    context.strokeStyle = '#a78bfa';
+    context.lineWidth = 2;
+    context.setLineDash([6, 6]);
+    context.beginPath();
+    context.moveTo(countdownX, 0);
+    context.lineTo(countdownX, height);
+    context.stroke();
+    context.setLineDash([]);
+  }
+
+  const nowX = toX(nowSec);
+  context.strokeStyle = '#f8fafc';
+  context.lineWidth = 2;
+  context.beginPath();
+  context.moveTo(nowX, 0);
+  context.lineTo(nowX, height);
+  context.stroke();
+}
+
+function drawGrid(context, width, height, minMidi, maxMidi) {
+  context.fillStyle = '#020617';
+  context.fillRect(0, 0, width, height);
+  const midiRange = Math.max(1, maxMidi - minMidi);
+  for (let midi = minMidi; midi <= maxMidi; midi += 1) {
+    const y = height - ((midi - minMidi) / midiRange) * height;
+    context.strokeStyle = midi % 12 === 0 ? '#334155' : '#1e293b';
+    context.lineWidth = midi % 12 === 0 ? 1.2 : 0.7;
+    context.beginPath();
+    context.moveTo(0, y);
+    context.lineTo(width, y);
+    context.stroke();
+  }
+}
+
+function drawBars(context, bars, { toX, toY, xStartSec, xEndSec, fillStyle, strokeStyle }) {
+  bars.forEach((bar) => {
+    if (bar.endSec < xStartSec || bar.startSec > xEndSec) {
+      return;
+    }
+
+    const x1 = toX(bar.startSec);
+    const x2 = toX(bar.endSec);
+    const y = toY(bar.midi);
+    const h = 10;
+    const y1 = y - h / 2;
+    const w = Math.max(2, x2 - x1);
+
+    context.fillStyle = fillStyle;
+    context.strokeStyle = strokeStyle;
+    drawRoundedRect(context, x1, y1, w, h, 5);
+    context.fill();
+    context.stroke();
+  });
+}
+
+function drawExpectedBars(context, bars, { toX, toY, xStartSec, xEndSec, nowSec, barResults }) {
+  bars.forEach((bar) => {
+    if (bar.endSec < xStartSec || bar.startSec > xEndSec) {
+      return;
+    }
+
+    const x1 = toX(bar.startSec);
+    const x2 = toX(bar.endSec);
+    const y = toY(bar.midi);
+    const h = 14;
+    const y1 = y - h / 2;
+    const w = Math.max(2, x2 - x1);
+    const result = barResults[bar.id];
+
+    if (nowSec < bar.endSec || result === undefined) {
+      context.fillStyle = 'rgba(148, 163, 184, 0.38)';
+      context.strokeStyle = 'rgba(148, 163, 184, 0.70)';
+    } else if (result) {
+      context.fillStyle = 'rgba(22, 163, 74, 0.62)';
+      context.strokeStyle = '#86efac';
+    } else {
+      context.fillStyle = 'rgba(220, 38, 38, 0.62)';
+      context.strokeStyle = '#fca5a5';
+    }
+
+    drawRoundedRect(context, x1, y1, w, h, 6);
+    context.fill();
+    context.stroke();
+  });
+}
+
+function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singStartSec, sessionStartMs }) {
+  if (!Number.isFinite(sessionStartMs) || !Number.isFinite(singStartSec)) {
+    return;
+  }
+
+  context.strokeStyle = '#22d3ee';
+  context.lineWidth = 4;
+  context.lineJoin = 'round';
+  context.lineCap = 'round';
+  context.beginPath();
+
+  let hasPoint = false;
+  let needsMove = true;
+  let previousMidi = null;
+  let lastVoicedSec = null;
+
+  for (const entry of history) {
+    if (!Number.isFinite(entry.timeMs)) {
+      continue;
+    }
+
+    const timeSec = (entry.timeMs - sessionStartMs) / 1000;
+    if (timeSec < singStartSec || timeSec < xStartSec || timeSec > xEndSec) {
+      continue;
+    }
+
+    if (!Number.isFinite(entry.midi)) {
+      const gapLimit = Number.isFinite(entry.db) && entry.db >= HIGH_ENERGY_DB_THRESHOLD
+        ? MAX_DRAW_GAP_HIGH_ENERGY_SEC
+        : MAX_DRAW_GAP_SEC;
+      if (!Number.isFinite(lastVoicedSec) || (timeSec - lastVoicedSec) > gapLimit) {
+        needsMove = true;
+        previousMidi = null;
+      }
+      continue;
+    }
+
+    if (Number.isFinite(previousMidi) && Math.abs(entry.midi - previousMidi) > MAX_DRAW_JUMP_SEMITONES) {
+      needsMove = true;
+    }
+
+    const x = toX(timeSec);
+    const y = toY(entry.midi);
+
+    if (needsMove) {
+      context.moveTo(x, y);
+      needsMove = false;
+    } else {
+      context.lineTo(x, y);
+    }
+
+    hasPoint = true;
+    previousMidi = entry.midi;
+    lastVoicedSec = timeSec;
+  }
+
+  if (hasPoint) {
+    context.stroke();
+  }
+}
+
+function drawRoundedRect(context, x, y, width, height, radius) {
+  const r = Math.min(radius, width / 2, height / 2);
+  context.beginPath();
+  context.moveTo(x + r, y);
+  context.lineTo(x + width - r, y);
+  context.quadraticCurveTo(x + width, y, x + width, y + r);
+  context.lineTo(x + width, y + height - r);
+  context.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+  context.lineTo(x + r, y + height);
+  context.quadraticCurveTo(x, y + height, x, y + height - r);
+  context.lineTo(x, y + r);
+  context.quadraticCurveTo(x, y, x + r, y);
+  context.closePath();
+}
+
+function frequencyToMidi(frequency) {
+  if (!Number.isFinite(frequency) || frequency <= 0) {
+    return 0;
+  }
+  return 69 + (12 * Math.log(frequency / 440)) / Math.log(2);
+}
+
+function getNowSec(sessionStartMs, stopScrollSec) {
+  if (!Number.isFinite(sessionStartMs)) {
+    return 0;
+  }
+
+  const elapsedSec = Math.max(0, (performance.now() - sessionStartMs) / 1000);
+  if (!Number.isFinite(stopScrollSec)) {
+    return elapsedSec;
+  }
+
+  return Math.min(elapsedSec, stopScrollSec);
+}
+
+SingInputGraphV2.propTypes = {
+  minFrequencyHz: PropTypes.number,
+  maxFrequencyHz: PropTypes.number,
+  history: PropTypes.arrayOf(
+    PropTypes.shape({
+      timeMs: PropTypes.number,
+      midi: PropTypes.number,
+      pitchHz: PropTypes.number,
+      db: PropTypes.number,
+    }),
+  ),
+  sessionStartMs: PropTypes.number,
+  singStartSec: PropTypes.number,
+  stopScrollSec: PropTypes.number,
+  playedBars: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      startSec: PropTypes.number.isRequired,
+      endSec: PropTypes.number.isRequired,
+      midi: PropTypes.number.isRequired,
+    }),
+  ),
+  expectedBars: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string.isRequired,
+      index: PropTypes.number,
+      startSec: PropTypes.number.isRequired,
+      endSec: PropTypes.number.isRequired,
+      midi: PropTypes.number.isRequired,
+    }),
+  ),
+  barResults: PropTypes.objectOf(PropTypes.bool),
+};
+
+SingInputGraphV2.defaultProps = {
+  minFrequencyHz: 55,
+  maxFrequencyHz: 1200,
+  history: [],
+  sessionStartMs: undefined,
+  singStartSec: undefined,
+  stopScrollSec: undefined,
+  playedBars: [],
+  expectedBars: [],
+  barResults: {},
+};
