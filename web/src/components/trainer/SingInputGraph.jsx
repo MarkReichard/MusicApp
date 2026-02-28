@@ -331,7 +331,7 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
     return;
   }
 
-  const decimated = decimatePoints(samples, 110);
+  const decimated = decimatePoints(samples, 200);
 
   context.strokeStyle = '#22d3ee';
   context.lineWidth = 4;

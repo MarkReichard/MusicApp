@@ -10,7 +10,7 @@
  */
 
 import { SplendidGrandPiano, Soundfont } from 'smplr';
-import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz } from './musicTheory';
+import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS } from './musicTheory';
 
 export const INSTRUMENT_OPTIONS = [
   { value: 'acoustic_grand_piano', label: 'Grand Piano' },
@@ -36,21 +36,6 @@ const BING_DURATION_S = 0.9;
 const BUZZ_FREQ_HZ    = 160;
 const BUZZ_DURATION_S = 0.45;
 
-// Additive-synth fallback
-const HARMONICS = [
-  { multiplier: 1, weight: 1    },
-  { multiplier: 2, weight: 0.5  },
-  { multiplier: 3, weight: 0.25 },
-  { multiplier: 4, weight: 0.1  },
-  { multiplier: 5, weight: 0.05 },
-];
-const HARMONIC_TOTAL              = HARMONICS.reduce((s, h) => s + h.weight, 0);
-const SYNTH_ATTACK_S              = 0.006;
-const SYNTH_HELD_SUSTAIN_RATIO    = 0.22;
-const SYNTH_HELD_DECAY_S          = 0.28;
-const SYNTH_RELEASE_TIME_CONSTANT = 0.02;
-const SYNTH_RELEASE_S             = 0.09;
-
 // ── Context management ─────────────────────────────────────────────────────────
 
 function getOrCreateContext() {
@@ -63,11 +48,6 @@ function getOrCreateContext() {
   return _ctx;
 }
 
-/** Returns the shared AudioContext, creating it if necessary. */
-export function getAudioContext() {
-  return getOrCreateContext();
-}
-
 // ── Piano loading ──────────────────────────────────────────────────────────────
 
 /**
@@ -75,7 +55,7 @@ export function getAudioContext() {
  * Safe to call multiple times — subsequent calls return the same Promise.
  * Call once in App on mount so samples are ready before the user plays anything.
  *
- * @returns {Promise<SplendidGrandPiano | null>}
+ * @returns {Promise<SplendidGrandPiano>}
  */
 export function loadPiano() {
   if (_loadPromise) return _loadPromise;
@@ -86,18 +66,12 @@ export function loadPiano() {
       _piano = piano;
       _loadedInstrument = 'acoustic_grand_piano';
       return piano;
-    })
-    .catch((err) => {
-      console.warn('[pianoSynth] Sample load failed — falling back to additive synth:', err);
-      _loadPromise = null; // allow retry on next call
-      return null;
     });
   return _loadPromise;
 }
 
 /**
  * Switches the playback instrument to any Soundfont instrument name.
- * Falls back to additive synth while loading.
  *
  * @param {string} instrumentName  e.g. 'flute', 'violin', 'acoustic_grand_piano'
  * @returns {Promise<void>}
@@ -106,19 +80,15 @@ export async function loadInstrument(instrumentName) {
   if (_loadedInstrument === instrumentName && _piano) {
     return; // already loaded, nothing to do
   }
-  _piano = null; // use additive synth fallback while loading
+  _piano = null; // use fallback while loading
   _loadPromise = null;
   _loadedInstrument = null;
   const ctx = getOrCreateContext();
-  try {
-    const sf = new Soundfont(ctx, { instrument: instrumentName });
-    await sf.load;
-    _piano = sf;
-    _loadedInstrument = instrumentName;
-    _loadPromise = Promise.resolve(sf);
-  } catch (err) {
-    console.warn('[pianoSynth] Soundfont load failed:', err);
-  }
+  const sf = new Soundfont(ctx, { instrument: instrumentName });
+  await sf.load;
+  _piano = sf;
+  _loadedInstrument = instrumentName;
+  _loadPromise = Promise.resolve(sf);
 }
 
 // ── Internal helpers ───────────────────────────────────────────────────────────
@@ -144,62 +114,10 @@ function translateTime(startAt, externalCtx) {
   return _ctx.currentTime + Math.max(0, offset);
 }
 
-// ── Additive-synth fallback helpers ───────────────────────────────────────────
-
-function createSynthPartials(ctx, freq, masterGain, startAt) {
-  return HARMONICS.map(({ multiplier, weight }) => {
-    const osc = ctx.createOscillator();
-    osc.type = 'sine';
-    osc.frequency.value = freq * multiplier;
-    const hg = ctx.createGain();
-    hg.gain.value = weight / HARMONIC_TOTAL;
-    osc.connect(hg);
-    hg.connect(masterGain);
-    osc.start(startAt);
-    return osc;
-  });
-}
-
-function scheduleSynthNote(ctx, freq, startAt, durationS, peakGain) {
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(NEAR_ZERO, startAt);
-  masterGain.gain.linearRampToValueAtTime(peakGain, startAt + SYNTH_ATTACK_S);
-  masterGain.gain.exponentialRampToValueAtTime(NEAR_ZERO, startAt + durationS);
-  masterGain.connect(ctx.destination);
-  const stopAt = startAt + durationS + 0.05;
-  createSynthPartials(ctx, freq, masterGain, startAt).forEach((osc) => osc.stop(stopAt));
-}
-
-function startSynthHeld(ctx, freq, peakGain) {
-  const now = ctx.currentTime;
-  const masterGain = ctx.createGain();
-  masterGain.gain.setValueAtTime(NEAR_ZERO, now);
-  masterGain.gain.linearRampToValueAtTime(peakGain, now + SYNTH_ATTACK_S);
-  masterGain.gain.exponentialRampToValueAtTime(
-    peakGain * SYNTH_HELD_SUSTAIN_RATIO,
-    now + SYNTH_HELD_DECAY_S,
-  );
-  masterGain.connect(ctx.destination);
-  const oscillators = createSynthPartials(ctx, freq, masterGain, now);
-  return {
-    stop() {
-      const stopAt = ctx.currentTime;
-      try {
-        masterGain.gain.cancelScheduledValues(stopAt);
-        masterGain.gain.setTargetAtTime(NEAR_ZERO, stopAt, SYNTH_RELEASE_TIME_CONSTANT);
-      } catch { /* ignore */ }
-      oscillators.forEach((osc) => {
-        try { osc.stop(stopAt + SYNTH_RELEASE_S); } catch { /* ignore */ }
-      });
-    },
-  };
-}
-
 // ── Public API ─────────────────────────────────────────────────────────────────
 
 /**
  * Schedules a piano note at a future time expressed relative to `externalCtx`.
- * Falls back to additive synth when samples have not loaded yet.
  *
  * @param {AudioContext} externalCtx  Caller's reference context (used only for time translation)
  * @param {number}       freq         Frequency in Hz
@@ -208,13 +126,9 @@ function startSynthHeld(ctx, freq, peakGain) {
  * @param {number}       peakGain     Peak amplitude (0–1)
  */
 export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGain) {
-  if (_piano && _ctx) {
-    const midi = freqToMidi(freq);
-    const time = translateTime(startAt, externalCtx);
-    _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
-  } else {
-    scheduleSynthNote(externalCtx, freq, startAt, durationS, peakGain);
-  }
+  const midi = freqToMidi(freq);
+  const time = translateTime(startAt, externalCtx);
+  _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
 }
 
 /**
@@ -228,13 +142,8 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
  */
 export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
   const ctx = getOrCreateContext();
-  if (_piano) {
-    const time = ctx.currentTime + NOTE_START_OFFSET_S;
-    _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
-  } else {
-    const freq = midiToFrequencyHz(midi);
-    scheduleSynthNote(ctx, freq, ctx.currentTime + NOTE_START_OFFSET_S, durationS, peakGain);
-  }
+  const time = ctx.currentTime + NOTE_START_OFFSET_S;
+  _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
   return durationS * 1000 + 200;
 }
 
@@ -247,13 +156,9 @@ export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
  * @returns {{ stop: Function }}
  */
 export function startHeldPianoTone(freq, peakGain) {
-  const ctx = getOrCreateContext();
-  if (_piano) {
-    const midi = freqToMidi(freq);
-    const stopNote = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
-    return { stop: stopNote };
-  }
-  return startSynthHeld(ctx, freq, peakGain);
+  const midi = freqToMidi(freq);
+  const stopNote = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
+  return { stop: stopNote };
 }
 
 /**
@@ -302,4 +207,21 @@ export function playBuzz() {
   osc.connect(masterGain);
   osc.start(now);
   osc.stop(now + BUZZ_DURATION_S + 0.05);
+}
+
+/**
+ * Schedules a tonic cadence (I–IV–V–IV) using the provided AudioContext.
+ * Returns the time after the cadence ends.
+ */
+export function scheduleCadence(externalCtx, startAt, beatSeconds, tonicMidi, chordGain) {
+  let at = startAt;
+  CADENCE_CHORD_OFFSETS.forEach((offset) => {
+    const chordRoot = tonicMidi + offset;
+    TRIAD_INTERVALS.forEach((triadOffset) => {
+      const frequency = midiToFrequencyHz(chordRoot + triadOffset);
+      schedulePianoNote(externalCtx, frequency, at, beatSeconds, chordGain);
+    });
+    at += beatSeconds;
+  });
+  return at;
 }

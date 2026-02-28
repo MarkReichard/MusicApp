@@ -16,20 +16,19 @@ import {
   CADENCE_CHORD_OFFSETS,
   TRIAD_INTERVALS,
   beatSecondsFromTempo,
+  NOTE_DURATION_SCALE,
+  MIN_NOTE_DURATION_SECONDS,
+  AUDIO_START_OFFSET_SECONDS,
+  NOTE_GAP_SECONDS,
+  PLAYBACK_BUFFER_MS,
+  CADENCE_CHORD_GAIN,
+  TARGET_NOTE_GAIN,
+  SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument } from '../lib/pianoSynth';
 
 // ── Audio timing (shared with buildSingTimeline) ──────────────────────────────
-const NOTE_DURATION_SCALE       = 0.92;
-const MIN_NOTE_DURATION_SECONDS = 0.12;
-const AUDIO_START_OFFSET_SECONDS = 0.03;
-const NOTE_GAP_SECONDS          = 0.03;
-const PLAYBACK_BUFFER_MS        = 40;
-const CADENCE_CHORD_GAIN        = 0.08;
-const TARGET_NOTE_GAIN          = 0.16;
-
-const SING_COUNTDOWN_BEATS = 1;
 
 export function SingTrainerPage() {
   const { lessonId } = useParams();
@@ -64,7 +63,7 @@ export function SingTrainerPage() {
   const historyRef = useRef([]);
 
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
-  const { current, history } = usePitchDetector(pitchSettings, true, { maxHistoryPoints: 140 });
+  const { current, history } = usePitchDetector(pitchSettings, true, { maxHistoryPoints: 300 });
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
   const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };

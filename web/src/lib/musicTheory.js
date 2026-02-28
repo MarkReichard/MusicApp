@@ -12,6 +12,16 @@ export const TRIAD_INTERVALS = [0, 4, 7];            // root, major 3rd, perfect
 export const MIN_TEMPO_BPM = 40;              // clamp floor for beat calculation
 export const DEFAULT_FALLBACK_TEMPO_BPM = 90; // used when tempoBpm is missing/invalid
 
+// ── Audio timing ───────────────────────────────────────────────────────────────
+export const NOTE_DURATION_SCALE = 0.92;           // fraction of beat used for note sound
+export const MIN_NOTE_DURATION_SECONDS = 0.12;     // floor on note playback duration
+export const AUDIO_START_OFFSET_SECONDS = 0.03;    // initial delay before first scheduled event
+export const NOTE_GAP_SECONDS = 0.03;              // silence between consecutive notes
+export const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after last note
+export const CADENCE_CHORD_GAIN = 0.08;            // gain for cadence chords
+export const TARGET_NOTE_GAIN = 0.16;              // gain for target notes
+export const SING_COUNTDOWN_BEATS = 1;             // beats for sing countdown
+
 // ── Key → semitone map ─────────────────────────────────────────────────────────
 export const KEY_TO_SEMITONE = {
   C: 0,

@@ -16,9 +16,16 @@ import {
   beatSecondsFromTempo,
   midiToFrequencyHz,
   midiToNoteLabel,
+  NOTE_DURATION_SCALE,
+  MIN_NOTE_DURATION_SECONDS,
+  AUDIO_START_OFFSET_SECONDS,
+  NOTE_GAP_SECONDS,
+  PLAYBACK_BUFFER_MS,
+  CADENCE_CHORD_GAIN,
+  TARGET_NOTE_GAIN,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
-import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument } from '../lib/pianoSynth';
+import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence } from '../lib/pianoSynth';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -124,20 +131,6 @@ export function TrainerPage() {
     setSingOctave(rangeRecommendation.octave);
   }
 
-  function scheduleCadence(context, startAt, beatSeconds) {
-    const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
-    const chordDurationSeconds = beatSeconds;
-    let at = startAt;
-    CADENCE_CHORD_OFFSETS.forEach((offset) => {
-      const chordRoot = tonicMidi + offset;
-      TRIAD_INTERVALS.forEach((triadOffset) => {
-        const frequency = midiToFrequencyHz(chordRoot + triadOffset);
-        schedulePianoNote(context, frequency, at, chordDurationSeconds, CADENCE_CHORD_GAIN);
-      });
-      at += chordDurationSeconds;
-    });
-    return at;
-  }
 
   async function playTonicOnly() {
     if (isPlayingCadence || isPlayingTarget) return;
@@ -146,7 +139,7 @@ export function TrainerPage() {
     await context.resume().catch(() => undefined);
     try {
       const beatSeconds = beatSecondsFromTempo(tempoBpm);
-      const endAt = scheduleCadence(context, context.currentTime + AUDIO_START_OFFSET_SECONDS, beatSeconds);
+      const endAt = scheduleCadence(context, context.currentTime + AUDIO_START_OFFSET_SECONDS, beatSeconds, tonicMidi, CADENCE_CHORD_GAIN);
       const totalMs = Math.ceil((endAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
       await new Promise((resolve) => globalThis.setTimeout(resolve, totalMs));
     } finally {
@@ -169,7 +162,7 @@ export function TrainerPage() {
       let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
       if (playTonicCadence) {
-        startAt = scheduleCadence(context, startAt, beatSeconds);
+        startAt = scheduleCadence(context, startAt, beatSeconds, tonicMidi, CADENCE_CHORD_GAIN);
         startAt += NOTE_GAP_SECONDS * 2;
       }
 
@@ -531,16 +524,7 @@ const WHITE_KEY_WIDTH_PX = 44;
 const BLACK_KEY_OFFSET_PX = 13;
 
 // ── Audio – gain levels ───────────────────────────────────────────────────────
-const CADENCE_CHORD_GAIN = 0.08;
-const TARGET_NOTE_GAIN = 0.16;
 const INPUT_TONE_GAIN = 0.14;
-
-// ── Audio – timing ────────────────────────────────────────────────────────────
-const NOTE_DURATION_SCALE = 0.92;           // fraction of beat used for note sound
-const MIN_NOTE_DURATION_SECONDS = 0.12;     // floor on note playback duration
-const AUDIO_START_OFFSET_SECONDS = 0.03;    // initial delay before first scheduled event
-const NOTE_GAP_SECONDS = 0.03;              // silence between consecutive notes
-const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after last note
 
 // ── Lesson / UI defaults ──────────────────────────────────────────────────────
 const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };

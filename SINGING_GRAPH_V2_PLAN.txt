@@ -1,0 +1,142 @@
+Singing Graph V2 Plan (Performance-First, Low-Churn)
+Date: 2026-02-28
+Status: Proposed
+
+Purpose
+- Build a new singing graph path from scratch (V2) instead of iterating on the current trainer graph.
+- Keep scope minimal until performance and stability are proven.
+
+Core Requirements
+1) Display what the user sang over time in a stable, responsive graph.
+2) Determine whether each expected note window was matched.
+3) Avoid lag, jumps, and disappearing graph behavior.
+
+Non-Goals (until V2 stability is proven)
+- No advanced overlays beyond essentials.
+- No repeated rescoring every frame.
+- No feature parity work with current trainer until V2 hits targets.
+
+Performance Budgets (Go/No-Go)
+- Graph render p95: < 8 ms per frame.
+- Visual frame rate during singing: >= 55 FPS on target machine.
+- Pitch-to-graph latency: < 120 ms.
+- Canvas reset/reinit during active session: 0.
+- 10-minute continuous session: no disappear/jump regression.
+
+V2 Architecture (Simple by Design)
+A) Timebase
+- One monotonic clock source per run: sessionStartMs = performance.now().
+- All times represented as relative seconds from session start.
+
+B) Data Capture
+- Mic detector emits samples at 20-30 Hz.
+- Store samples in fixed-size ring buffer (typed arrays):
+  - timeSec
+  - midi
+  - clarity
+  - voiced flag
+- No per-sample array cloning/spread operations in hot path.
+
+C) Rendering
+- requestAnimationFrame loop draws current viewport from ring buffer.
+- Layering:
+  1. Static background/grid (cached, redraw only on resize/range change).
+  2. Expected-note bars (redraw only when session/timeline changes).
+  3. Live sung pitch trace (redraw each frame).
+- React is not the source of truth for live samples; React receives throttled summaries only.
+
+D) Matching / Scoring
+- Expected notes are static windows: { id, startSec, endSec, targetMidi }.
+- Each window is scored exactly once when endSec is reached.
+- Scoring rule (initial):
+  - Collect voiced samples in window.
+  - Compute median sung midi.
+  - Pass if voiced coverage >= 35% and cents error <= tolerance.
+- Store immutable result per window: pending | pass | fail.
+
+E) Session State Machine
+- idle -> countdown -> singing -> complete
+- No freeze-state branching beyond complete state.
+- Retry starts a fresh session instance and clears V2 buffers/results.
+
+Step-by-Step Execution Plan
+Step 1 - Create V2 Lab Page (MVP shell)
+- New isolated page/route for V2 singing graph.
+- Basic controls: Start, Stop, Retry.
+- No lesson complexity beyond one predefined expected-note sequence.
+Acceptance:
+- Page runs independently of current trainer graph path.
+
+Step 2 - Add Instrumentation First
+- Capture rolling metrics:
+  - render duration per frame
+  - detector tick duration
+  - dropped-frame indicator
+  - ring-buffer fill stats
+  - canvas reset count
+- Show compact diagnostics panel on V2 page.
+Acceptance:
+- Metrics visible during run and reset with session.
+
+Step 3 - Implement Ring Buffer Pipeline
+- Replace React-driven history arrays in hot path.
+- Keep sample ingest allocation-free.
+- Expose read cursor APIs for renderer/scorer.
+Acceptance:
+- Stable memory footprint over 10-minute run.
+
+Step 4 - Implement Minimal Renderer
+- Draw grid + expected bars + live trace from ring buffer.
+- Viewport scrolls smoothly with single clock.
+- Resize handling via deterministic canvas sizing.
+Acceptance:
+- Meets smoothness target in a 3-minute run.
+
+Step 5 - Implement One-Time Window Scoring
+- Score each expected note only once at window close.
+- Render pass/fail overlay after scoring.
+Acceptance:
+- Results are stable (no flip-flopping after assignment).
+
+Step 6 - Add Reliability Safeguards
+- Handle tab visibility pause/resume.
+- Handle audio context/mic interruptions gracefully.
+- Ensure renderer recovers without canvas disappearance.
+Acceptance:
+- 10-minute soak test with no disappear/jump behavior.
+
+Step 7 - Progressive Feature Additions
+- Add lesson-driven timelines.
+- Add countdown/cadence overlays only if metrics stay in budget.
+- Gate each addition with regression checks.
+Acceptance:
+- No budget regressions after each added feature.
+
+Step 8 - Cutover Strategy
+- Keep V1 and V2 side-by-side behind route or feature flag.
+- Promote V2 to default only after 3 consecutive pass runs.
+Acceptance:
+- V2 default path is measurably better than V1.
+
+Regression Gate Checklist (must pass before adding scope)
+- FPS >= 55 during active singing window.
+- p95 frame render < 8 ms.
+- No graph disappear event in 10-minute run.
+- No unbounded memory growth.
+- Scoring repeatability on same input.
+
+Working Rules to Prevent Churn
+- Do not modify V1 graph except critical bug fixes.
+- Add one feature at a time; test and benchmark before next feature.
+- If a change regresses budgets, revert immediately.
+- Keep each PR focused and measurable.
+
+Suggested First 3 Tickets
+1) V2 page + route + Start/Stop/Retry controls.
+2) Ring buffer data model + detector ingest adapter.
+3) Minimal canvas renderer + on-screen diagnostics.
+
+Definition of Success
+- App provides a responsive, stable singing graph and reliable note-match results.
+- Performance is verified by metrics, not perception.
+- Team can evolve features without reintroducing lag/disappear failures.
