@@ -48,6 +48,10 @@ function getOrCreateContext() {
   return _ctx;
 }
 
+export function getPianoAudioContext() {
+  return getOrCreateContext();
+}
+
 // ── Piano loading ──────────────────────────────────────────────────────────────
 
 /**
@@ -126,9 +130,18 @@ function translateTime(startAt, externalCtx) {
  * @param {number}       peakGain     Peak amplitude (0–1)
  */
 export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGain) {
-  const midi = freqToMidi(freq);
+  const ctx = getOrCreateContext();
   const time = translateTime(startAt, externalCtx);
-  return _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  const safeDuration = Math.max(0.02, Number(durationS) || 0.2);
+  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || 0.1);
+
+  if (_piano && typeof _piano.start === 'function') {
+    const midi = freqToMidi(freq);
+    const handle = _piano.start({ note: midi, velocity: gainToVelocity(safeGain), time, duration: safeDuration });
+    return toStopFunction(handle);
+  }
+
+  return scheduleFallbackTone(ctx, freq, time, safeDuration, safeGain);
 }
 
 /**
@@ -143,7 +156,11 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
 export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
   const ctx = getOrCreateContext();
   const time = ctx.currentTime + NOTE_START_OFFSET_S;
-  _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  if (_piano && typeof _piano.start === 'function') {
+    _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  } else {
+    scheduleFallbackTone(ctx, midiToFrequencyHz(midi), time, durationS, peakGain);
+  }
   return durationS * 1000 + 200;
 }
 
@@ -156,9 +173,16 @@ export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
  * @returns {{ stop: Function }}
  */
 export function startHeldPianoTone(freq, peakGain) {
-  const midi = freqToMidi(freq);
-  const stopNote = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
-  return { stop: stopNote };
+  const ctx = getOrCreateContext();
+
+  if (_piano && typeof _piano.start === 'function') {
+    const midi = freqToMidi(freq);
+    const handle = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
+    return { stop: toStopFunction(handle) };
+  }
+
+  const stopFallback = startFallbackHeldTone(ctx, freq, peakGain);
+  return { stop: stopFallback };
 }
 
 /**
@@ -224,4 +248,75 @@ export function scheduleCadence(externalCtx, startAt, beatSeconds, tonicMidi, ch
     at += beatSeconds;
   });
   return at;
+}
+
+function scheduleFallbackTone(ctx, freq, time, durationS, peakGain) {
+  const osc = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(Math.max(20, Number(freq) || 440), time);
+
+  gainNode.gain.setValueAtTime(NEAR_ZERO, time);
+  gainNode.gain.linearRampToValueAtTime(Math.max(NEAR_ZERO, peakGain * 0.6), time + 0.01);
+  gainNode.gain.exponentialRampToValueAtTime(NEAR_ZERO, time + Math.max(0.03, durationS));
+
+  osc.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  osc.start(time);
+  osc.stop(time + Math.max(0.03, durationS) + 0.03);
+
+  return () => {
+    try {
+      gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      gainNode.gain.setValueAtTime(NEAR_ZERO, ctx.currentTime);
+      osc.stop();
+    } catch {
+      // ignore stop race
+    }
+  };
+}
+
+function startFallbackHeldTone(ctx, freq, peakGain) {
+  const now = ctx.currentTime + NOTE_START_OFFSET_S;
+  const osc = ctx.createOscillator();
+  const gainNode = ctx.createGain();
+
+  osc.type = 'triangle';
+  osc.frequency.setValueAtTime(Math.max(20, Number(freq) || 440), now);
+
+  gainNode.gain.setValueAtTime(NEAR_ZERO, now);
+  gainNode.gain.linearRampToValueAtTime(Math.max(NEAR_ZERO, (Number(peakGain) || 0.12) * 0.6), now + 0.02);
+
+  osc.connect(gainNode);
+  gainNode.connect(ctx.destination);
+  osc.start(now);
+
+  return () => {
+    try {
+      const stopAt = ctx.currentTime;
+      gainNode.gain.cancelScheduledValues(stopAt);
+      gainNode.gain.setValueAtTime(Math.max(NEAR_ZERO, gainNode.gain.value || NEAR_ZERO), stopAt);
+      gainNode.gain.exponentialRampToValueAtTime(NEAR_ZERO, stopAt + 0.04);
+      osc.stop(stopAt + 0.06);
+    } catch {
+      // ignore stop race
+    }
+  };
+}
+
+function toStopFunction(handle) {
+  if (typeof handle === 'function') {
+    return handle;
+  }
+  if (handle && typeof handle.stop === 'function') {
+    return () => {
+      try {
+        handle.stop();
+      } catch {
+        // ignore stop race
+      }
+    };
+  }
+  return () => undefined;
 }

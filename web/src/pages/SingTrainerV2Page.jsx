@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
+import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
@@ -25,13 +26,16 @@ import {
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises } from '../lib/lessonUtils';
-import { schedulePianoNote, loadInstrument } from '../lib/pianoSynth';
+import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
+
+const SING_GUIDE_NOTE_GAIN = 0.08;
 
 export function SingTrainerV2Page() {
   const { lessonId } = useParams();
   const [searchParams] = useSearchParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
   const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
   const rangeRecommendation = useMemo(
@@ -61,7 +65,6 @@ export function SingTrainerV2Page() {
   const historyRef = useRef([]);
   const playbackRef = useRef({
     runId: 0,
-    context: null,
     timeoutId: null,
     resolveWait: null,
     noteStops: [],
@@ -74,7 +77,7 @@ export function SingTrainerV2Page() {
     detectorLogSummary,
     clearDetectorLog,
     getDetectorLogRows,
-  } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000 });
+  } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000, pitchSettings });
   const isDebug = searchParams.get('debug') === 'true';
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
@@ -86,7 +89,7 @@ export function SingTrainerV2Page() {
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
-  const guidedHistory = useMemo(() => {
+  const scoringHistory = useMemo(() => {
     if (!session?.expectedBars?.length || !Number.isFinite(session.startMs)) {
       return history;
     }
@@ -196,6 +199,7 @@ export function SingTrainerV2Page() {
 
   async function stopTargetPlayback() {
     const playback = playbackRef.current;
+    playback.runId += 1;
 
     if (Array.isArray(playback.noteStops) && playback.noteStops.length) {
       playback.noteStops.forEach((stopNote) => {
@@ -213,10 +217,6 @@ export function SingTrainerV2Page() {
     if (typeof playback.resolveWait === 'function') {
       playback.resolveWait();
       playback.resolveWait = null;
-    }
-    if (playback.context) {
-      await playback.context.close().catch(() => undefined);
-      playback.context = null;
     }
 
     setIsPlayingTarget(false);
@@ -336,8 +336,7 @@ export function SingTrainerV2Page() {
     });
 
     setIsPlayingTarget(true);
-    const context = new AudioContext();
-  playbackRef.current.context = context;
+    const context = getPianoAudioContext();
     await context.resume().catch(() => undefined);
 
     try {
@@ -373,7 +372,22 @@ export function SingTrainerV2Page() {
         startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
 
-      const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
+      let guideAt = startAt + beatSeconds * SING_COUNTDOWN_BEATS;
+      for (const note of notes) {
+        const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+        const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
+        if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+          guideAt += noteDurationSeconds + NOTE_GAP_SECONDS;
+          continue;
+        }
+        const stopGuideNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), guideAt, noteDurationSeconds, SING_GUIDE_NOTE_GAIN);
+        if (typeof stopGuideNote === 'function') {
+          playbackRef.current.noteStops.push(stopGuideNote);
+        }
+        guideAt += noteDurationSeconds + NOTE_GAP_SECONDS;
+      }
+
+      const totalDurationMs = Math.ceil((guideAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
       await new Promise((resolve) => {
         playbackRef.current.resolveWait = resolve;
         playbackRef.current.timeoutId = globalThis.setTimeout(() => {
@@ -388,10 +402,6 @@ export function SingTrainerV2Page() {
         playbackRef.current.timeoutId = null;
       }
       playbackRef.current.resolveWait = null;
-      if (playbackRef.current.context === context) {
-        await context.close().catch(() => undefined);
-        playbackRef.current.context = null;
-      }
       playbackRef.current.noteStops = [];
       if (playbackRef.current.runId === runId) {
         setIsPlayingTarget(false);
@@ -447,8 +457,8 @@ export function SingTrainerV2Page() {
   }, []);
 
   useEffect(() => {
-    historyRef.current = guidedHistory;
-  }, [guidedHistory]);
+    historyRef.current = scoringHistory;
+  }, [scoringHistory]);
 
   useEffect(() => {
     if (!session?.expectedBars?.length) {
@@ -643,7 +653,7 @@ export function SingTrainerV2Page() {
         <SingInputGraphV2
           minFrequencyHz={55}
           maxFrequencyHz={1200}
-          history={guidedHistory}
+          history={history}
           sessionStartMs={session?.startMs}
           singStartSec={session?.singStartSec}
           stopScrollSec={session?.stopScrollSec}

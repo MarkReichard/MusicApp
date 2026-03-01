@@ -1,31 +1,32 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { PitchDetector } from 'pitchy';
 import { midiToNoteLabel } from './musicTheory';
+import { defaultPitchSettings } from './pitchSettings';
 
-const DETECTOR_POLL_MS = 33;
-const MIN_DB_THRESHOLD = -60;
-const DISPLAY_MIN_CLARITY = 0.62;
-const MIN_FREQ_HZ = 55;
-const MAX_FREQ_HZ = 1200;
-const FFT_SIZE = 4096;
+const DEFAULT_DETECTOR_POLL_MS = 33;
+const DEFAULT_MIN_DB_THRESHOLD = -60;
+const DEFAULT_DISPLAY_MIN_CLARITY = 0.62;
+const DEFAULT_MIN_FREQ_HZ = 55;
+const DEFAULT_MAX_FREQ_HZ = 1200;
+const DEFAULT_FFT_SIZE = 4096;
 const TRACK_LOCK_TOLERANCE_SEMITONES = 5;
 const TRACK_RELOCK_CONFIRM_FRAMES = 3;
 const TRACK_PENDING_MIDI_EPSILON = 1.2;
 const TRACK_HOLD_SEC = 0.2;
-const OCTAVE_SWITCH_CONFIRM_FRAMES = 4;
-const OCTAVE_SWITCH_MIDI_EPSILON = 0.8;
-const OCTAVE_SWITCH_MIN_ADVANTAGE_SEMITONES = 1.5;
 const DETECTOR_LOG_MAX_ROWS = 30000;
+const MEDIAN_SMOOTH_WINDOW = 3;
 
-export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 } = {}) {
+export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, pitchSettings = null } = {}) {
   const [current, setCurrent] = useState(createCurrentSnapshot(null, null, null));
   const [history, setHistory] = useState([]);
   const [detectorLogSummary, setDetectorLogSummary] = useState({ count: 0, lastGate: '-', lastRawHz: null });
   const resourcesRef = useRef(createEmptyResources());
   const trackerStateRef = useRef(createPitchTrackerState());
   const detectorLogRef = useRef([]);
+  const smoothingRef = useRef({ voicedMidis: [], unvoicedCount: 0 });
 
   const historyLimit = useMemo(() => Math.max(50, Number(maxHistoryPoints) || 300), [maxHistoryPoints]);
+  const detectorConfig = useMemo(() => normalizeDetectorConfig(pitchSettings), [pitchSettings]);
 
   useEffect(() => {
     if (!enabled) {
@@ -36,6 +37,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
       detectorLogRef.current = [];
       setDetectorLogSummary({ count: 0, lastGate: '-', lastRawHz: null });
       trackerStateRef.current = createPitchTrackerState();
+      smoothingRef.current = { voicedMidis: [], unvoicedCount: 0 };
       return undefined;
     }
 
@@ -56,12 +58,12 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
         await context.resume().catch(() => undefined);
         const source = context.createMediaStreamSource(stream);
         const analyser = context.createAnalyser();
-        analyser.fftSize = FFT_SIZE;
+        analyser.fftSize = detectorConfig.fftSize;
         analyser.smoothingTimeConstant = 0;
         source.connect(analyser);
 
-        const detector = PitchDetector.forFloat32Array(FFT_SIZE);
-        const sampleBuffer = new Float32Array(FFT_SIZE);
+        const detector = PitchDetector.forFloat32Array(detectorConfig.fftSize);
+        const sampleBuffer = new Float32Array(detectorConfig.fftSize);
 
         resourcesRef.current = {
           context,
@@ -88,7 +90,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
             let rawHz = null;
             let rawClarity = null;
 
-            if (db >= MIN_DB_THRESHOLD) {
+            if (db >= detectorConfig.minDbThreshold) {
               const [detectedHz, detectedClarity] = detector.findPitch(sampleBuffer, context.sampleRate);
               rawHz = Number.isFinite(detectedHz) ? detectedHz : null;
               rawClarity = Number.isFinite(detectedClarity) ? detectedClarity : null;
@@ -97,6 +99,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
                 rawClarity: detectedClarity,
                 nowSec: nowMs / 1000,
                 trackerState: trackerStateRef.current,
+                config: detectorConfig,
               });
               trackedMidi = tracked.midi;
               trackedHz = tracked.acceptedHz;
@@ -104,12 +107,20 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
               voiced = tracked.voiced;
               gateReason = tracked.gateReason;
             } else {
-              const tracked = emitHeldOrUnvoiced(trackerStateRef.current, nowMs / 1000, 'db-below-threshold');
+              const tracked = emitHeldOrUnvoiced(trackerStateRef.current, nowMs / 1000, 'db-below-threshold', detectorConfig);
               trackedMidi = tracked.midi;
               trackedHz = tracked.acceptedHz;
               clarity = tracked.clarity;
               voiced = tracked.voiced;
               gateReason = tracked.gateReason;
+            }
+
+            if (voiced && Number.isFinite(trackedMidi)) {
+              const smoothedMidi = smoothMidi(trackedMidi, smoothingRef.current);
+              trackedMidi = smoothedMidi;
+              trackedHz = midiToHz(smoothedMidi);
+            } else {
+              trackUnvoiced(smoothingRef.current);
             }
 
             const entry = {
@@ -142,10 +153,10 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
               clarity: Number.isFinite(clarity) ? clarity : null,
               voiced,
               gateReason,
-              minDbThreshold: MIN_DB_THRESHOLD,
-              minClarityThreshold: DISPLAY_MIN_CLARITY,
-              minFreqHz: MIN_FREQ_HZ,
-              maxFreqHz: MAX_FREQ_HZ,
+              minDbThreshold: detectorConfig.minDbThreshold,
+              minClarityThreshold: detectorConfig.minClarity,
+              minFreqHz: detectorConfig.minFrequencyHz,
+              maxFreqHz: detectorConfig.maxFrequencyHz,
             });
 
             if (detectorLogRef.current.length > DETECTOR_LOG_MAX_ROWS) {
@@ -157,7 +168,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
               lastGate: gateReason,
               lastRawHz: Number.isFinite(rawHz) ? rawHz : null,
             });
-          }, DETECTOR_POLL_MS),
+          }, detectorConfig.pollMs),
         };
       } catch {
         resourcesRef.current = createEmptyResources();
@@ -171,11 +182,12 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
       void stopDetector(resourcesRef.current);
       resourcesRef.current = createEmptyResources();
     };
-  }, [enabled, historyLimit]);
+  }, [enabled, historyLimit, detectorConfig]);
 
   const clearTrackingData = useCallback(() => {
     trackerStateRef.current = createPitchTrackerState();
     detectorLogRef.current = [];
+    smoothingRef.current = { voicedMidis: [], unvoicedCount: 0 };
     setCurrent(createCurrentSnapshot(null, null, null));
     setHistory([]);
     setDetectorLogSummary({ count: 0, lastGate: '-', lastRawHz: null });
@@ -246,23 +258,20 @@ function createPitchTrackerState() {
     lockedMidi: null,
     pendingMidi: null,
     pendingCount: 0,
-    pendingOctaveMultiplier: null,
-    pendingOctaveMidi: null,
-    pendingOctaveCount: 0,
     holdMidi: null,
     holdUntilSec: Number.NEGATIVE_INFINITY,
   };
 }
 
-function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState }) {
+function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState, config }) {
   if (!Number.isFinite(rawHz) || !Number.isFinite(rawClarity)) {
-    return emitHeldOrUnvoiced(trackerState, nowSec, 'invalid-pitch');
+    return emitHeldOrUnvoiced(trackerState, nowSec, 'invalid-pitch', config);
   }
-  if (rawHz < MIN_FREQ_HZ || rawHz > MAX_FREQ_HZ) {
-    return emitHeldOrUnvoiced(trackerState, nowSec, 'frequency-out-of-range');
+  if (rawHz < config.minFrequencyHz || rawHz > config.maxFrequencyHz) {
+    return emitHeldOrUnvoiced(trackerState, nowSec, 'frequency-out-of-range', config);
   }
-  if (rawClarity < DISPLAY_MIN_CLARITY) {
-    return emitHeldOrUnvoiced(trackerState, nowSec, 'clarity-below-threshold');
+  if (rawClarity < config.minClarity) {
+    return emitHeldOrUnvoiced(trackerState, nowSec, 'clarity-below-threshold', config);
   }
 
   const rawMidi = hzToMidi(rawHz);
@@ -283,7 +292,10 @@ function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState }) {
     };
   }
 
-  const candidate = selectNearestOctaveCandidate(rawHz, lockMidi, trackerState);
+  const candidate = selectCandidateFromRaw(rawHz);
+  if (!isMidiInAllowedRange(candidate.midi, config)) {
+    return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-mapped-out-of-range', config);
+  }
   const jumpSemitones = Math.abs(candidate.midi - lockMidi);
 
   if (jumpSemitones <= TRACK_LOCK_TOLERANCE_SEMITONES) {
@@ -309,6 +321,11 @@ function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState }) {
   }
 
   if (trackerState.pendingCount >= TRACK_RELOCK_CONFIRM_FRAMES) {
+    if (!isMidiInAllowedRange(trackerState.pendingMidi)) {
+      trackerState.pendingMidi = null;
+      trackerState.pendingCount = 0;
+      return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-pending-out-of-range', config);
+    }
     trackerState.lockedMidi = trackerState.pendingMidi;
     trackerState.pendingMidi = null;
     trackerState.pendingCount = 0;
@@ -323,15 +340,19 @@ function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState }) {
     };
   }
 
-  return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-pending-relock');
+  return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-pending-relock', config);
 }
 
-function emitHeldOrUnvoiced(trackerState, nowSec, gateReason) {
-  if (Number.isFinite(trackerState.holdMidi) && nowSec <= trackerState.holdUntilSec) {
+function emitHeldOrUnvoiced(trackerState, nowSec, gateReason, config) {
+  if (
+    Number.isFinite(trackerState.holdMidi)
+    && isMidiInAllowedRange(trackerState.holdMidi, config)
+    && nowSec <= trackerState.holdUntilSec
+  ) {
     return {
       voiced: true,
       midi: trackerState.holdMidi,
-      clarity: DISPLAY_MIN_CLARITY,
+      clarity: config.minClarity,
       acceptedHz: midiToHz(trackerState.holdMidi),
       gateReason: 'tracking-hold',
     };
@@ -346,83 +367,12 @@ function emitHeldOrUnvoiced(trackerState, nowSec, gateReason) {
   };
 }
 
-function selectNearestOctaveCandidate(rawHz, lockMidi, trackerState) {
-  const multipliers = [1, 0.5, 2];
-  const candidates = [];
-
-  for (const multiplier of multipliers) {
-    const hz = rawHz * multiplier;
-    if (!Number.isFinite(hz) || hz < MIN_FREQ_HZ || hz > MAX_FREQ_HZ) {
-      continue;
-    }
-    const midi = nearestMidiByOctave(hzToMidi(hz), lockMidi);
-    const distance = Math.abs(midi - lockMidi);
-    const octavePenalty = Math.abs(Math.log2(multiplier));
-    candidates.push({ hz, midi, multiplier, distance, octavePenalty });
-  }
-
-  if (!candidates.length) {
-    return { hz: rawHz, midi: nearestMidiByOctave(hzToMidi(rawHz), lockMidi), multiplier: 1 };
-  }
-
-  const sorted = [...candidates].sort((left, right) => {
-    if (left.distance !== right.distance) {
-      return left.distance - right.distance;
-    }
-    return left.octavePenalty - right.octavePenalty;
-  });
-
-  const best = sorted[0];
-  const rawCandidate = candidates.find((candidate) => candidate.multiplier === 1) ?? null;
-
-  if (best.multiplier === 1 || !rawCandidate) {
-    trackerState.pendingOctaveMultiplier = null;
-    trackerState.pendingOctaveMidi = null;
-    trackerState.pendingOctaveCount = 0;
-    return best;
-  }
-
-  const rawDistance = Math.abs(rawCandidate.midi - lockMidi);
-  const bestDistance = Math.abs(best.midi - lockMidi);
-  const advantage = rawDistance - bestDistance;
-
-  if (advantage < OCTAVE_SWITCH_MIN_ADVANTAGE_SEMITONES) {
-    if (
-      trackerState.pendingOctaveMultiplier === best.multiplier
-      && Number.isFinite(trackerState.pendingOctaveMidi)
-      && Math.abs(best.midi - trackerState.pendingOctaveMidi) <= OCTAVE_SWITCH_MIDI_EPSILON
-    ) {
-      trackerState.pendingOctaveCount += 1;
-    } else {
-      trackerState.pendingOctaveMultiplier = best.multiplier;
-      trackerState.pendingOctaveMidi = best.midi;
-      trackerState.pendingOctaveCount = 1;
-    }
-
-    if (trackerState.pendingOctaveCount < OCTAVE_SWITCH_CONFIRM_FRAMES) {
-      return rawCandidate;
-    }
-  }
-
-  trackerState.pendingOctaveMultiplier = null;
-  trackerState.pendingOctaveMidi = null;
-  trackerState.pendingOctaveCount = 0;
-  return best;
-}
-
-function nearestMidiByOctave(candidateMidi, referenceMidi) {
-  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
-    return candidateMidi;
-  }
-
-  let best = candidateMidi;
-  while (best - referenceMidi > 6) {
-    best -= 12;
-  }
-  while (referenceMidi - best > 6) {
-    best += 12;
-  }
-  return best;
+function selectCandidateFromRaw(rawHz) {
+  return {
+    hz: rawHz,
+    midi: hzToMidi(rawHz),
+    multiplier: 1,
+  };
 }
 
 function hzToMidi(hz) {
@@ -431,4 +381,88 @@ function hzToMidi(hz) {
 
 function midiToHz(midi) {
   return 440 * 2 ** ((midi - 69) / 12);
+}
+
+function isMidiInAllowedRange(midi, config) {
+  if (!Number.isFinite(midi)) {
+    return false;
+  }
+  const hz = midiToHz(midi);
+  return Number.isFinite(hz) && hz >= config.minFrequencyHz && hz <= config.maxFrequencyHz;
+}
+
+function normalizeDetectorConfig(settings) {
+  const source = { ...defaultPitchSettings, ...(settings ?? {}) };
+  const minFrequencyHz = clampNumber(source.minFrequencyHz, 20, 2000, DEFAULT_MIN_FREQ_HZ);
+  const maxFrequencyHz = clampNumber(source.maxFrequencyHz, minFrequencyHz + 1, 5000, DEFAULT_MAX_FREQ_HZ);
+  const minClarity = clampNumber(source.minClarity, 0.1, 0.99, DEFAULT_DISPLAY_MIN_CLARITY);
+  const minDbThreshold = clampNumber(source.minDbThreshold, -120, -5, DEFAULT_MIN_DB_THRESHOLD);
+  const pollMs = Math.round(clampNumber(source.pollMs, 15, 250, DEFAULT_DETECTOR_POLL_MS));
+  const fftSize = normalizeFftSize(source.fftSize);
+
+  return {
+    minFrequencyHz,
+    maxFrequencyHz,
+    minClarity,
+    minDbThreshold,
+    pollMs,
+    fftSize,
+  };
+}
+
+function normalizeFftSize(value) {
+  const num = Math.round(clampNumber(value, 1024, 32768, DEFAULT_FFT_SIZE));
+  return nearestPowerOfTwo(num);
+}
+
+function nearestPowerOfTwo(value) {
+  let power = 1;
+  while (power < value) {
+    power *= 2;
+  }
+  const lower = power / 2;
+  if (!Number.isFinite(lower) || lower < 1) {
+    return power;
+  }
+  return Math.abs(power - value) < Math.abs(value - lower) ? power : lower;
+}
+
+function clampNumber(value, min, max, fallback) {
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric)) {
+    return fallback;
+  }
+  return Math.max(min, Math.min(max, numeric));
+}
+
+function smoothMidi(midi, state) {
+  if (!state) {
+    return midi;
+  }
+
+  state.unvoicedCount = 0;
+  state.voicedMidis.push(midi);
+  if (state.voicedMidis.length > MEDIAN_SMOOTH_WINDOW) {
+    state.voicedMidis.shift();
+  }
+
+  if (state.voicedMidis.length < MEDIAN_SMOOTH_WINDOW) {
+    return midi;
+  }
+
+  const sorted = [...state.voicedMidis].sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  return sorted[mid];
+}
+
+function trackUnvoiced(state) {
+  if (!state) {
+    return;
+  }
+
+  state.unvoicedCount += 1;
+  if (state.unvoicedCount >= 3) {
+    state.voicedMidis = [];
+    state.unvoicedCount = 0;
+  }
 }
