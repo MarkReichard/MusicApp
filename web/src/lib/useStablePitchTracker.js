@@ -71,6 +71,9 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, 
           source,
           analyser,
           timer: globalThis.setInterval(() => {
+            if (context.state === 'suspended') {
+              void context.resume().catch(() => undefined);
+            }
             analyser.getFloatTimeDomainData(sampleBuffer);
 
             let rms = 0;
@@ -360,6 +363,12 @@ function emitHeldOrUnvoiced(trackerState, nowSec, gateReason, config) {
       gateReason: 'tracking-hold',
     };
   }
+
+  // Hold expired — clear the lock so the next valid detection re-locks
+  // immediately via accepted-lock rather than requiring pending-relock confirmation.
+  trackerState.lockedMidi = null;
+  trackerState.pendingMidi = null;
+  trackerState.pendingCount = 0;
 
   return {
     voiced: false,
