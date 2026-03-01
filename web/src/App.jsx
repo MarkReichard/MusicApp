@@ -3,7 +3,6 @@ import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
 import { loadPiano } from './lib/pianoSynth';
 import { LessonsPage } from './pages/LessonsPage';
 import { TrainerPage } from './pages/TrainerPage';
-import { SingTrainerPage } from './pages/SingTrainerPage';
 import { SingTrainerV2Page } from './pages/SingTrainerV2Page';
 import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchRangePage } from './pages/PitchRangePage';
@@ -31,7 +30,7 @@ export function App() {
           <Route path="/" element={<Navigate to="/lessons" replace />} />
           <Route path="/lessons" element={<LessonsPage />} />
           <Route path="/trainer/:lessonId" element={<TrainerPage />} />
-          <Route path="/trainer/:lessonId/sing" element={<SingTrainerPage />} />
+          <Route path="/trainer/:lessonId/sing" element={<SingTrainerV2Page />} />
           <Route path="/trainer/:lessonId/sing-v2" element={<SingTrainerV2Page />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/pitch-range" element={<PitchRangePage />} />

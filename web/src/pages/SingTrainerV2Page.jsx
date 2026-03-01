@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
@@ -29,6 +29,7 @@ import { schedulePianoNote, loadInstrument } from '../lib/pianoSynth';
 
 export function SingTrainerV2Page() {
   const { lessonId } = useParams();
+  const [searchParams] = useSearchParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
   const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
@@ -58,6 +59,13 @@ export function SingTrainerV2Page() {
   const [barResults, setBarResults] = useState({});
   const evaluatedBarsRef = useRef(new Set());
   const historyRef = useRef([]);
+  const playbackRef = useRef({
+    runId: 0,
+    context: null,
+    timeoutId: null,
+    resolveWait: null,
+    noteStops: [],
+  });
 
   const {
     current,
@@ -66,6 +74,7 @@ export function SingTrainerV2Page() {
     clearDetectorLog,
     getDetectorLogRows,
   } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000 });
+  const isDebug = searchParams.get('debug') === 'true';
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
   const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
@@ -146,12 +155,84 @@ export function SingTrainerV2Page() {
     evaluatedBarsRef.current = new Set();
   }
 
-  function resetInputProgress() {
+  function getShiftedNotesForExercise(targetExerciseIndex) {
+    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, targetExerciseIndex));
+    const targetExercise = lessonExercises[clamped] ?? lessonExercises[0];
+    const targetEvents = targetExercise?.notes ?? [];
+
+    return targetEvents.map((note) => {
+      if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+        return { ...note };
+      }
+
+      return {
+        ...note,
+        midi: note.midi + totalMidiShift,
+      };
+    });
+  }
+
+  function handleAdvanceToNextExercise() {
+    const nextIndex = Math.min(exerciseIndex + 1, lessonExercises.length - 1);
+    if (nextIndex === exerciseIndex) {
+      return;
+    }
+
+    const nextShiftedNotes = getShiftedNotesForExercise(nextIndex);
+    setExercise(nextIndex);
+    void playMidiSequence(nextShiftedNotes);
+  }
+
+  function resetCurrentExerciseState() {
     setIndex(0);
     setCorrectIndices([]);
     setSession(null);
     setBarResults({});
     evaluatedBarsRef.current = new Set();
+  }
+
+  async function stopTargetPlayback() {
+    const playback = playbackRef.current;
+
+    if (Array.isArray(playback.noteStops) && playback.noteStops.length) {
+      playback.noteStops.forEach((stopNote) => {
+        if (typeof stopNote === 'function') {
+          try { stopNote(); } catch { }
+        }
+      });
+      playback.noteStops = [];
+    }
+
+    if (playback.timeoutId) {
+      globalThis.clearTimeout(playback.timeoutId);
+      playback.timeoutId = null;
+    }
+    if (typeof playback.resolveWait === 'function') {
+      playback.resolveWait();
+      playback.resolveWait = null;
+    }
+    if (playback.context) {
+      await playback.context.close().catch(() => undefined);
+      playback.context = null;
+    }
+
+    setIsPlayingTarget(false);
+  }
+
+  function handleToggleOptions() {
+    setOptionsOpen((open) => {
+      const next = !open;
+      if (next) {
+        void stopTargetPlayback();
+        resetCurrentExerciseState();
+      }
+      return next;
+    });
+  }
+
+  async function stopAndResetCurrentExercise() {
+    await stopTargetPlayback();
+    resetCurrentExerciseState();
   }
 
   function applyRangeDefaults() {
@@ -222,6 +303,11 @@ export function SingTrainerV2Page() {
       return;
     }
 
+    await stopTargetPlayback();
+    const runId = playbackRef.current.runId + 1;
+    playbackRef.current.runId = runId;
+    playbackRef.current.noteStops = [];
+
     const timeline = buildSingTimeline({
       notes,
       tempoBpm,
@@ -247,6 +333,7 @@ export function SingTrainerV2Page() {
 
     setIsPlayingTarget(true);
     const context = new AudioContext();
+  playbackRef.current.context = context;
     await context.resume().catch(() => undefined);
 
     try {
@@ -258,7 +345,10 @@ export function SingTrainerV2Page() {
         CADENCE_CHORD_OFFSETS.forEach((offset) => {
           const chordRoot = tonicMidi + offset;
           TRIAD_INTERVALS.forEach((triadOffset) => {
-            schedulePianoNote(context, midiToFrequencyHz(chordRoot + triadOffset), startAt, beatSeconds, CADENCE_CHORD_GAIN);
+            const stopNote = schedulePianoNote(context, midiToFrequencyHz(chordRoot + triadOffset), startAt, beatSeconds, CADENCE_CHORD_GAIN);
+            if (typeof stopNote === 'function') {
+              playbackRef.current.noteStops.push(stopNote);
+            }
           });
           startAt += beatSeconds;
         });
@@ -272,15 +362,36 @@ export function SingTrainerV2Page() {
           startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
           continue;
         }
-        schedulePianoNote(context, midiToFrequencyHz(note.midi), startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
+        const stopNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
+        if (typeof stopNote === 'function') {
+          playbackRef.current.noteStops.push(stopNote);
+        }
         startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
 
       const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
-      await new Promise((resolve) => globalThis.setTimeout(resolve, totalDurationMs));
+      await new Promise((resolve) => {
+        playbackRef.current.resolveWait = resolve;
+        playbackRef.current.timeoutId = globalThis.setTimeout(() => {
+          playbackRef.current.timeoutId = null;
+          playbackRef.current.resolveWait = null;
+          resolve();
+        }, totalDurationMs);
+      });
     } finally {
-      await context.close().catch(() => undefined);
-      setIsPlayingTarget(false);
+      if (playbackRef.current.timeoutId) {
+        globalThis.clearTimeout(playbackRef.current.timeoutId);
+        playbackRef.current.timeoutId = null;
+      }
+      playbackRef.current.resolveWait = null;
+      if (playbackRef.current.context === context) {
+        await context.close().catch(() => undefined);
+        playbackRef.current.context = null;
+      }
+      playbackRef.current.noteStops = [];
+      if (playbackRef.current.runId === runId) {
+        setIsPlayingTarget(false);
+      }
     }
   }
 
@@ -326,6 +437,10 @@ export function SingTrainerV2Page() {
   useEffect(() => {
     void loadInstrument(instrument);
   }, [instrument]);
+
+  useEffect(() => () => {
+    void stopTargetPlayback();
+  }, []);
 
   useEffect(() => {
     historyRef.current = guidedHistory;
@@ -398,21 +513,23 @@ export function SingTrainerV2Page() {
           {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : <span className="sing-title-spacer" />}
         </div>
 
-        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-          <button type="button" className="button secondary" onClick={handleExportDetectorLog}>
-            Export Detector Log CSV
-          </button>
-          <button type="button" className="button secondary" onClick={clearDetectorLog}>
-            Clear Log
-          </button>
-          <span className="badge">Log Rows: {detectorLogSummary.count}</span>
-          <span className="badge">Last Gate: {detectorLogSummary.lastGate}</span>
-          <span className="badge">Last Raw Hz: {Number.isFinite(detectorLogSummary.lastRawHz) ? detectorLogSummary.lastRawHz.toFixed(2) : '-'}</span>
-        </div>
+        {isDebug ? (
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
+            <button type="button" className="button secondary" onClick={handleExportDetectorLog}>
+              Export Detector Log CSV
+            </button>
+            <button type="button" className="button secondary" onClick={clearDetectorLog}>
+              Clear Log
+            </button>
+            <span className="badge">Log Rows: {detectorLogSummary.count}</span>
+            <span className="badge">Last Gate: {detectorLogSummary.lastGate}</span>
+            <span className="badge">Last Raw Hz: {Number.isFinite(detectorLogSummary.lastRawHz) ? detectorLogSummary.lastRawHz.toFixed(2) : '-'}</span>
+          </div>
+        ) : null}
 
         <SingTrainingOptionsSection
           optionsOpen={optionsOpen}
-          onToggleOptions={() => setOptionsOpen((open) => !open)}
+          onToggleOptions={handleToggleOptions}
           allowedKeys={allowedKeys}
           selectedKey={selectedKey}
           onSelectedKeyChange={setSelectedKey}
@@ -450,8 +567,13 @@ export function SingTrainerV2Page() {
           ) : null}
           <button
             className="button"
-            disabled={isPlayingTarget}
-            onClick={() => void playMidiSequence(shiftedLessonNotes)}
+            onClick={() => {
+              if (isPlayingTarget) {
+                void stopAndResetCurrentExercise();
+                return;
+              }
+              void playMidiSequence(shiftedLessonNotes);
+            }}
             title="Play target notes"
             aria-label="Play target notes"
           >
@@ -460,7 +582,7 @@ export function SingTrainerV2Page() {
           <button
             type="button"
             className="button secondary"
-            onClick={resetInputProgress}
+            onClick={() => void stopAndResetCurrentExercise()}
             title="Reset input progress"
             aria-label="Reset input progress"
           >
@@ -470,7 +592,7 @@ export function SingTrainerV2Page() {
             <button
               type="button"
               className="button secondary"
-              onClick={() => setExercise(exerciseIndex + 1)}
+              onClick={handleAdvanceToNextExercise}
               disabled={exerciseIndex >= lessonExercises.length - 1}
               title="Next exercise"
               aria-label="Next exercise"
@@ -478,14 +600,6 @@ export function SingTrainerV2Page() {
               ⏭
             </button>
           ) : null}
-          <Link
-            className="button secondary"
-            to={`/trainer/${lessonId}/sing`}
-            title="Open classic sing trainer"
-            aria-label="Open classic sing trainer"
-          >
-            Classic
-          </Link>
           <Link
             className="button secondary home-icon-button"
             to="/lessons"

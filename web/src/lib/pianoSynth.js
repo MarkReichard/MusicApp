@@ -128,7 +128,7 @@ function translateTime(startAt, externalCtx) {
 export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGain) {
   const midi = freqToMidi(freq);
   const time = translateTime(startAt, externalCtx);
-  _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
+  return _piano.start({ note: midi, velocity: gainToVelocity(peakGain), time, duration: durationS });
 }
 
 /**
