@@ -50,6 +50,7 @@ export function SingTrainerV2Page() {
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
+  const [hearExerciseFirst, setHearExerciseFirst] = useState(initialOptions.hearExerciseFirst);
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [exerciseIndex, setExerciseIndex] = useState(0);
@@ -318,6 +319,7 @@ export function SingTrainerV2Page() {
       singOctave,
       selectedKey,
       playTonicCadence,
+      hearExerciseFirst,
       gracePeriodPercent,
       countdownBeats: SING_COUNTDOWN_BEATS,
     });
@@ -358,18 +360,20 @@ export function SingTrainerV2Page() {
         startAt += NOTE_GAP_SECONDS * 2;
       }
 
-      for (const note of notes) {
-        const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-        const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
-        if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+      if (hearExerciseFirst) {
+        for (const note of notes) {
+          const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+          const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
+          if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
+            startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
+            continue;
+          }
+          const stopNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
+          if (typeof stopNote === 'function') {
+            playbackRef.current.noteStops.push(stopNote);
+          }
           startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
-          continue;
         }
-        const stopNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
-        if (typeof stopNote === 'function') {
-          playbackRef.current.noteStops.push(stopNote);
-        }
-        startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
 
       let guideAt = startAt + beatSeconds * SING_COUNTDOWN_BEATS;
@@ -419,6 +423,7 @@ export function SingTrainerV2Page() {
     setSelectedKey(persistedOptions.selectedKey);
     setTempoBpm(persistedOptions.tempoBpm);
     setPlayTonicCadence(persistedOptions.playTonicCadence);
+    setHearExerciseFirst(persistedOptions.hearExerciseFirst);
     setSingOctave(persistedOptions.singOctave);
     setToleranceCents(persistedOptions.toleranceCents);
     setGracePeriodPercent(persistedOptions.gracePeriodPercent);
@@ -441,12 +446,13 @@ export function SingTrainerV2Page() {
       selectedKey,
       tempoBpm,
       playTonicCadence,
+      hearExerciseFirst,
       singOctave,
       toleranceCents,
       gracePeriodPercent,
       instrument,
     });
-  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
+  }, [lesson, playTonicCadence, hearExerciseFirst, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
 
   useEffect(() => {
     void loadInstrument(instrument);
@@ -555,6 +561,8 @@ export function SingTrainerV2Page() {
           onSingOctaveChange={setSingOctave}
           playTonicCadence={playTonicCadence}
           onPlayTonicCadenceChange={setPlayTonicCadence}
+          hearExerciseFirst={hearExerciseFirst}
+          onHearExerciseFirstChange={setHearExerciseFirst}
           rangeSuggestionText={rangeSuggestionText}
           onApplyRangeDefaults={applyRangeDefaults}
           disableApplyRangeDefaults={disableApplyRangeDefaults}
@@ -666,7 +674,7 @@ export function SingTrainerV2Page() {
   );
 }
 
-function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonicCadence, gracePeriodPercent, countdownBeats }) {
+function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonicCadence, hearExerciseFirst, gracePeriodPercent, countdownBeats }) {
   const beatSeconds = beatSecondsFromTempo(tempoBpm);
   let cursor = AUDIO_START_OFFSET_SECONDS;
   const playedBars = [];
@@ -689,19 +697,21 @@ function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonic
     cursor += NOTE_GAP_SECONDS * 2;
   }
 
-  notes.forEach((note, noteIndex) => {
-    const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-    const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
-    if (note.type !== 'rest') {
-      playedBars.push({
-        id: `played-${noteIndex}`,
-        startSec: cursor,
-        endSec: cursor + noteDurationSeconds,
-        midi: note.midi,
-      });
-    }
-    cursor += noteDurationSeconds + NOTE_GAP_SECONDS;
-  });
+  if (hearExerciseFirst) {
+    notes.forEach((note, noteIndex) => {
+      const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+      const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
+      if (note.type !== 'rest') {
+        playedBars.push({
+          id: `played-${noteIndex}`,
+          startSec: cursor,
+          endSec: cursor + noteDurationSeconds,
+          midi: note.midi,
+        });
+      }
+      cursor += noteDurationSeconds + NOTE_GAP_SECONDS;
+    });
+  }
 
   const singStartSec = cursor;
   const expectedStartSec = singStartSec + beatSeconds * countdownBeats;

@@ -16,6 +16,8 @@ export function SingTrainingOptionsSection({
   onSingOctaveChange,
   playTonicCadence,
   onPlayTonicCadenceChange,
+  hearExerciseFirst,
+  onHearExerciseFirstChange,
   instrument,
   onInstrumentChange,
   rangeSuggestionText,
@@ -98,6 +100,32 @@ export function SingTrainingOptionsSection({
                 <option value="yes">Yes</option>
                 <option value="no">No</option>
               </select>
+            </div>
+
+            <div className="row">
+              <span>Hear exercise first</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="radio"
+                    name="hear-exercise-first"
+                    checked={hearExerciseFirst}
+                    onChange={() => onHearExerciseFirstChange(true)}
+                  />
+                  {' '}
+                  Yes
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="radio"
+                    name="hear-exercise-first"
+                    checked={!hearExerciseFirst}
+                    onChange={() => onHearExerciseFirstChange(false)}
+                  />
+                  {' '}
+                  No
+                </label>
+              </div>
             </div>
 
             <div className="row">

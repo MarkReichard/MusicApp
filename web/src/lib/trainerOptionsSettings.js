@@ -2,6 +2,7 @@ const STORAGE_KEY = 'musicapp.web.trainerOptions.v1';
 
 const defaultTrainerOptions = {
   playTonicCadence: true,
+  hearExerciseFirst: true,
   toleranceCents: 25,
   gracePeriodPercent: 95,
   instrument: 'acoustic_grand_piano',
@@ -16,6 +17,7 @@ export function getTrainerOptionsForLesson(lesson) {
       tempoBpm: 60,
       singOctave: 4,
       playTonicCadence: defaultTrainerOptions.playTonicCadence,
+      hearExerciseFirst: defaultTrainerOptions.hearExerciseFirst,
       toleranceCents: defaultTrainerOptions.toleranceCents,
       gracePeriodPercent: defaultTrainerOptions.gracePeriodPercent,
     };
@@ -55,6 +57,7 @@ export function getTrainerOptionsForLesson(lesson) {
     tempoBpm,
     singOctave,
     playTonicCadence: Boolean(stored.playTonicCadence),
+    hearExerciseFirst: stored.hearExerciseFirst !== false,
     toleranceCents,
     gracePeriodPercent,
     instrument,

@@ -242,6 +242,10 @@ async function stopDetector(resources) {
     resources.source.disconnect();
     resources.source = null;
   }
+  if (resources.analyser) {
+    resources.analyser.disconnect();
+    resources.analyser = null;
+  }
   if (resources.stream) {
     resources.stream.getTracks().forEach((track) => track.stop());
     resources.stream = null;
@@ -250,7 +254,6 @@ async function stopDetector(resources) {
     await resources.context.close().catch(() => undefined);
     resources.context = null;
   }
-  resources.analyser = null;
 }
 
 function createPitchTrackerState() {
