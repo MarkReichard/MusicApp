@@ -23,7 +23,7 @@ import {
   TARGET_NOTE_GAIN,
 } from '../lib/musicTheory';
 import { normalizeLessonExercises, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
-import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence } from '../lib/pianoSynth';
+import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
 
 export function TrainerPage() {
   const { lessonId } = useParams();
@@ -55,8 +55,15 @@ export function TrainerPage() {
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [isPlayingCadence, setIsPlayingCadence] = useState(false);
+  const [isPaused, setIsPaused] = useState(false);
   const [lastNoteMidi, setLastNoteMidi] = useState(null);
   const activeInputTonesRef = useRef({});
+  const cancelPlaybackRef = useRef(false);
+  const pausedForResumeRef = useRef(false);
+  const resumeResolveRef = useRef(null);
+  const restartFromNoteIndexRef = useRef(null);
+  const restartNotesRef = useRef(null);
+  const playbackNoteIndexRef = useRef(0);
 
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
   const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
@@ -103,6 +110,20 @@ export function TrainerPage() {
   function resetInputProgress() {
     setIndex(0);
     setCorrectIndices([]);
+    if (isPlayingTarget) {
+      // Cancel the current pass and restart from note 0 using the current exercise's notes.
+      pausedForResumeRef.current = false;
+      setIsPaused(false);
+      resumeResolveRef.current?.();
+      resumeResolveRef.current = null;
+      restartFromNoteIndexRef.current = 0;
+      restartNotesRef.current = shiftedLessonNotes;
+      cancelPlaybackRef.current = true;
+      stopAllNotes();
+    } else {
+      // Not currently playing — start fresh from the beginning.
+      void playMidiSequence(shiftedLessonNotes);
+    }
   }
 
   function applyRangeDefaults() {
@@ -131,42 +152,142 @@ export function TrainerPage() {
     }
   }
 
+  function togglePause() {
+    if (!isPlayingTarget) return;
+    if (pausedForResumeRef.current) {
+      // Resume: unblock the waiting outer loop.
+      pausedForResumeRef.current = false;
+      setIsPaused(false);
+      resumeResolveRef.current?.();
+      resumeResolveRef.current = null;
+    } else {
+      // Pause: save position, stop all audio immediately, let poll loop exit.
+      pausedForResumeRef.current = true;
+      setIsPaused(true);
+      restartFromNoteIndexRef.current = playbackNoteIndexRef.current;
+      cancelPlaybackRef.current = true;
+      stopAllNotes();
+    }
+  }
+
+  function goBackNotes(count = 4) {
+    if (!isPlayingTarget) return;
+    // Clear any pending pause so back triggers an immediate restart.
+    pausedForResumeRef.current = false;
+    setIsPaused(false);
+    resumeResolveRef.current?.();
+    resumeResolveRef.current = null;
+    restartFromNoteIndexRef.current = Math.max(0, playbackNoteIndexRef.current - count);
+    cancelPlaybackRef.current = true;
+    stopAllNotes();
+  }
+
+  // Single-pass playback starting from startNoteIndex (index into activeNotes).
+  // Returns when done or cancelled. The outer loop handles restarts/resume.
+  async function playMidiSequenceFrom(notes, startNoteIndex) {
+    cancelPlaybackRef.current = false;
+
+    // Use the shared singleton context — this is what actually produces audio.
+    const context = getPianoAudioContext();
+    await context.resume().catch(() => undefined);
+
+    const beatSeconds = beatSecondsFromTempo(tempoBpm);
+    let cursor = context.currentTime + AUDIO_START_OFFSET_SECONDS;
+
+    if (playTonicCadence && startNoteIndex === 0) {
+      cursor = scheduleCadence(context, cursor, beatSeconds, tonicMidi, CADENCE_CHORD_GAIN);
+      cursor += NOTE_GAP_SECONDS * 2;
+    }
+
+    // Find the event index in `notes` that corresponds to activeNotes[startNoteIndex].
+    let activeNotesSeen = 0;
+    let startEventIdx = notes.length;
+    for (let i = 0; i < notes.length; i++) {
+      const n = notes[i];
+      if (n?.type !== 'rest' && Number.isFinite(n?.midi)) {
+        if (activeNotesSeen === startNoteIndex) {
+          startEventIdx = i;
+          break;
+        }
+        activeNotesSeen++;
+      }
+    }
+
+    // Schedule notes and record each note's scheduled start time for position tracking.
+    const noteTimings = []; // { activeNoteIndex, startTime }
+    let currentActiveIdx = startNoteIndex;
+    for (let i = startEventIdx; i < notes.length; i++) {
+      const note = notes[i];
+      const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+      const dur = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
+      if (note?.type !== 'rest' && Number.isFinite(note?.midi)) {
+        noteTimings.push({ activeNoteIndex: currentActiveIdx, startTime: cursor });
+        schedulePianoNote(context, midiToFrequencyHz(note.midi), cursor, dur, TARGET_NOTE_GAIN);
+        currentActiveIdx++;
+      }
+      cursor += dur + NOTE_GAP_SECONDS;
+    }
+
+    // Poll loop: track current note, detect cancel.
+    const totalDurationMs = Math.ceil((cursor - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
+    const pollMs = 80;
+    let elapsed = 0;
+    while (elapsed < totalDurationMs) {
+      if (cancelPlaybackRef.current) break;
+      await new Promise((resolve) => globalThis.setTimeout(resolve, pollMs));
+      if (!cancelPlaybackRef.current) {
+        elapsed += pollMs;
+        // Update which note is currently sounding.
+        const now = context.currentTime;
+        for (let i = noteTimings.length - 1; i >= 0; i--) {
+          if (noteTimings[i].startTime <= now) {
+            playbackNoteIndexRef.current = noteTimings[i].activeNoteIndex;
+            break;
+          }
+        }
+      }
+    }
+  }
+
   async function playMidiSequence(notes) {
     if (!notes.length || isPlayingTarget) {
       return;
     }
 
     setIsPlayingTarget(true);
-    const context = new AudioContext();
-    await context.resume().catch(() => undefined);
+    pausedForResumeRef.current = false;
+    setIsPaused(false);
+    playbackNoteIndexRef.current = 0;
+    restartFromNoteIndexRef.current = null;
+    restartNotesRef.current = null;
 
     try {
-      const beatSeconds = beatSecondsFromTempo(tempoBpm);
-      let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
-
-      if (playTonicCadence) {
-        startAt = scheduleCadence(context, startAt, beatSeconds, tonicMidi, CADENCE_CHORD_GAIN);
-        startAt += NOTE_GAP_SECONDS * 2;
-      }
-
-      for (const note of notes) {
-        const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-        const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
-        if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
-          startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
-          continue;
+      let activeNotes = notes;
+      let startIndex = 0;
+      // Loop to handle back-button and pause/resume restarts.
+      while (true) {
+        await playMidiSequenceFrom(activeNotes, startIndex);
+        if (pausedForResumeRef.current) {
+          // Wait until the user clicks resume.
+          await new Promise((resolve) => { resumeResolveRef.current = resolve; });
         }
-
-        const frequency = midiToFrequencyHz(note.midi);
-        schedulePianoNote(context, frequency, startAt, noteDurationSeconds, TARGET_NOTE_GAIN);
-
-        startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
+        if (restartFromNoteIndexRef.current !== null) {
+          startIndex = restartFromNoteIndexRef.current;
+          restartFromNoteIndexRef.current = null;
+          // Accept fresh notes if supplied (e.g. from the reset button).
+          if (restartNotesRef.current !== null) {
+            activeNotes = restartNotesRef.current;
+            restartNotesRef.current = null;
+          }
+        } else {
+          break;
+        }
       }
-
-      const totalDurationMs = Math.ceil((startAt - context.currentTime) * 1000) + PLAYBACK_BUFFER_MS;
-      await new Promise((resolve) => globalThis.setTimeout(resolve, totalDurationMs));
     } finally {
-      await context.close().catch(() => undefined);
+      pausedForResumeRef.current = false;
+      resumeResolveRef.current = null;
+      restartNotesRef.current = null;
+      setIsPaused(false);
       setIsPlayingTarget(false);
     }
   }
@@ -356,32 +477,23 @@ export function TrainerPage() {
           ) : null}
           <button
             type="button"
+            className="button secondary"
+            disabled={!isPlayingTarget}
+            onClick={() => goBackNotes(4)}
+            title="Replay from 4 notes back"
+            aria-label="Replay from 4 notes back"
+          >
+            ◀
+          </button>
+          <button
+            type="button"
             className="button"
-            disabled={isPlayingTarget}
-            onClick={() => void playMidiSequence(shiftedLessonNotes)}
-            title="Play target notes"
-            aria-label="Play target notes"
+            disabled={!isPlayingTarget && isPlayingCadence}
+            onClick={() => isPlayingTarget ? togglePause() : void playMidiSequence(shiftedLessonNotes)}
+            title={isPlayingTarget ? (isPaused ? 'Resume playback' : 'Pause playback') : 'Play target notes'}
+            aria-label={isPlayingTarget ? (isPaused ? 'Resume playback' : 'Pause playback') : 'Play target notes'}
           >
-            ▶
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            disabled={isPlayingCadence || isPlayingTarget}
-            onClick={() => void playTonicOnly()}
-            title="Play tonic cadence (I–IV–V–IV)"
-            aria-label="Play tonic cadence"
-          >
-            {isPlayingCadence ? '…' : '♩'}
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={resetInputProgress}
-            title="Reset input progress"
-            aria-label="Reset input progress"
-          >
-            ↺
+            {isPlayingTarget ? (isPaused ? '▶' : '⏸') : '▶'}
           </button>
           {lessonExercises.length > 1 ? (
             <button
@@ -395,6 +507,25 @@ export function TrainerPage() {
               ⏭
             </button>
           ) : null}
+          <button
+            type="button"
+            className="button secondary"
+            onClick={resetInputProgress}
+            title="Reset input progress"
+            aria-label="Reset input progress"
+          >
+            ↺
+          </button>
+          <button
+            type="button"
+            className="button secondary"
+            disabled={isPlayingCadence || isPlayingTarget}
+            onClick={() => void playTonicOnly()}
+            title="Play tonic cadence (I–IV–V–IV)"
+            aria-label="Play tonic cadence"
+          >
+            {isPlayingCadence ? '…' : '♩'}
+          </button>
           <Link
             className="button secondary home-icon-button"
             to="/lessons"

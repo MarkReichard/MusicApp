@@ -25,6 +25,8 @@ let _ctx = null;
 let _piano = null;
 let _loadPromise = null;
 let _loadedInstrument = null;
+/** All stop-handles for currently scheduled/playing notes. */
+const _activeStops = new Set();
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const NEAR_ZERO           = 0.0001;
@@ -50,6 +52,21 @@ function getOrCreateContext() {
 
 export function getPianoAudioContext() {
   return getOrCreateContext();
+}
+
+/**
+ * Immediately stops all notes currently playing or scheduled on the shared
+ * smplr piano instance. Safe to call at any time.
+ */
+export function stopAllNotes() {
+  for (const stop of _activeStops) {
+    try { stop(); } catch { /* ignore */ }
+  }
+  _activeStops.clear();
+  // Also tell smplr to stop active voices (belt-and-suspenders).
+  if (_piano && typeof _piano.stop === 'function') {
+    try { _piano.stop(); } catch { /* ignore */ }
+  }
 }
 
 // ── Piano loading ──────────────────────────────────────────────────────────────
@@ -138,7 +155,13 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
   if (_piano && typeof _piano.start === 'function') {
     const midi = freqToMidi(freq);
     const handle = _piano.start({ note: midi, velocity: gainToVelocity(safeGain), time, duration: safeDuration });
-    return toStopFunction(handle);
+    const stopFn = toStopFunction(handle);
+    const tracked = () => {
+      stopFn();
+      _activeStops.delete(tracked);
+    };
+    _activeStops.add(tracked);
+    return tracked;
   }
 
   return scheduleFallbackTone(ctx, freq, time, safeDuration, safeGain);
