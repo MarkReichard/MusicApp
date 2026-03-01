@@ -19,6 +19,8 @@ const DEFAULT_NOTE_COUNT      = 5;
 const DEFAULT_TOLERANCE_CENTS = 50;
 const DEFAULT_TONE_DURATION_S = 1.2; // how long the played note sounds
 const HOLD_READINGS_NEEDED    = 8;   // ~400 ms at 50 ms poll
+const WRONG_HOLD_READINGS     = 4;   // ~200 ms of sustained wrong pitch = 1 strike
+const MAX_STRIKES             = 2;   // strikes before marking wrong
 const NOTE_TIMEOUT_MS         = 7000;
 const FEEDBACK_LINGER_MS      = 800;
 
@@ -78,8 +80,12 @@ export function PitchMatchPage() {
   const [phase, setPhase]                     = useState('setup'); // setup | playing_tone | listening | feedback | done
   const [feedback, setFeedback]               = useState(null); // 'correct' | 'wrong'
 
-  const holdCountRef = useRef(0);
-  const timeoutRef   = useRef(null);
+  const holdCountRef  = useRef(0);
+  const wrongHoldRef  = useRef(0);
+  const strikeRef     = useRef(0);
+  const timeoutRef    = useRef(null);
+
+  const [strikes, setStrikes] = useState(0);
 
   const { current } = usePitchDetector(pitchSettings, true);
 
@@ -91,7 +97,10 @@ export function PitchMatchPage() {
   // ── Advance to next note ───────────────────────────────────────────────────
   const advanceNote = useCallback((wasCorrect) => {
     clearTimeout(timeoutRef.current);
-    holdCountRef.current = 0;
+    holdCountRef.current  = 0;
+    wrongHoldRef.current  = 0;
+    strikeRef.current     = 0;
+    setStrikes(0);
 
     const resultLabel = wasCorrect ? 'correct' : 'wrong';
 
@@ -136,7 +145,10 @@ export function PitchMatchPage() {
   // ── Start / restart exercise ───────────────────────────────────────────────
   function startExercise() {
     clearTimeout(timeoutRef.current);
-    holdCountRef.current = 0;
+    holdCountRef.current  = 0;
+    wrongHoldRef.current  = 0;
+    strikeRef.current     = 0;
+    setStrikes(0);
     const ex = buildExercise(selectedKey, noteCount, minMidi, maxMidi);
     setExercise(ex);
     setNoteIndex(0);
@@ -161,7 +173,10 @@ export function PitchMatchPage() {
   function replayCurrentNote() {
     if (!targetNote) return;
     clearTimeout(timeoutRef.current);
-    holdCountRef.current = 0;
+    holdCountRef.current  = 0;
+    wrongHoldRef.current  = 0;
+    strikeRef.current     = 0;
+    setStrikes(0);
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(targetNote.midi, toneDurationS, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
@@ -174,15 +189,21 @@ export function PitchMatchPage() {
   useEffect(() => {
     if (phase !== 'listening' || !targetNote) {
       holdCountRef.current = 0;
+      wrongHoldRef.current = 0;
       return;
     }
     if (!Number.isFinite(current?.midi)) {
+      // Silence — reset both hold counters; strikes persist so user can't
+      // just stay silent to avoid them.
       holdCountRef.current = 0;
+      wrongHoldRef.current = 0;
       return;
     }
 
     const centsOff = Math.abs(current.midi - targetNote.midi) * 100;
     if (centsOff <= toleranceCents) {
+      // On-pitch: reset wrong hold, accumulate correct hold.
+      wrongHoldRef.current = 0;
       holdCountRef.current += 1;
       if (holdCountRef.current >= HOLD_READINGS_NEEDED) {
         holdCountRef.current = 0;
@@ -191,7 +212,20 @@ export function PitchMatchPage() {
         advanceNote(true);
       }
     } else {
+      // Off-pitch: reset correct hold, accumulate wrong hold.
       holdCountRef.current = 0;
+      wrongHoldRef.current += 1;
+      if (wrongHoldRef.current >= WRONG_HOLD_READINGS) {
+        wrongHoldRef.current = 0;
+        const newStrikes = strikeRef.current + 1;
+        strikeRef.current = newStrikes;
+        setStrikes(newStrikes);
+        if (newStrikes >= MAX_STRIKES) {
+          clearTimeout(timeoutRef.current);
+          playBuzz();
+          advanceNote(false);
+        }
+      }
     }
   }, [current, phase, targetNote, toleranceCents, advanceNote]);
 
@@ -323,6 +357,11 @@ export function PitchMatchPage() {
             <div className="pitch-match-target">
               <span className="target-solfege">{targetNote.solfege}</span>
               <span className="target-note-label">{targetNote.noteLabel}</span>
+              <div className="strike-dots" aria-label={`${strikes} of ${MAX_STRIKES} strikes`}>
+                {Array.from({ length: MAX_STRIKES }, (_, i) => (
+                  <span key={i} className={`strike-dot ${i < strikes ? 'strike-dot--used' : ''}`}>●</span>
+                ))}
+              </div>
               <button type="button" className="button secondary" onClick={replayCurrentNote} disabled={phase === 'playing_tone'}>
                 ♩ Replay
               </button>
