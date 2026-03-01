@@ -582,7 +582,7 @@ export function SingTrainerV2Page() {
             title="Play target notes"
             aria-label="Play target notes"
           >
-            {isPlayingTarget ? 'Playing…' : '▶'}
+            ▶
           </button>
           <button
             type="button"

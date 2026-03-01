@@ -19,8 +19,6 @@ export function App() {
         <nav>
           <NavLink to="/lessons">Lessons</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
-          <NavLink to="/pitch-lab">Mic Settings</NavLink>
-          <NavLink to="/sing-graph-v2">Sing Graph V2</NavLink>
           <NavLink to="/pitch-range">Pitch Range</NavLink>
         </nav>
       </header>
@@ -35,6 +33,7 @@ export function App() {
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/pitch-range" element={<PitchRangePage />} />
           <Route path="/pitch-match" element={<PitchMatchPage />} />
+          <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/sing-graph-v2" element={<SingGraphV2LabPage />} />
         </Routes>
       </main>

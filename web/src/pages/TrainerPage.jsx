@@ -67,6 +67,11 @@ export function TrainerPage() {
 
   const firstNoteShiftedMidi = Number.isFinite(activeNotes[0]?.midi) ? activeNotes[0].midi + totalMidiShift : null;
   const firstNoteOctave = firstNoteShiftedMidi !== null ? Math.floor(firstNoteShiftedMidi / SEMITONES_PER_OCTAVE) - 1 : null;
+  // Tonic-aligned octave start containing the first note. e.g. key D, first note A4:
+  // tonicMidi=62 (D4), offset=7 → keyOctaveStart=62 → highlights D4..C#5 on the piano.
+  const firstNoteKeyOctaveStart = firstNoteShiftedMidi !== null
+    ? tonicMidi + Math.floor((firstNoteShiftedMidi - tonicMidi) / 12) * 12
+    : null;
 
   const expectedBaseMidi = activeNotes[index]?.midi ?? null;
   const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
@@ -208,7 +213,7 @@ export function TrainerPage() {
   }, [instrument]);
 
   const pianoKeys = useMemo(() => {
-    const startMidi = SEMITONES_PER_OCTAVE * singOctave;
+    const startMidi = tonicMidi;   // start at the tonic so octave groups are key-aligned
     return Array.from({ length: PIANO_KEYS_COUNT }, (_, offset) => {
       const midi = startMidi + offset;
       const pitchClass = midi % SEMITONES_PER_OCTAVE;
@@ -220,7 +225,7 @@ export function TrainerPage() {
         isBlack: noteName.includes('#'),
       };
     });
-  }, [singOctave]);
+  }, [tonicMidi]);
 
   const whiteKeys = pianoKeys.filter((key) => !key.isBlack);
   const blackKeys = pianoKeys
@@ -357,7 +362,7 @@ export function TrainerPage() {
             title="Play target notes"
             aria-label="Play target notes"
           >
-            {isPlayingTarget ? 'Playing…' : '▶'}
+            ▶
           </button>
           <button
             type="button"
@@ -445,7 +450,7 @@ export function TrainerPage() {
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
             midiToNoteLabel={midiToNoteLabel}
-            activeMidi={firstNoteShiftedMidi}
+            activeMidi={firstNoteKeyOctaveStart}
           />
         ) : null}
 

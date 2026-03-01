@@ -68,7 +68,8 @@ export function SingInputGraphV2({
       setTimelineEndSec((previous) => (Math.abs(previous - nextTimelineEnd) < 0.001 ? previous : nextTimelineEnd));
 
       const scroller = scrollContainerRef.current;
-      if (scroller && Number.isFinite(latest.sessionStartMs)) {
+      const lessonDone = Number.isFinite(latest.stopScrollSec) && nowSec >= latest.stopScrollSec;
+      if (scroller && Number.isFinite(latest.sessionStartMs) && !lessonDone) {
         const timelineWidthPx = Math.max(1200, Math.ceil(nextTimelineEnd * PIXELS_PER_SECOND));
         const nowX = (nowSec / Math.max(0.001, nextTimelineEnd)) * timelineWidthPx;
         const targetScrollLeft = nowX - scroller.clientWidth * FOLLOW_CURSOR_RATIO;
@@ -175,13 +176,20 @@ export function SingInputGraphV2({
 
       const scroller = scrollContainerRef.current;
       if (scroller && Number.isFinite(latest.sessionStartMs)) {
-        const currentScrollLeft = scroller.scrollLeft;
-        const targetScrollLeft = desiredScrollLeftRef.current;
-        const delta = targetScrollLeft - currentScrollLeft;
-        if (Math.abs(delta) > 0.1) {
-          scroller.scrollLeft = currentScrollLeft + delta * SCROLL_SMOOTHING_FACTOR;
+        const sessionDone = Number.isFinite(latest.stopScrollSec) && liveNowSec >= latest.stopScrollSec;
+        if (sessionDone) {
+          // Lesson is over — release auto-scroll so the user can freely scroll.
+          // Keep the ref in sync with actual position so no jump if they resume.
+          desiredScrollLeftRef.current = scroller.scrollLeft;
         } else {
-          scroller.scrollLeft = targetScrollLeft;
+          const currentScrollLeft = scroller.scrollLeft;
+          const targetScrollLeft = desiredScrollLeftRef.current;
+          const delta = targetScrollLeft - currentScrollLeft;
+          if (Math.abs(delta) > 0.1) {
+            scroller.scrollLeft = currentScrollLeft + delta * SCROLL_SMOOTHING_FACTOR;
+          } else {
+            scroller.scrollLeft = targetScrollLeft;
+          }
         }
       }
 
