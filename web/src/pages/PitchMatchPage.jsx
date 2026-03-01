@@ -1,6 +1,7 @@
 ﻿import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
+import { loadPitchMatchSettings, savePitchMatchSettings } from '../lib/pitchMatchSettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
 import {
   SEMITONES_PER_OCTAVE,
@@ -64,10 +65,12 @@ export function PitchMatchPage() {
   const pitchRange      = useMemo(() => loadPitchRangeSettings(), []);
   const hasPitchRange   = Number.isFinite(pitchRange.minMidi) && Number.isFinite(pitchRange.maxMidi);
 
-  const [selectedKey, setSelectedKey]         = useState('C');
-  const [noteCount, setNoteCount]             = useState(DEFAULT_NOTE_COUNT);
-  const [toleranceCents, setToleranceCents]   = useState(DEFAULT_TOLERANCE_CENTS);
-  const [toneDurationS, setToneDurationS]     = useState(DEFAULT_TONE_DURATION_S);
+  const savedPitchMatch = useMemo(() => loadPitchMatchSettings(), []);
+
+  const [selectedKey, setSelectedKey]         = useState(savedPitchMatch.selectedKey);
+  const [noteCount, setNoteCount]             = useState(savedPitchMatch.noteCount);
+  const [toleranceCents, setToleranceCents]   = useState(savedPitchMatch.toleranceCents);
+  const [toneDurationS, setToneDurationS]     = useState(savedPitchMatch.toneDurationS);
   const [exercise, setExercise]               = useState([]);
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
@@ -191,6 +194,11 @@ export function PitchMatchPage() {
       holdCountRef.current = 0;
     }
   }, [current, phase, targetNote, toleranceCents, advanceNote]);
+
+  // ── Persist settings on change ──────────────────────────────────────────────
+  useEffect(() => {
+    savePitchMatchSettings({ selectedKey, noteCount, toleranceCents, toneDurationS });
+  }, [selectedKey, noteCount, toleranceCents, toneDurationS]);
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => () => clearTimeout(timeoutRef.current), []);
