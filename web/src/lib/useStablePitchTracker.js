@@ -173,6 +173,14 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
     };
   }, [enabled, historyLimit]);
 
+  const clearTrackingData = useCallback(() => {
+    trackerStateRef.current = createPitchTrackerState();
+    detectorLogRef.current = [];
+    setCurrent(createCurrentSnapshot(null, null, null));
+    setHistory([]);
+    setDetectorLogSummary({ count: 0, lastGate: '-', lastRawHz: null });
+  }, []);
+
   const clearDetectorLog = useCallback(() => {
     detectorLogRef.current = [];
     setDetectorLogSummary({ count: 0, lastGate: '-', lastRawHz: null });
@@ -183,6 +191,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300 }
   return {
     current,
     history,
+    clearTrackingData,
     detectorLogSummary,
     clearDetectorLog,
     getDetectorLogRows,

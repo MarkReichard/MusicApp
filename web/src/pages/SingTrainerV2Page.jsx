@@ -70,6 +70,7 @@ export function SingTrainerV2Page() {
   const {
     current,
     history,
+    clearTrackingData,
     detectorLogSummary,
     clearDetectorLog,
     getDetectorLogRows,
@@ -153,6 +154,7 @@ export function SingTrainerV2Page() {
     setSession(null);
     setBarResults({});
     evaluatedBarsRef.current = new Set();
+    clearTrackingData();
   }
 
   function getShiftedNotesForExercise(targetExerciseIndex) {
@@ -189,6 +191,7 @@ export function SingTrainerV2Page() {
     setSession(null);
     setBarResults({});
     evaluatedBarsRef.current = new Set();
+    clearTrackingData();
   }
 
   async function stopTargetPlayback() {
@@ -304,6 +307,7 @@ export function SingTrainerV2Page() {
     }
 
     await stopTargetPlayback();
+    clearTrackingData();
     const runId = playbackRef.current.runId + 1;
     playbackRef.current.runId = runId;
     playbackRef.current.noteStops = [];
