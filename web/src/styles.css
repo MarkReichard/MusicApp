@@ -12,6 +12,8 @@ a { color: inherit; text-decoration: none; }
 .app-shell { min-height: 100vh; }
 .topbar { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid #334155; background: #111827; position: sticky; top: 0; }
 .topbar h1 { font-size: 18px; margin: 0; }
+.topbar-brand { font-size: 18px; font-weight: 700; padding: 0; background: none !important; }
+.topbar-brand:hover { color: #93c5fd; }
 .topbar nav { display: flex; gap: 8px; }
 .topbar nav a { padding: 8px 10px; border-radius: 8px; background: #1f2937; font-size: 13px; }
 .topbar nav a.active { background: #1d4ed8; }
@@ -646,7 +648,52 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
 }
 
 .pitch-match-final-score {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
   font-size: 24px;
   font-weight: 700;
   color: #4ade80;
 }
+
+/* ── Home page ─────────────────────────────────────────────────────────────── */
+.home-page { display: flex; flex-direction: column; gap: 20px; }
+
+.home-hero { text-align: center; padding: 32px 16px 8px; }
+.home-hero-title { font-size: 32px; font-weight: 700; margin: 0 0 8px; color: #93c5fd; }
+.home-hero-sub   { font-size: 15px; color: #94a3b8; margin: 0; }
+
+.home-prompt {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-color: #f59e0b;
+  background: #1c1508;
+}
+.home-prompt-icon { font-size: 32px; flex-shrink: 0; }
+.home-prompt-body { flex: 1; }
+.home-prompt-body strong { font-size: 15px; display: block; margin-bottom: 4px; color: #fcd34d; }
+.home-prompt-body p { margin: 0; font-size: 13px; color: #d1a430; }
+
+.home-cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 16px;
+}
+
+.home-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 20px;
+  width: 280px;
+  flex-shrink: 0;
+}
+.home-card-icon { font-size: 28px; }
+.home-card-content { flex: 1; }
+.home-card-content h3 { margin: 0 0 6px; font-size: 17px; }
+.home-card-content p  { margin: 0; font-size: 13px; color: #94a3b8; line-height: 1.5; }

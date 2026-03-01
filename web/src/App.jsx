@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { NavLink, Navigate, Route, Routes } from 'react-router-dom';
+import { NavLink, Route, Routes } from 'react-router-dom';
 import { loadPiano } from './lib/pianoSynth';
 import { LessonsPage } from './pages/LessonsPage';
 import { TrainerPage } from './pages/TrainerPage';
@@ -8,6 +8,7 @@ import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchRangePage } from './pages/PitchRangePage';
 import { PitchMatchPage } from './pages/PitchMatchPage';
 import { SingGraphV2LabPage } from './pages/SingGraphV2LabPage';
+import { HomePage } from './pages/HomePage';
 
 export function App() {
   useEffect(() => { loadPiano(); }, []);
@@ -15,8 +16,9 @@ export function App() {
   return (
     <div className="app-shell">
       <header className="topbar">
-        <h1>Music Trainer</h1>
+        <NavLink to="/" end className="topbar-brand">Music Trainer</NavLink>
         <nav>
+          <NavLink to="/" end>Home</NavLink>
           <NavLink to="/lessons">Lessons</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
           <NavLink to="/pitch-range">Pitch Range</NavLink>
@@ -25,7 +27,7 @@ export function App() {
 
       <main className="page-body">
         <Routes>
-          <Route path="/" element={<Navigate to="/lessons" replace />} />
+          <Route path="/" element={<HomePage />} />
           <Route path="/lessons" element={<LessonsPage />} />
           <Route path="/trainer/:lessonId" element={<TrainerPage />} />
           <Route path="/trainer/:lessonId/sing" element={<SingTrainerV2Page />} />

@@ -169,6 +169,28 @@ export function PitchMatchPage() {
     }, delayMs);
   }
 
+  // ── Replay only wrong notes ────────────────────────────────────────────────
+  function replayWrongNotes() {
+    const wrongNotes = exercise.filter((_, i) => results[i] === 'wrong');
+    if (wrongNotes.length === 0) return;
+    clearTimeout(timeoutRef.current);
+    holdCountRef.current = 0;
+    wrongHoldRef.current = 0;
+    strikeRef.current    = 0;
+    setStrikes(0);
+    setExercise(wrongNotes);
+    setNoteIndex(0);
+    setScore({ correct: 0, total: 0 });
+    setResults(new Array(wrongNotes.length).fill(null));
+    setFeedback(null);
+    setPhase('playing_tone');
+    const delayMs = playPianoNoteNow(wrongNotes[0].midi, toneDurationS, TARGET_TONE_GAIN);
+    timeoutRef.current = setTimeout(() => {
+      setPhase('listening');
+      startTimeout();
+    }, delayMs);
+  }
+
   // ── Play current note again ────────────────────────────────────────────────
   function replayCurrentNote() {
     if (!targetNote) return;
@@ -387,7 +409,17 @@ export function PitchMatchPage() {
           {/* Final score */}
           {phase === 'done' && (
             <div className="pitch-match-final-score">
-              Score: {score.correct} / {exercise.length}
+              <div>Score: {score.correct} / {exercise.length}</div>
+              {results.some((r) => r === 'wrong') && (
+                <button
+                  type="button"
+                  className="button secondary"
+                  style={{ marginTop: 10 }}
+                  onClick={replayWrongNotes}
+                >
+                  ↺ Replay wrong notes ({results.filter((r) => r === 'wrong').length})
+                </button>
+              )}
             </div>
           )}
         </div>
