@@ -99,7 +99,9 @@ export function SingTrainerV2Page() {
       const relativeSec = (entry.timeMs - session.startMs) / 1000;
       const referenceMidi = getReferenceMidiForTime(relativeSec, session.expectedBars);
       if (!Number.isFinite(referenceMidi)) {
-        return entry;
+        // Outside any note window (rest) — suppress the point so mis-detected
+        // harmonics or noise between notes don't pollute the graph.
+        return { ...entry, midi: null, pitchHz: null, voiced: false };
       }
 
       const normalizedMidi = nearestMidiByOctave(entry.midi, referenceMidi);

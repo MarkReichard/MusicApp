@@ -1,18 +1,27 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { PitchDetector } from 'pitchy';
 import { midiToNoteLabel } from './musicTheory';
 import { defaultPitchSettings } from './pitchSettings';
+
+// ---------------------------------------------------------------------------
+// YIN pitch detection (de Cheveigné & Kawahara, 2002)
+//
+// Key advantage over McLeod (pitchy): the Cumulative Mean Normalised
+// Difference Function (CMNDF) makes sub-harmonic periods score *worse* than
+// the true fundamental, so octave/harmonic errors are suppressed by the
+// algorithm itself rather than by post-hoc heuristics.
+// ---------------------------------------------------------------------------
 
 const DEFAULT_DETECTOR_POLL_MS = 33;
 const DEFAULT_MIN_DB_THRESHOLD = -60;
 const DEFAULT_DISPLAY_MIN_CLARITY = 0.62;
 const DEFAULT_MIN_FREQ_HZ = 55;
-const DEFAULT_MAX_FREQ_HZ = 1200;
-const DEFAULT_FFT_SIZE = 4096;
-const TRACK_LOCK_TOLERANCE_SEMITONES = 5;
-const TRACK_RELOCK_CONFIRM_FRAMES = 3;
+const DEFAULT_MAX_FREQ_HZ = 600;   // above here is overtone territory for most voices
+const DEFAULT_FFT_SIZE = 4096;     // time-domain window; YIN uses half = 2048 samples
+const YIN_THRESHOLD = 0.15;        // CMNDF must dip below this to accept a pitch
+const TRACK_HOLD_SEC = 0.15;
+const TRACK_LOCK_TOLERANCE_SEMITONES = 7;  // allow up to a 5th without relock confirmation
+const TRACK_RELOCK_CONFIRM_FRAMES = 2;     // frames of agreement needed for a large jump
 const TRACK_PENDING_MIDI_EPSILON = 1.2;
-const TRACK_HOLD_SEC = 0.2;
 const DETECTOR_LOG_MAX_ROWS = 30000;
 const MEDIAN_SMOOTH_WINDOW = 3;
 
@@ -48,13 +57,22 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, 
       trackerStateRef.current = createPitchTrackerState();
 
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        // Disable all browser VoIP processing. AGC changes signal amplitude
+        // mid-note (confusing the dB gate), and noise suppression distorts the
+        // waveform's harmonic structure — both cause spurious pitch jumps.
+        const audioConstraints = {
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false,
+          channelCount: 1,
+        };
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: audioConstraints, video: false });
         if (cancelled) {
           stream.getTracks().forEach((track) => track.stop());
           return;
         }
 
-        const context = new AudioContext();
+        const context = new AudioContext({ sampleRate: detectorConfig.sampleRate, latencyHint: 'interactive' });
         await context.resume().catch(() => undefined);
         const source = context.createMediaStreamSource(stream);
         const analyser = context.createAnalyser();
@@ -62,7 +80,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, 
         analyser.smoothingTimeConstant = 0;
         source.connect(analyser);
 
-        const detector = PitchDetector.forFloat32Array(detectorConfig.fftSize);
+        // Time-domain buffer — YIN reads directly from this, no FFT needed.
         const sampleBuffer = new Float32Array(detectorConfig.fftSize);
 
         resourcesRef.current = {
@@ -77,10 +95,7 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, 
             analyser.getFloatTimeDomainData(sampleBuffer);
 
             let rms = 0;
-            for (let index = 0; index < sampleBuffer.length; index += 1) {
-              const value = sampleBuffer[index];
-              rms += value * value;
-            }
+            for (const v of sampleBuffer) rms += v * v;
             rms = Math.sqrt(rms / sampleBuffer.length);
             const db = 20 * Math.log10(Math.max(1e-8, rms));
 
@@ -94,12 +109,17 @@ export function useStablePitchTracker({ enabled = true, maxHistoryPoints = 300, 
             let rawClarity = null;
 
             if (db >= detectorConfig.minDbThreshold) {
-              const [detectedHz, detectedClarity] = detector.findPitch(sampleBuffer, context.sampleRate);
-              rawHz = Number.isFinite(detectedHz) ? detectedHz : null;
-              rawClarity = Number.isFinite(detectedClarity) ? detectedClarity : null;
+              const yin = yinFindPitch(
+                sampleBuffer,
+                context.sampleRate,
+                detectorConfig.minFrequencyHz,
+                detectorConfig.maxFrequencyHz,
+              );
+              rawHz = yin.hz;
+              rawClarity = yin.clarity;
               const tracked = trackPitchSample({
-                rawHz: detectedHz,
-                rawClarity: detectedClarity,
+                rawHz: yin.hz,
+                rawClarity: yin.clarity,
                 nowSec: nowMs / 1000,
                 trackerState: trackerStateRef.current,
                 config: detectorConfig,
@@ -269,6 +289,89 @@ function createPitchTrackerState() {
   };
 }
 
+// ---------------------------------------------------------------------------
+// YIN algorithm
+//
+// 1. Difference function:
+//      d(τ) = Σ_{j=0}^{W-1} (x[j] − x[j+τ])²
+//    where W = floor(bufferLength / 2)
+//
+// 2. Cumulative Mean Normalised Difference Function (CMNDF):
+//      d'(0)   = 1
+//      d'(τ)   = d(τ) · τ / Σ_{j=1}^{τ} d(j)
+//    The normalisation makes sub-harmonic periods (e.g. 2τ, 4τ) score
+//    significantly *higher* than the true fundamental period.
+//
+// 3. Absolute threshold: pick the first τ ∈ [minLag, maxLag] where
+//    d'(τ) < YIN_THRESHOLD and d'(τ) is a local minimum.
+//    Fallback: global minimum if no threshold crossing found.
+//
+// 4. Parabolic interpolation for sub-sample refinement.
+//
+// Returns { hz, clarity } where clarity = clamp(1 − d'(τ_best), 0, 1).
+// ---------------------------------------------------------------------------
+
+function yinFindPitch(buffer, sampleRate, minFreqHz, maxFreqHz) {
+  const w = buffer.length >> 1;
+  const maxLag = Math.floor(sampleRate / Math.max(minFreqHz, 1));
+  const minLag = Math.max(2, Math.ceil(sampleRate / Math.min(maxFreqHz, sampleRate / 2)));
+
+  if (maxLag >= w || minLag >= maxLag) {
+    return { hz: null, clarity: 0 };
+  }
+
+  const d = new Float32Array(maxLag + 1);
+  d[0] = 1;
+  let runningSum = 0;
+
+  for (let tau = 1; tau <= maxLag; tau++) {
+    let diff = 0;
+    for (let j = 0; j < w; j++) {
+      const delta = buffer[j] - buffer[j + tau];
+      diff += delta * delta;
+    }
+    runningSum += diff;
+    d[tau] = runningSum === 0 ? 0 : (diff * tau) / runningSum;
+  }
+
+  // Step 3: first local minimum below threshold.
+  let bestTau = -1;
+  for (let tau = minLag + 1; tau < maxLag; tau++) {
+    if (d[tau] < YIN_THRESHOLD && d[tau] <= d[tau - 1] && d[tau] <= d[tau + 1]) {
+      bestTau = tau;
+      break;
+    }
+  }
+
+  // Fallback: global minimum.
+  if (bestTau === -1) {
+    let minVal = Infinity;
+    for (let tau = minLag; tau <= maxLag; tau++) {
+      if (d[tau] < minVal) { minVal = d[tau]; bestTau = tau; }
+    }
+    if (minVal > 0.5) return { hz: null, clarity: 0 };
+  }
+
+  // Step 4: parabolic interpolation.
+  let refinedTau = bestTau;
+  if (bestTau > minLag && bestTau < maxLag) {
+    const prev = d[bestTau - 1];
+    const curr = d[bestTau];
+    const next = d[bestTau + 1];
+    const denom = 2 * (2 * curr - prev - next);
+    if (denom !== 0) refinedTau = bestTau + (next - prev) / denom;
+  }
+
+  return {
+    hz: sampleRate / refinedTau,
+    clarity: Math.max(0, Math.min(1, 1 - d[bestTau])),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Tracker state machine
+// ---------------------------------------------------------------------------
+
 function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState, config }) {
   if (!Number.isFinite(rawHz) || !Number.isFinite(rawClarity)) {
     return emitHeldOrUnvoiced(trackerState, nowSec, 'invalid-pitch', config);
@@ -290,59 +393,41 @@ function trackPitchSample({ rawHz, rawClarity, nowSec, trackerState, config }) {
     trackerState.holdMidi = rawMidi;
     trackerState.holdUntilSec = nowSec + TRACK_HOLD_SEC;
     return {
-      voiced: true,
-      midi: rawMidi,
-      clarity: rawClarity,
-      acceptedHz: midiToHz(rawMidi),
-      gateReason: 'accepted-lock',
+      voiced: true, midi: rawMidi, clarity: rawClarity,
+      acceptedHz: midiToHz(rawMidi), gateReason: 'accepted-lock',
     };
   }
 
-  const candidate = selectCandidateFromRaw(rawHz);
-  if (!isMidiInAllowedRange(candidate.midi, config)) {
-    return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-mapped-out-of-range', config);
-  }
-  const jumpSemitones = Math.abs(candidate.midi - lockMidi);
+  const jumpSemitones = Math.abs(rawMidi - lockMidi);
 
   if (jumpSemitones <= TRACK_LOCK_TOLERANCE_SEMITONES) {
-    trackerState.lockedMidi = candidate.midi;
+    trackerState.lockedMidi = rawMidi;
     trackerState.pendingMidi = null;
     trackerState.pendingCount = 0;
-    trackerState.holdMidi = candidate.midi;
+    trackerState.holdMidi = rawMidi;
     trackerState.holdUntilSec = nowSec + TRACK_HOLD_SEC;
     return {
-      voiced: true,
-      midi: candidate.midi,
-      clarity: rawClarity,
-      acceptedHz: midiToHz(candidate.midi),
-      gateReason: 'accepted-tracked',
+      voiced: true, midi: rawMidi, clarity: rawClarity,
+      acceptedHz: midiToHz(rawMidi), gateReason: 'accepted-tracked',
     };
   }
 
-  if (Number.isFinite(trackerState.pendingMidi) && Math.abs(candidate.midi - trackerState.pendingMidi) <= TRACK_PENDING_MIDI_EPSILON) {
+  if (Number.isFinite(trackerState.pendingMidi) && Math.abs(rawMidi - trackerState.pendingMidi) <= TRACK_PENDING_MIDI_EPSILON) {
     trackerState.pendingCount += 1;
   } else {
-    trackerState.pendingMidi = candidate.midi;
+    trackerState.pendingMidi = rawMidi;
     trackerState.pendingCount = 1;
   }
 
   if (trackerState.pendingCount >= TRACK_RELOCK_CONFIRM_FRAMES) {
-    if (!isMidiInAllowedRange(trackerState.pendingMidi)) {
-      trackerState.pendingMidi = null;
-      trackerState.pendingCount = 0;
-      return emitHeldOrUnvoiced(trackerState, nowSec, 'tracking-pending-out-of-range', config);
-    }
     trackerState.lockedMidi = trackerState.pendingMidi;
     trackerState.pendingMidi = null;
     trackerState.pendingCount = 0;
     trackerState.holdMidi = trackerState.lockedMidi;
     trackerState.holdUntilSec = nowSec + TRACK_HOLD_SEC;
     return {
-      voiced: true,
-      midi: trackerState.lockedMidi,
-      clarity: rawClarity,
-      acceptedHz: midiToHz(trackerState.lockedMidi),
-      gateReason: 'accepted-relock',
+      voiced: true, midi: trackerState.lockedMidi, clarity: rawClarity,
+      acceptedHz: midiToHz(trackerState.lockedMidi), gateReason: 'accepted-relock',
     };
   }
 
@@ -379,14 +464,6 @@ function emitHeldOrUnvoiced(trackerState, nowSec, gateReason, config) {
   };
 }
 
-function selectCandidateFromRaw(rawHz) {
-  return {
-    hz: rawHz,
-    midi: hzToMidi(rawHz),
-    multiplier: 1,
-  };
-}
-
 function hzToMidi(hz) {
   return 69 + 12 * Math.log2(hz / 440);
 }
@@ -411,15 +488,9 @@ function normalizeDetectorConfig(settings) {
   const minDbThreshold = clampNumber(source.minDbThreshold, -120, -5, DEFAULT_MIN_DB_THRESHOLD);
   const pollMs = Math.round(clampNumber(source.pollMs, 15, 250, DEFAULT_DETECTOR_POLL_MS));
   const fftSize = normalizeFftSize(source.fftSize);
+  const sampleRate = clampNumber(source.sampleRate, 8000, 96000, 44100);
 
-  return {
-    minFrequencyHz,
-    maxFrequencyHz,
-    minClarity,
-    minDbThreshold,
-    pollMs,
-    fftSize,
-  };
+  return { minFrequencyHz, maxFrequencyHz, minClarity, minDbThreshold, pollMs, fftSize, sampleRate };
 }
 
 function normalizeFftSize(value) {
