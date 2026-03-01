@@ -66,6 +66,7 @@ export function TrainerPage() {
   const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
   const octaveShift = (singOctave - lesson.defaultOctave) * SEMITONES_PER_OCTAVE;
   const totalMidiShift = keySemitoneShift + octaveShift;
+  const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
