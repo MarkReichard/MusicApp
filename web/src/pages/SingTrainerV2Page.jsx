@@ -161,6 +161,20 @@ export function SingTrainerV2Page() {
     clearTrackingData();
   }
 
+  function prepareExerciseForAutoplay(nextIndex) {
+    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
+    if (clamped === exerciseIndex) {
+      return;
+    }
+
+    setExerciseIndex(clamped);
+    setIndex(0);
+    setCorrectIndices([]);
+    setBarResults({});
+    evaluatedBarsRef.current = new Set();
+    clearTrackingData();
+  }
+
   function getShiftedNotesForExercise(targetExerciseIndex) {
     const clamped = Math.max(0, Math.min(lessonExercises.length - 1, targetExerciseIndex));
     const targetExercise = lessonExercises[clamped] ?? lessonExercises[0];
@@ -185,7 +199,7 @@ export function SingTrainerV2Page() {
     }
 
     const nextShiftedNotes = getShiftedNotesForExercise(nextIndex);
-    setExercise(nextIndex);
+    prepareExerciseForAutoplay(nextIndex);
     void playMidiSequence(nextShiftedNotes);
   }
 
