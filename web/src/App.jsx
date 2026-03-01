@@ -21,7 +21,7 @@ export function App() {
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/lessons">Lessons</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
-          <NavLink to="/pitch-range">Pitch Range</NavLink>
+          <NavLink to="/pitch-range">Vocal Range</NavLink>
         </nav>
       </header>
 

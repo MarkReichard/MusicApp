@@ -282,7 +282,7 @@ export function PitchMatchPage() {
 
         {!hasPitchRange && (
           <p className="pitch-match-warning">
-            No vocal range saved. Visit the <a href="/pitch-range">Pitch Range</a> page first for accurate note selection.
+            No vocal range saved. Visit the <a href="/pitch-range">Vocal Range</a> page first for accurate note selection.
           </p>
         )}
 

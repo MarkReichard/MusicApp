@@ -95,7 +95,7 @@ export function SingTrainerPage() {
       rangeSuggestionText = 'No key/octave recommendation available for this lesson.';
     }
   } else {
-    rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
+    rangeSuggestionText = 'No saved pitch range yet. Use the Vocal Range page first.';
   }
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
