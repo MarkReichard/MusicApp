@@ -66,3 +66,8 @@ export function midiToNoteLabel(midi) {
   const octave = Math.floor(roundedMidi / SEMITONES_PER_OCTAVE) - 1;
   return `${name}${octave}`;
 }
+
+/** Returns the tonic MIDI number for a given key name and sing octave. */
+export function tonicMidiFromKeyOctave(key, octave) {
+  return SEMITONES_PER_OCTAVE * (octave + 1) + keyToSemitone(key);
+}

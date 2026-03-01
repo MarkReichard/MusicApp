@@ -9,7 +9,7 @@ import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
 import {
-  keyToSemitone,
+  tonicMidiFromKeyOctave,
   midiToFrequencyHz,
   midiToNoteLabel,
   SEMITONES_PER_OCTAVE,
@@ -25,7 +25,7 @@ import {
   TARGET_NOTE_GAIN,
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
-import { normalizeLessonExercises } from '../lib/lessonUtils';
+import { normalizeLessonExercises, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
 
 const SING_GUIDE_NOTE_GAIN = 0.08;
@@ -81,12 +81,8 @@ export function SingTrainerV2Page() {
   } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000, pitchSettings });
   const isDebug = searchParams.get('debug') === 'true';
 
-  const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
-  const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
-  const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? 4];
-  const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
-  const octaveShift = (singOctave - lesson.defaultOctave) * 12;
-  const totalMidiShift = keySemitoneShift + octaveShift;
+  const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
+  const { totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
@@ -120,28 +116,9 @@ export function SingTrainerV2Page() {
   }, [history, session]);
 
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
-  const shiftedLessonNotes = activeEvents.map((note) => {
-    if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
-      return { ...note };
-    }
+  const shiftedLessonNotes = shiftNotes(activeEvents, totalMidiShift);
 
-    return {
-      ...note,
-      midi: note.midi + totalMidiShift,
-    };
-  });
-
-  let rangeSuggestionText;
-  if (hasSavedPitchRange) {
-    if (rangeRecommendation) {
-      const fitNote = rangeRecommendation.fitsCompletely ? '' : ' (closest fit)';
-      rangeSuggestionText = `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${fitNote}.`;
-    } else {
-      rangeSuggestionText = 'No key/octave recommendation available for this lesson.';
-    }
-  } else {
-    rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
-  }
+  const rangeSuggestionText = getRangeSuggestionText(hasSavedPitchRange, rangeRecommendation);
 
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
@@ -248,11 +225,6 @@ export function SingTrainerV2Page() {
     });
   }
 
-  async function stopAndResetCurrentExercise() {
-    await stopTargetPlayback();
-    resetCurrentExerciseState();
-  }
-
   function applyRangeDefaults() {
     if (!rangeRecommendation) {
       return;
@@ -317,7 +289,7 @@ export function SingTrainerV2Page() {
   }
 
   async function playMidiSequence(notes) {
-    if (!notes.length || isPlayingTarget) {
+    if (!notes.length) {
       return;
     }
 
@@ -360,7 +332,7 @@ export function SingTrainerV2Page() {
       let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
       if (playTonicCadence) {
-        const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
+        const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
         CADENCE_CHORD_OFFSETS.forEach((offset) => {
           const chordRoot = tonicMidi + offset;
           TRIAD_INTERVALS.forEach((triadOffset) => {
@@ -602,14 +574,9 @@ export function SingTrainerV2Page() {
             </button>
           ) : null}
           <button
+            type="button"
             className="button"
-            onClick={() => {
-              if (isPlayingTarget) {
-                void stopAndResetCurrentExercise();
-                return;
-              }
-              void playMidiSequence(shiftedLessonNotes);
-            }}
+            onClick={() => void playMidiSequence(shiftedLessonNotes)}
             title="Play target notes"
             aria-label="Play target notes"
           >
@@ -618,9 +585,9 @@ export function SingTrainerV2Page() {
           <button
             type="button"
             className="button secondary"
-            onClick={() => void stopAndResetCurrentExercise()}
-            title="Reset input progress"
-            aria-label="Reset input progress"
+            onClick={() => void playMidiSequence(shiftedLessonNotes)}
+            title="Replay exercise"
+            aria-label="Replay exercise"
           >
             ↺
           </button>
@@ -686,111 +653,6 @@ export function SingTrainerV2Page() {
       </div>
     </div>
   );
-}
-
-function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, playTonicCadence, hearExerciseFirst, gracePeriodPercent, countdownBeats }) {
-  const beatSeconds = beatSecondsFromTempo(tempoBpm);
-  let cursor = AUDIO_START_OFFSET_SECONDS;
-  const playedBars = [];
-  const expectedBars = [];
-
-  if (playTonicCadence) {
-    const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
-    CADENCE_CHORD_OFFSETS.forEach((offset, cadenceIndex) => {
-      const chordRoot = tonicMidi + offset;
-      TRIAD_INTERVALS.forEach((triadOffset, triadIndex) => {
-        playedBars.push({
-          id: `cadence-${cadenceIndex}-${triadIndex}`,
-          startSec: cursor,
-          endSec: cursor + beatSeconds,
-          midi: chordRoot + triadOffset,
-        });
-      });
-      cursor += beatSeconds;
-    });
-    cursor += NOTE_GAP_SECONDS * 2;
-  }
-
-  if (hearExerciseFirst) {
-    notes.forEach((note, noteIndex) => {
-      const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-      const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
-      if (note.type !== 'rest') {
-        playedBars.push({
-          id: `played-${noteIndex}`,
-          startSec: cursor,
-          endSec: cursor + noteDurationSeconds,
-          midi: note.midi,
-        });
-      }
-      cursor += noteDurationSeconds + NOTE_GAP_SECONDS;
-    });
-  }
-
-  const singStartSec = cursor;
-  const expectedStartSec = singStartSec + beatSeconds * countdownBeats;
-  let singCursor = expectedStartSec;
-
-  notes.forEach((note, noteIndex) => {
-    const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
-    const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
-    const graceRatio = Math.max(0.5, Math.min(1, Number(gracePeriodPercent) / 100));
-    const scoreDurationSeconds = noteDurationSeconds * graceRatio;
-    if (note.type !== 'rest') {
-      expectedBars.push({
-        id: `expected-${noteIndex}`,
-        index: noteIndex,
-        startSec: singCursor,
-        endSec: singCursor + scoreDurationSeconds,
-        scoreEndSec: singCursor + scoreDurationSeconds,
-        midi: note.midi,
-      });
-    }
-    singCursor += noteDurationSeconds + NOTE_GAP_SECONDS;
-  });
-
-  const lastExpectedEndSec = expectedBars.length
-    ? expectedBars.at(-1).endSec
-    : singStartSec;
-  const stopScrollSec = lastExpectedEndSec + beatSeconds * 2;
-
-  return { playedBars, expectedBars, singStartSec, stopScrollSec };
-}
-
-function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
-  if (!Number.isFinite(sessionStartMs) || !history.length) {
-    return false;
-  }
-
-  const midiValues = history
-    .filter((entry) => Number.isFinite(entry.timeMs) && Number.isFinite(entry.midi))
-    .filter((entry) => {
-      const relativeSec = (entry.timeMs - sessionStartMs) / 1000;
-      return relativeSec >= bar.startSec && relativeSec <= bar.endSec;
-    })
-    .map((entry) => entry.midi);
-
-  if (!midiValues.length) {
-    return false;
-  }
-
-  const centsDiffs = midiValues.map((midi) => Math.abs((midi - bar.midi) * 100));
-  const inTolerance = centsDiffs.filter((diff) => diff <= toleranceCents).length;
-  const inToleranceRatio = inTolerance / centsDiffs.length;
-  const averageDiff = centsDiffs.reduce((sum, diff) => sum + diff, 0) / centsDiffs.length;
-
-  return inToleranceRatio >= 0.35 || averageDiff <= toleranceCents;
-}
-
-function applyBarEvaluation({ bar, matched, activeNotesLength, setCorrectIndices, setIndex }) {
-  if (matched) {
-    setCorrectIndices((previous) => (previous.includes(bar.index) ? previous : [...previous, bar.index]));
-  }
-
-  setIndex((previous) => {
-    const nextIndex = Math.min(bar.index + 1, Math.max(0, activeNotesLength - 1));
-    return previous === nextIndex ? previous : nextIndex;
-  });
 }
 
 function formatCsvNumber(value) {

@@ -10,9 +10,7 @@ import { PianoInputMode } from '../components/trainer/PianoInputMode';
 import {
   NOTE_NAMES,
   SEMITONES_PER_OCTAVE,
-  CADENCE_CHORD_OFFSETS,
-  TRIAD_INTERVALS,
-  keyToSemitone,
+  tonicMidiFromKeyOctave,
   beatSecondsFromTempo,
   midiToFrequencyHz,
   midiToNoteLabel,
@@ -24,7 +22,7 @@ import {
   CADENCE_CHORD_GAIN,
   TARGET_NOTE_GAIN,
 } from '../lib/musicTheory';
-import { normalizeLessonExercises } from '../lib/lessonUtils';
+import { normalizeLessonExercises, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
 import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence } from '../lib/pianoSynth';
 
 export function TrainerPage() {
@@ -60,13 +58,9 @@ export function TrainerPage() {
   const [lastNoteMidi, setLastNoteMidi] = useState(null);
   const activeInputTonesRef = useRef({});
 
-  const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
-  const tempoRange = lesson.tempoRange ?? DEFAULT_TEMPO_RANGE;
-  const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? DEFAULT_OCTAVE];
-  const keySemitoneShift = keyToSemitone(selectedKey) - keyToSemitone(lesson.defaultKey ?? selectedKey);
-  const octaveShift = (singOctave - lesson.defaultOctave) * SEMITONES_PER_OCTAVE;
-  const totalMidiShift = keySemitoneShift + octaveShift;
-  const tonicMidi = SEMITONES_PER_OCTAVE * (singOctave + 1) + keyToSemitone(selectedKey);
+  const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
+  const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
+  const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
   const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
   const activeEvents = activeExercise?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
@@ -77,25 +71,8 @@ export function TrainerPage() {
   const expectedBaseMidi = activeNotes[index]?.midi ?? null;
   const expectedMidi = expectedBaseMidi === null ? null : expectedBaseMidi + totalMidiShift;
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
-  const shiftedLessonNotes = activeEvents.map((note) => {
-    if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
-      return { ...note };
-    }
-
-    return {
-      ...note,
-      midi: note.midi + totalMidiShift,
-    };
-  });
-  let rangeSuggestionText;
-  if (!hasSavedPitchRange) {
-    rangeSuggestionText = 'No saved pitch range yet. Use the Pitch Range page first.';
-  } else if (rangeRecommendation) {
-    const fitNote = rangeRecommendation.fitsCompletely ? '' : ' (closest fit)';
-    rangeSuggestionText = `Suggestion: Key ${rangeRecommendation.key}, Oct ${rangeRecommendation.octave}${fitNote}.`;
-  } else {
-    rangeSuggestionText = 'No key/octave recommendation available for this lesson.';
-  }
+  const shiftedLessonNotes = shiftNotes(activeEvents, totalMidiShift);
+  const rangeSuggestionText = getRangeSuggestionText(hasSavedPitchRange, rangeRecommendation);
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
@@ -526,7 +503,3 @@ const BLACK_KEY_OFFSET_PX = 13;
 
 // ── Audio – gain levels ───────────────────────────────────────────────────────
 const INPUT_TONE_GAIN = 0.14;
-
-// ── Lesson / UI defaults ──────────────────────────────────────────────────────
-const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
-const DEFAULT_OCTAVE = 4;
