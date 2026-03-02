@@ -21,11 +21,6 @@
     "min": 30,
     "max": 140
   },
-  "defaultChunkSize": 6,
-  "chunkSizeRange": {
-    "min": 3,
-    "max": 10
-  },
   "defaultOctave": 4,
   "allowedOctaves": [
     2,
@@ -33,215 +28,155 @@
     4,
     5
   ],
-  "notes": [
+  "timeSig": {
+    "beats": 4,
+    "beatType": 4
+  },
+  "measures": [
     {
-      "pitch": "G4",
-      "midi": 67,
-      "degree": "Sol",
-      "durationBeats": 1
+      "index": 0,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "F4",
+          "midi": 65,
+          "degree": "Fa"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Mi"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Re"
+        }
+      ],
+      "chords": []
     },
     {
-      "pitch": "F4",
-      "midi": 65,
-      "degree": "Fa",
-      "durationBeats": 1
+      "index": 1,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "C4",
+          "midi": 60,
+          "degree": "Do"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Re"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Mi"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "C4",
+          "midi": 60,
+          "degree": "Do"
+        }
+      ],
+      "chords": []
     },
     {
-      "pitch": "E4",
-      "midi": 64,
-      "degree": "Mi",
-      "durationBeats": 1
+      "index": 2,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Re"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Mi"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "F4",
+          "midi": 65,
+          "degree": "Fa"
+        },
+        {
+          "type": "note",
+          "durationBeats": 1.0,
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Re"
+        }
+      ],
+      "chords": []
     },
     {
-      "pitch": "D4",
-      "midi": 62,
-      "degree": "Re",
-      "durationBeats": 1
+      "index": 3,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "durationBeats": 2.0,
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Mi"
+        },
+        {
+          "type": "note",
+          "durationBeats": 2.0,
+          "pitch": "F4",
+          "midi": 65,
+          "degree": "Fa"
+        }
+      ],
+      "chords": []
     },
     {
-      "pitch": "C4",
-      "midi": 60,
-      "degree": "Do",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "D4",
-      "midi": 62,
-      "degree": "Re",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "E4",
-      "midi": 64,
-      "degree": "Mi",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "C4",
-      "midi": 60,
-      "degree": "Do",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "D4",
-      "midi": 62,
-      "degree": "Re",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "E4",
-      "midi": 64,
-      "degree": "Mi",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "F4",
-      "midi": 65,
-      "degree": "Fa",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "D4",
-      "midi": 62,
-      "degree": "Re",
-      "durationBeats": 1
-    },
-    {
-      "pitch": "E4",
-      "midi": 64,
-      "degree": "Mi",
-      "durationBeats": 2
-    },
-    {
-      "pitch": "F4",
-      "midi": 65,
-      "degree": "Fa",
-      "durationBeats": 2
-    },
-    {
-      "pitch": "G4",
-      "midi": 67,
-      "degree": "Sol",
-      "durationBeats": 4
-    }
-  ],
-  "phrases": [
-    {
-      "startNoteIndex": 0,
-      "endNoteIndex": 7,
-      "label": "Deck phrase A"
-    },
-    {
-      "startNoteIndex": 8,
-      "endNoteIndex": 14,
-      "label": "Deck phrase B"
+      "index": 4,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "durationBeats": 4.0,
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol"
+        }
+      ],
+      "chords": []
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-02-22T00:00:00Z",
-  "exercises": [
-    {
-      "id": "set_1",
-      "notes": [
-        {
-          "pitch": "G4",
-          "midi": 67,
-          "degree": "Sol",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "F4",
-          "midi": 65,
-          "degree": "Fa",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Mi",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Re",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "C4",
-          "midi": 60,
-          "degree": "Do",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Re",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Mi",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "C4",
-          "midi": 60,
-          "degree": "Do",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Re",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Mi",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "F4",
-          "midi": 65,
-          "degree": "Fa",
-          "durationBeats": 1
-        },
-        {
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Re",
-          "durationBeats": 1
-        }
-      ]
-    },
-    {
-      "id": "set_2",
-      "notes": [
-        {
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Mi",
-          "durationBeats": 2
-        },
-        {
-          "pitch": "F4",
-          "midi": 65,
-          "degree": "Fa",
-          "durationBeats": 2
-        },
-        {
-          "pitch": "G4",
-          "midi": 67,
-          "degree": "Sol",
-          "durationBeats": 4
-        }
-      ]
-    }
-  ]
+  "updatedAt": "2026-02-22T00:00:00Z"
 }

@@ -8,7 +8,7 @@ Web-only React app for lesson practice and pitch tuning.
 - `web/src/pages/LessonsPage.jsx` — lesson library with category accordion
 - `web/src/pages/TrainerPage.jsx` — piano/solfège practice page
 - `web/src/pages/SingTrainerV2Page.jsx` — singing trainer with live pitch graph
-- `web/src/pages/SongBuilderPage.jsx` — measure-by-measure song inspector
+- `web/src/pages/SongBuilderPage.jsx` — JSON authoring tool: enter song details + measures (notes & chords) and copy the generated JSON to a lesson file
 - `web/src/pages/PitchMatchPage.jsx` — listen-and-sing pitch matching exercise
 - `web/src/pages/PitchRangePage.jsx` — guided vocal range measurement wizard
 - `web/src/pages/PitchLabPage.jsx` — mic settings / pitch detection tuning (hidden)
@@ -22,7 +22,7 @@ Web-only React app for lesson practice and pitch tuning.
 |---|---|---|---|
 | `/` | Home | ✓ | Landing page with quick-start cards |
 | `/lessons` | Lessons | ✓ | Browse all lesson exercises and launch a trainer |
-| `/song-builder` | Song Builder | ✓ | Inspect song measures and chords; open in sing trainer |
+| `/song-builder` | Song Builder | ✓ | Build song lesson JSON (enter song details, measures, notes, chords; copy output to a file) |
 | `/pitch-match` | Pitch Match | ✓ | Listen to a diatonic note and sing it back |
 | `/pitch-range` | Vocal Range | ✓ | Measure and save your vocal range |
 | `/trainer/:lessonId` | Trainer | — | Piano / solfège practice for a lesson (`?mode=piano` or `?mode=solfege`) |
