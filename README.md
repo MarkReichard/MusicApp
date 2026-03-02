@@ -4,13 +4,32 @@ Web-only React app for lesson practice and pitch tuning.
 
 ## App structure
 
-- `web/src/pages/LessonsPage.jsx` — lesson library page
+- `web/src/pages/HomePage.jsx` — landing page with quick-start cards
+- `web/src/pages/LessonsPage.jsx` — lesson library with category accordion
 - `web/src/pages/TrainerPage.jsx` — piano/solfège practice page
 - `web/src/pages/SingTrainerV2Page.jsx` — singing trainer with live pitch graph
-- `web/src/pages/PitchLabPage.jsx` — mic settings / pitch detection tuning
-- `web/src/pages/SingGraphV2LabPage.jsx` — standalone pitch graph lab (for debugging)
+- `web/src/pages/SongBuilderPage.jsx` — measure-by-measure song inspector
+- `web/src/pages/PitchMatchPage.jsx` — listen-and-sing pitch matching exercise
+- `web/src/pages/PitchRangePage.jsx` — guided vocal range measurement wizard
+- `web/src/pages/PitchLabPage.jsx` — mic settings / pitch detection tuning (hidden)
+- `web/src/pages/SingGraphV2LabPage.jsx` — standalone pitch graph lab (hidden, for debugging)
 - `web/src/lib/useStablePitchTracker.js` — YIN pitch detection hook (used by sing trainer)
 - `web/src/lib/pitchSettings.js` — localStorage-backed pitch settings
+
+## Routes
+
+| Route | Page | In nav | Description |
+|---|---|---|---|
+| `/` | Home | ✓ | Landing page with quick-start cards |
+| `/lessons` | Lessons | ✓ | Browse all lesson exercises and launch a trainer |
+| `/song-builder` | Song Builder | ✓ | Inspect song measures and chords; open in sing trainer |
+| `/pitch-match` | Pitch Match | ✓ | Listen to a diatonic note and sing it back |
+| `/pitch-range` | Vocal Range | ✓ | Measure and save your vocal range |
+| `/trainer/:lessonId` | Trainer | — | Piano / solfège practice for a lesson (`?mode=piano` or `?mode=solfege`) |
+| `/trainer/:lessonId/sing` | Sing Trainer V2 | — | Live pitch-graph singing trainer for a lesson |
+| `/trainer/:lessonId/sing-v2` | Sing Trainer V2 | — | Alias for `/trainer/:lessonId/sing` |
+| `/pitch-lab` | Pitch Lab | hidden | Mic settings / pitch detection tuning |
+| `/sing-graph-v2` | Sing Graph V2 Lab | hidden | Standalone pitch graph, no lesson (for debugging) |
 
 ## Pitch settings persistence
 
@@ -24,13 +43,6 @@ Default pitch settings:
 - `minDbThreshold = -55`
 
 ## Hidden debug pages
-
-These pages are not shown in the navigation but are accessible by URL:
-
-| Page | URL |
-|---|---|
-| Mic Settings / Pitch Lab | `/pitch-lab` |
-| Sing Graph V2 Lab | `/sing-graph-v2` |
 
 The **Pitch Lab** (`/pitch-lab`) lets you tune `minFrequencyHz`, `maxFrequencyHz`, `minClarity`,
 `minDbThreshold`, and `fftSize` live and saves them to localStorage.
