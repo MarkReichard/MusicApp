@@ -40,6 +40,10 @@
       "beats": 4,
       "notes": [
         {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
           "type": "note",
           "pitch": "A3",
           "midi": 57,
@@ -109,7 +113,13 @@
           "durationBeats": 1
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 3,
@@ -130,7 +140,13 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 4,
@@ -158,7 +174,13 @@
           "durationBeats": 1
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 5,
@@ -173,9 +195,9 @@
         },
         {
           "type": "note",
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Re",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
           "durationBeats": 1
         }
       ],
@@ -206,7 +228,13 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 7,
@@ -233,10 +261,7 @@
       "beats": 4,
       "notes": [
         {
-          "type": "note",
-          "pitch": "A3",
-          "midi": 57,
-          "degree": "Sol",
+          "type": "rest",
           "durationBeats": 2
         },
         {
@@ -254,7 +279,13 @@
           "durationBeats": 1
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 9,
@@ -275,7 +306,13 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 10,
@@ -303,7 +340,13 @@
           "durationBeats": 1
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 11,
@@ -324,7 +367,13 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 12,
@@ -352,7 +401,13 @@
           "durationBeats": 1
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "B",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 13,
@@ -373,7 +428,13 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 14,
@@ -428,93 +489,11 @@
           "kind": "major"
         }
       ]
-    },
-    {
-      "index": 16,
-      "beats": 4,
-      "notes": [
-        {
-          "type": "note",
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Do",
-          "durationBeats": 2
-        }
-      ],
-      "chords": []
-    },
-    {
-      "index": 17,
-      "beats": 4,
-      "notes": [
-        {
-          "type": "note",
-          "pitch": "F#4",
-          "midi": 66,
-          "degree": "Mi",
-          "durationBeats": 2
-        },
-        {
-          "type": "note",
-          "pitch": "F#4",
-          "midi": 66,
-          "degree": "Mi",
-          "durationBeats": 1
-        },
-        {
-          "type": "note",
-          "pitch": "E4",
-          "midi": 64,
-          "degree": "Re",
-          "durationBeats": 1
-        }
-      ],
-      "chords": [
-        {
-          "beat": 3,
-          "root": "A",
-          "kind": "major"
-        }
-      ]
-    },
-    {
-      "index": 18,
-      "beats": 4,
-      "notes": [
-        {
-          "type": "note",
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Do",
-          "durationBeats": 4
-        }
-      ],
-      "chords": [
-        {
-          "beat": 1,
-          "root": "D",
-          "kind": "major"
-        }
-      ]
-    },
-    {
-      "index": 19,
-      "beats": 4,
-      "notes": [
-        {
-          "type": "note",
-          "pitch": "D4",
-          "midi": 62,
-          "degree": "Do",
-          "durationBeats": 2
-        }
-      ],
-      "chords": []
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-03-02T00:45:19.238Z"
+  "updatedAt": "2026-03-02T03:20:00.204Z"
 }
