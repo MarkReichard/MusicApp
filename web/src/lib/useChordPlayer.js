@@ -26,8 +26,8 @@ import { midiToFrequencyHz, KEY_TO_SEMITONE, beatSecondsFromTempo } from './musi
 // ── Constants ──────────────────────────────────────────────────────────────────
 const LOOKAHEAD_MS = 100;    // scheduler fires every N ms
 const SCHEDULE_WINDOW_S = 0.2; // schedule this many seconds ahead per tick
-const BOOM_OCTAVE_BASE = 36;   // MIDI C2 — bass register for beat-1 chord
-const CHUCK_OCTAVE_BASE = 48;  // MIDI C3 — mid register for chop (unused but kept for reference)
+const BOOM_OCTAVE_BASE = 48;   // MIDI C3 — bass register for beat-1 chord
+const CHUCK_OCTAVE_BASE = 60;  // MIDI C4 — mid register for chop
 const BOOM_GAIN = 0.048;
 const CHUCK_GAIN = 0.03;
 const NOTE_DURATION_RATIO = 0.82; // fraction of a beat the note sounds
