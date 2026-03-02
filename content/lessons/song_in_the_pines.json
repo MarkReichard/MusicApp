@@ -1,0 +1,357 @@
+{
+  "id": "song",
+  "name": "In the pines",
+  "category": "folk_songs",
+  "type": "song",
+  "difficulty": "beginner",
+  "tags": [],
+  "defaultKey": "D",
+  "allowedKeys": [
+    "C",
+    "D",
+    "E",
+    "F",
+    "G",
+    "A",
+    "B"
+  ],
+  "defaultTempoBpm": 90,
+  "tempoRange": {
+    "min": 30,
+    "max": 240
+  },
+  "defaultOctave": 4,
+  "allowedOctaves": [
+    2,
+    3,
+    4,
+    5
+  ],
+  "timeSig": {
+    "beats": 3,
+    "beatType": 4
+  },
+  "measures": [
+    {
+      "index": 0,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 0.5
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 1,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
+          "durationBeats": 1.5
+        },
+        {
+          "type": "note",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 0.5
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 1.5
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "B4",
+          "midi": 71,
+          "degree": "La",
+          "durationBeats": 0.25
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.25
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 3,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Fa",
+          "durationBeats": 1.5
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Fa",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Fa",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.5
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 4,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Fa",
+          "durationBeats": 0.5
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 5,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 1
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "Sol",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 0.25
+        },
+        {
+          "type": "note",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
+          "durationBeats": 0.25
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 1.5
+        },
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 0.5
+        },
+        {
+          "type": "note",
+          "pitch": "F#4",
+          "midi": 66,
+          "degree": "Mi",
+          "durationBeats": 0.25
+        },
+        {
+          "type": "note",
+          "pitch": "E4",
+          "midi": 64,
+          "degree": "Re",
+          "durationBeats": 0.25
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "A",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 7,
+      "beats": 3,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D4",
+          "midi": 62,
+          "degree": "Do",
+          "durationBeats": 1.5
+        },
+        {
+          "type": "rest",
+          "durationBeats": 1.5
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    }
+  ],
+  "source": {
+    "kind": "preloaded",
+    "version": "1.0.0"
+  },
+  "updatedAt": "2026-03-02T23:29:47.112Z"
+}

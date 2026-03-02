@@ -85,13 +85,16 @@ function buildBeatEvents(measures, transposeSemitones = 0) {
         const rootSemitone = KEY_TO_SEMITONE[currentChord.root] ?? 0;
         const shifted = rootSemitone + transposeSemitones;
 
-        if (b % 2 === 1) {
-          // Odd beats (1, 3, …) — full triad in bass register, sustained
+        // Beat 1 always booms; in 4-beat measures beat 3 also booms (boom-chop-boom-chop).
+        // In 3-beat measures only beat 1 booms (boom-chop-chop).
+        const isBoom = b === 1 || (beats === 4 && b === 3);
+        if (isBoom) {
+          // Downbeat — full triad in bass register, sustained
           const rootMidi = BOOM_OCTAVE_BASE + ((shifted % 12) + 12) % 12;
           const intervals = chordIntervals(currentChord.kind);
           events.push({ beatIndex: absoluteBeat, midiNotes: intervals.map((i) => rootMidi + i), gain: BOOM_GAIN });
         } else {
-          // Even beats (2, 4, …) — short chop: full triad in mid register
+          // Off-beats — short chop: full triad in mid register
           const rootMidi = CHUCK_OCTAVE_BASE + ((shifted % 12) + 12) % 12;
           const intervals = chordIntervals(currentChord.kind);
           events.push({ beatIndex: absoluteBeat, midiNotes: intervals.map((i) => rootMidi + i), gain: CHUCK_GAIN, durationS: CHOP_DURATION_S });

@@ -20,6 +20,35 @@ import { KEY_TO_SEMITONE } from '../lib/musicTheory';
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const DEGREES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
+
+// Semitone interval above key root → nearest standard solfège syllable
+const INTERVAL_TO_DEGREE = [
+  'Do',  // 0 – tonic
+  'Re',  // 1 – b2
+  'Re',  // 2 – major 2nd
+  'Mi',  // 3 – b3
+  'Mi',  // 4 – major 3rd
+  'Fa',  // 5 – perfect 4th
+  'Sol', // 6 – tritone
+  'Sol', // 7 – perfect 5th
+  'La',  // 8 – b6
+  'La',  // 9 – major 6th
+  'Ti',  // 10 – b7
+  'Ti',  // 11 – major 7th
+];
+
+/**
+ * Given a pitch string (e.g. "F#4") and a key name (e.g. "G"),
+ * returns the solfège syllable for that pitch's scale degree.
+ * Returns null if pitch is unparseable.
+ */
+function pitchToSolfege(pitch, key) {
+  const midi = pitchToMidi(pitch);
+  if (midi === null) return null;
+  const keySemitone = KEY_TO_SEMITONE[key] ?? 0;
+  const interval = ((midi % 12) - keySemitone + 12) % 12;
+  return INTERVAL_TO_DEGREE[interval] ?? 'Do';
+}
 const DIFFICULTIES = ['beginner', 'intermediate', 'advanced'];
 const BEAT_TYPES = [2, 4, 8, 16];
 
@@ -30,6 +59,7 @@ const DURATION_OPTIONS = [
   { label: '♩. Dotted Qtr (1.5)', value: '1.5' },
   { label: '♩ Quarter (1)', value: '1' },
   { label: '♪ Eighth (0.5)', value: '0.5' },
+  { label: '♪ Triplet 8th (⅓)', value: '0.3333' },
   { label: '𝅘𝅥𝅯 16th (0.25)', value: '0.25' },
 ];
 
@@ -70,6 +100,10 @@ const CHORD_TY      = 92;                              // y for chord label text
 const CHROM_TO_DIA = [0, 0, 1, 1, 2, 3, 3, 4, 4, 5, 5, 6];
 
 const DOTTED_DURS = new Set([0.375, 0.75, 1.5, 3]);
+/** Duration value (in beats) of a triplet eighth note (1/3 of a quarter). */
+const TRIPLET_8TH = 1 / 3;
+/** Tolerance used to detect a triplet eighth by its float duration. */
+const TRIPLET_TOL = 0.02;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -314,7 +348,7 @@ RestSymbol.propTypes = {
 
 function MeasureNotation({ measure, index, timeSigBeats, isSelected, onClick }) {
   const totalBeats = measureTotalBeats(measure);
-  const beatsMismatch = Math.abs(totalBeats - timeSigBeats) > 0.001;
+  const beatsMismatch = Math.abs(totalBeats - timeSigBeats) > 0.01;
   const cellBeats = Math.max(totalBeats, timeSigBeats, 1);
   const cellW = CELL_LEFT + cellBeats * BEAT_PX + CELL_RIGHT;
   const noteColor = '#e2e8f0';
@@ -328,6 +362,31 @@ function MeasureNotation({ measure, index, timeSigBeats, isSelected, onClick }) 
     beatPos += dur;
     return { n, x, dur };
   });
+
+  // ── Triplet group detection ────────────────────────────────────────────────
+  // Scan for runs of 3 consecutive non-rest notes each with dur ≈ 1/3 beat.
+  const tripletOf = new Array(noteItems.length).fill(-1); // group index per note
+  const tripletGroups = [];
+  let ti = 0;
+  while (ti <= noteItems.length - 3) {
+    const [a, b, c] = [noteItems[ti], noteItems[ti + 1], noteItems[ti + 2]];
+    if (
+      [a, b, c].every(
+        ({ n, dur }) => n.type !== 'rest' && Math.abs(dur - TRIPLET_8TH) < TRIPLET_TOL,
+      )
+    ) {
+      const gIdx = tripletGroups.length;
+      [ti, ti + 1, ti + 2].forEach((idx) => { tripletOf[idx] = gIdx; });
+      const midiA = pitchToMidi(a.n.pitch) ?? 60;
+      const midiB = pitchToMidi(b.n.pitch) ?? 60;
+      const midiC = pitchToMidi(c.n.pitch) ?? 60;
+      const avgY = (noteY(midiA) + noteY(midiB) + noteY(midiC)) / 3;
+      tripletGroups.push({ indices: [ti, ti + 1, ti + 2], stemUp: avgY >= MIDDLE_LINE_Y });
+      ti += 3;
+    } else {
+      ti += 1;
+    }
+  }
 
   // Chord labels keyed by beat number
   const chordsByBeat = {};
@@ -371,7 +430,9 @@ function MeasureNotation({ measure, index, timeSigBeats, isSelected, onClick }) 
           const isWhole = dur >= 4;
           const isHalf = dur >= 2 && dur < 4;
           const filled = !isWhole && !isHalf;
-          const stemUp = y >= MIDDLE_LINE_Y;
+          const isTriplet = tripletOf[ni] !== -1;
+          // For triplet notes use the group's shared stem direction; otherwise per-note.
+          const stemUp = isTriplet ? tripletGroups[tripletOf[ni]].stemUp : y >= MIDDLE_LINE_Y;
           const acc = getAccidental(n.pitch);
           const ledYs = ledgerLineYs(midi);
           const dotted = DOTTED_DURS.has(dur);
@@ -408,8 +469,8 @@ function MeasureNotation({ measure, index, timeSigBeats, isSelected, onClick }) 
                   stroke={noteColor} strokeWidth={1.2} />
               )}
 
-              {/* Eighth flag */}
-              {dur > 0.25 && dur <= 0.5 && (
+              {/* Eighth flag — suppressed for triplet notes (beam drawn below) */}
+              {!isTriplet && dur > 0.25 && dur <= 0.5 && (
                 <path
                   d={stemUp
                     ? `M${stemX},${stemY2} q8,6 6,14`
@@ -435,6 +496,36 @@ function MeasureNotation({ measure, index, timeSigBeats, isSelected, onClick }) 
                   />
                 </>
               )}
+            </g>
+          );
+        })}
+
+        {/* Triplet beams — one per detected group */}
+        {tripletGroups.map((grp, gi) => {
+          const [ia, , ic] = grp.indices;
+          const na = noteItems[ia];
+          const nc = noteItems[ic];
+          if (!na || !nc) return null;
+          const midiA = pitchToMidi(na.n.pitch) ?? 60;
+          const midiC = pitchToMidi(nc.n.pitch) ?? 60;
+          const yA = noteY(midiA);
+          const yC = noteY(midiC);
+          const sxA = grp.stemUp ? na.x + NOTE_RX : na.x - NOTE_RX;
+          const sxC = grp.stemUp ? nc.x + NOTE_RX : nc.x - NOTE_RX;
+          const tyA = grp.stemUp ? yA - STEM_LEN : yA + STEM_LEN;
+          const tyC = grp.stemUp ? yC - STEM_LEN : yC + STEM_LEN;
+          const midX = (sxA + sxC) / 2;
+          const midY = (tyA + tyC) / 2;
+          const labelY = grp.stemUp ? midY - 6 : midY + 10;
+          return (
+            <g key={`triplet-m${index}-g${gi}`}>
+              {/* Beam bar */}
+              <line x1={sxA} y1={tyA} x2={sxC} y2={tyC} stroke={noteColor} strokeWidth={2.5} />
+              {/* Short bracket arms */}
+              <line x1={sxA} y1={tyA} x2={sxA} y2={grp.stemUp ? tyA - 5 : tyA + 5} stroke={noteColor} strokeWidth={1} />
+              <line x1={sxC} y1={tyC} x2={sxC} y2={grp.stemUp ? tyC - 5 : tyC + 5} stroke={noteColor} strokeWidth={1} />
+              {/* "3" label */}
+              <text x={midX} y={labelY} fontSize={9} fill={noteColor} textAnchor="middle" fontStyle="italic">3</text>
             </g>
           );
         })}
@@ -480,8 +571,12 @@ MeasureNotation.propTypes = {
 
 // ── NoteRow ────────────────────────────────────────────────────────────────────
 
-function NoteRow({ note, onChange, onRemove }) {
+function NoteRow({ note, songKey, onChange, onRemove }) {
   function set(field, val) { onChange({ ...note, [field]: val }); }
+  function setPitch(val) {
+    const auto = pitchToSolfege(val, songKey);
+    onChange({ ...note, pitch: val, degree: auto ?? note.degree });
+  }
   const midi = note.type === 'note' ? pitchToMidi(note.pitch) : null;
   const pitchValid = midi !== null;
 
@@ -496,7 +591,7 @@ function NoteRow({ note, onChange, onRemove }) {
         <>
           <input
             value={note.pitch}
-            onChange={(e) => set('pitch', e.target.value)}
+            onChange={(e) => setPitch(e.target.value)}
             placeholder="C4"
             className={`sb-pitch-input sb-note-input${pitchValid ? '' : ' sb-input-error'}`}
             title="Pitch (e.g. C4, F#4, Bb3)"
@@ -533,6 +628,7 @@ NoteRow.propTypes = {
     durationBeats: PropTypes.string.isRequired,
     degree: PropTypes.string,
   }).isRequired,
+  songKey: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   onRemove: PropTypes.func.isRequired,
 };
@@ -574,7 +670,7 @@ ChordRow.propTypes = {
 
 // ── MeasureEditor ─────────────────────────────────────────────────────────────
 
-function MeasureEditor({ measure, index, total, timeSigBeats, onChange, onNavigate, onDuplicate, onRemove }) {
+function MeasureEditor({ measure, index, total, timeSigBeats, songKey, onChange, onNavigate, onDuplicate, onRemove }) {
   const [dragIdx, setDragIdx] = useState(null);
   const [dropIdx, setDropIdx] = useState(null);
 
@@ -596,7 +692,7 @@ function MeasureEditor({ measure, index, total, timeSigBeats, onChange, onNaviga
   function addChord() { onChange({ ...measure, chords: [...measure.chords, emptyChord()] }); }
 
   const totalBeats = measureTotalBeats(measure);
-  const beatsMismatch = Math.abs(totalBeats - timeSigBeats) > 0.001;
+  const beatsMismatch = Math.abs(totalBeats - timeSigBeats) > 0.01;
 
   return (
     <div className="sb-editor-panel card">
@@ -649,7 +745,7 @@ function MeasureEditor({ measure, index, total, timeSigBeats, onChange, onNaviga
                   ].filter(Boolean).join(' ')}
                 >
                   <span className="sb-drag-handle" title="Drag to reorder">⠿</span>
-                  <NoteRow note={n} onChange={(u) => updateNote(ni, u)} onRemove={() => removeNote(ni)} />
+                  <NoteRow note={n} songKey={songKey} onChange={(u) => updateNote(ni, u)} onRemove={() => removeNote(ni)} />
                 </li>
               ))}
             </ul>
@@ -681,6 +777,7 @@ MeasureEditor.propTypes = {
   index: PropTypes.number.isRequired,
   total: PropTypes.number.isRequired,
   timeSigBeats: PropTypes.number.isRequired,
+  songKey: PropTypes.string,
   onChange: PropTypes.func.isRequired,
   onNavigate: PropTypes.func.isRequired,
   onDuplicate: PropTypes.func.isRequired,
@@ -945,6 +1042,7 @@ export function SongBuilderPage() {
                 index={safeIdx}
                 total={measures.length}
                 timeSigBeats={timeSigBeats}
+                songKey={meta.defaultKey}
                 onChange={(updated) => updateMeasure(safeIdx, updated)}
                 onNavigate={navigateMeasure}
                 onDuplicate={() => duplicateMeasure(safeIdx)}
