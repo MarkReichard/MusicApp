@@ -66,6 +66,7 @@ export function SingTrainerV2Page() {
   const sections = useMemo(() => buildSections(lesson, measureWindowSize), [lesson, measureWindowSize]);
   const sectionMeasures = sections[sectionIndex]?.measures ?? null;
   const [chordModeEnabled, setChordModeEnabled] = useState(true);
+  const [melodyEnabled, setMelodyEnabled] = useState(true);
   const [session, setSession] = useState(null);
   const { start: startChords, stop: stopChords } = useChordPlayer();
   const [barResults, setBarResults] = useState({});
@@ -126,6 +127,21 @@ export function SingTrainerV2Page() {
 
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
   const shiftedLessonNotes = shiftNotes(activeEvents, totalMidiShift);
+
+  // Map the current note index to a measure index so ChordBar can highlight
+  // the active measure in sync with the guide melody.
+  const activeMeasureIdx = useMemo(() => {
+    if (!sectionMeasures?.length) return 0;
+    let noteCount = 0;
+    for (let i = 0; i < sectionMeasures.length; i++) {
+      const nonRestNotes = (sectionMeasures[i].notes ?? []).filter(
+        (n) => n.type !== 'rest' && Number.isFinite(n.midi)
+      );
+      noteCount += nonRestNotes.length;
+      if (index < noteCount) return i;
+    }
+    return sectionMeasures.length - 1;
+  }, [index, sectionMeasures]);
 
   const rangeSuggestionText = getRangeSuggestionText(hasSavedPitchRange, rangeRecommendation);
 
@@ -333,10 +349,6 @@ export function SingTrainerV2Page() {
       expectedBars: timeline.expectedBars,
     });
 
-    if (chordModeEnabled && isSong && sectionMeasures?.length) {
-      startChords(sectionMeasures, tempoBpm, totalMidiShift, false);
-    }
-
     setIsPlayingTarget(true);
     const context = getPianoAudioContext();
     await context.resume().catch(() => undefined);
@@ -344,6 +356,19 @@ export function SingTrainerV2Page() {
     try {
       const beatSeconds = beatSecondsFromTempo(tempoBpm);
       let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
+
+      if (chordModeEnabled && isSong && sectionMeasures?.length) {
+        // Align chord beat 1 with the first note the user sings.
+        // singStartSec accounts for cadence + hear-exercise lead-in;
+        // SING_COUNTDOWN_BEATS puts chord player exactly on beat 1 of measure 1.
+        const chordDelay = timeline.singStartSec + beatSeconds * SING_COUNTDOWN_BEATS;
+        // Guide melody consumes (NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS)
+        // per quarter-note item rather than strict beatSeconds, so the chord player
+        // must use the same effective tempo to stay in sync.
+        const effectiveBeatS = NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS;
+        const effectiveBpm = 60 / effectiveBeatS;
+        startChords(sectionMeasures, effectiveBpm, totalMidiShift, false, chordDelay);
+      }
 
       if (playTonicCadence) {
         const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
@@ -360,7 +385,7 @@ export function SingTrainerV2Page() {
         startAt += NOTE_GAP_SECONDS * 2;
       }
 
-      if (hearExerciseFirst) {
+      if (hearExerciseFirst && melodyEnabled) {
         for (const note of notes) {
           const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
           const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
@@ -374,6 +399,12 @@ export function SingTrainerV2Page() {
           }
           startAt += noteDurationSeconds + NOTE_GAP_SECONDS;
         }
+      } else if (hearExerciseFirst) {
+        // advance cursor without scheduling notes
+        for (const note of notes) {
+          const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
+          startAt += Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE) + NOTE_GAP_SECONDS;
+        }
       }
 
       let guideAt = startAt + beatSeconds * SING_COUNTDOWN_BEATS;
@@ -384,9 +415,11 @@ export function SingTrainerV2Page() {
           guideAt += noteDurationSeconds + NOTE_GAP_SECONDS;
           continue;
         }
-        const stopGuideNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), guideAt, noteDurationSeconds, SING_GUIDE_NOTE_GAIN);
-        if (typeof stopGuideNote === 'function') {
-          playbackRef.current.noteStops.push(stopGuideNote);
+        if (melodyEnabled) {
+          const stopGuideNote = schedulePianoNote(context, midiToFrequencyHz(note.midi), guideAt, noteDurationSeconds, SING_GUIDE_NOTE_GAIN);
+          if (typeof stopGuideNote === 'function') {
+            playbackRef.current.noteStops.push(stopGuideNote);
+          }
         }
         guideAt += noteDurationSeconds + NOTE_GAP_SECONDS;
       }
@@ -577,6 +610,15 @@ export function SingTrainerV2Page() {
         />
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <button
+            type="button"
+            className={`button secondary${melodyEnabled ? ' chord-mode-active' : ''}`}
+            style={{ fontSize: 12, padding: '3px 10px' }}
+            onClick={() => setMelodyEnabled((v) => !v)}
+            title={melodyEnabled ? 'Guide melody on — click to mute' : 'Guide melody off — click to enable'}
+          >
+            ♪ Melody {melodyEnabled ? 'On' : 'Off'}
+          </button>
           {isSong && (
             <button
               type="button"
@@ -677,7 +719,7 @@ export function SingTrainerV2Page() {
         </div>
 
         {isSong && sectionMeasures?.length ? (
-          <ChordBar measures={sectionMeasures} className="trainer-chord-bar" />
+          <ChordBar measures={sectionMeasures} activeMeasureIdx={activeMeasureIdx} className="trainer-chord-bar" />
         ) : null}
 
         <SingInputGraphV2

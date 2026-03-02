@@ -8,11 +8,12 @@
  * API:
  *   const { start, stop, isPlaying } = useChordPlayer();
  *
- *   start(measures, tempoBpm, transposeSemitones?, loop?)
- *     — measures: array of { beats, chords: [{ beat, root, kind }] }
- *     — tempoBpm: number (e.g. 90)
- *     — transposeSemitones: integer (default 0)
- *     — loop: boolean (default true)
+   *   start(measures, tempoBpm, transposeSemitones?, loop?, startDelaySeconds?)
+   *     — measures: array of { beats, chords: [{ beat, root, kind }] }
+   *     — tempoBpm: number (e.g. 90)
+   *     — transposeSemitones: integer (default 0)
+   *     — loop: boolean (default true)
+   *     — startDelaySeconds: seconds from now to play beat 1 (default 0.05)
  *
  *   stop() — stops immediately (no more notes scheduled)
  *   isPlaying — reactive boolean state
@@ -25,11 +26,12 @@ import { midiToFrequencyHz, KEY_TO_SEMITONE, beatSecondsFromTempo } from './musi
 // ── Constants ──────────────────────────────────────────────────────────────────
 const LOOKAHEAD_MS = 100;    // scheduler fires every N ms
 const SCHEDULE_WINDOW_S = 0.2; // schedule this many seconds ahead per tick
-const BOOM_OCTAVE_BASE = 36;   // MIDI C2 — bass "boom" register
-const CHUCK_OCTAVE_BASE = 48;  // MIDI C3 — mid "chuck" register
-const BOOM_GAIN = 0.17;
-const CHUCK_GAIN = 0.07;
+const BOOM_OCTAVE_BASE = 36;   // MIDI C2 — bass register for beat-1 chord
+const CHUCK_OCTAVE_BASE = 48;  // MIDI C3 — mid register for chop (unused but kept for reference)
+const BOOM_GAIN = 0.08;
+const CHUCK_GAIN = 0.05;
 const NOTE_DURATION_RATIO = 0.82; // fraction of a beat the note sounds
+const CHOP_DURATION_S = 0.055;    // very short — gives off-beats a percussive "chop" feel
 
 // ── Chord interval tables ──────────────────────────────────────────────────────
 const CHORD_INTERVALS = {
@@ -83,19 +85,16 @@ function buildBeatEvents(measures, transposeSemitones = 0) {
         const rootSemitone = KEY_TO_SEMITONE[currentChord.root] ?? 0;
         const shifted = rootSemitone + transposeSemitones;
 
-        if (b === 1) {
-          // Boom — single bass root note
-          const bassMidi = BOOM_OCTAVE_BASE + ((shifted % 12) + 12) % 12;
-          events.push({ beatIndex: absoluteBeat, midiNotes: [bassMidi], gain: BOOM_GAIN });
+        if (b % 2 === 1) {
+          // Odd beats (1, 3, …) — full triad in bass register, sustained
+          const rootMidi = BOOM_OCTAVE_BASE + ((shifted % 12) + 12) % 12;
+          const intervals = chordIntervals(currentChord.kind);
+          events.push({ beatIndex: absoluteBeat, midiNotes: intervals.map((i) => rootMidi + i), gain: BOOM_GAIN });
         } else {
-          // Chuck — mid-register triad voicing
+          // Even beats (2, 4, …) — short chop: full triad in mid register
           const rootMidi = CHUCK_OCTAVE_BASE + ((shifted % 12) + 12) % 12;
           const intervals = chordIntervals(currentChord.kind);
-          events.push({
-            beatIndex: absoluteBeat,
-            midiNotes: intervals.map((i) => rootMidi + i),
-            gain: CHUCK_GAIN,
-          });
+          events.push({ beatIndex: absoluteBeat, midiNotes: intervals.map((i) => rootMidi + i), gain: CHUCK_GAIN, durationS: CHOP_DURATION_S });
         }
       }
 
@@ -143,8 +142,9 @@ export function useChordPlayer() {
 
       if (eventTime > scheduleUntil) break;
 
+      const evDuration = ev.durationS ?? noteDuration;
       for (const midi of ev.midiNotes) {
-        schedulePianoNote(ctx, midiToFrequencyHz(midi), eventTime, noteDuration, ev.gain);
+        schedulePianoNote(ctx, midiToFrequencyHz(midi), eventTime, evDuration, ev.gain);
       }
       st.nextBeatIndex++;
     }
@@ -193,7 +193,7 @@ export function useChordPlayer() {
    * @param {boolean}  [loop=true]       Whether to loop
    */
   const start = useCallback(
-    (measures, tempoBpm, transposeSemitones = 0, loop = true) => {
+    (measures, tempoBpm, transposeSemitones = 0, loop = true, startDelaySeconds = 0.05) => {
       stop();
       if (!measures?.length) return;
 
@@ -208,7 +208,7 @@ export function useChordPlayer() {
       st.active = true;
       st.beatEvents = beatEvents;
       st.beatDurationS = beatDuration;
-      st.startContextTime = ctx.currentTime + 0.05;
+      st.startContextTime = ctx.currentTime + startDelaySeconds;
       st.nextBeatIndex = 0;
       st.totalBeats = totalBeats;
       st.loop = loop;
