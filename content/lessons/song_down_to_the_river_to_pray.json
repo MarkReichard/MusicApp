@@ -1,7 +1,7 @@
 {
   "id": "song_down_to_the_river_to_pray",
   "name": "Down to the River to Pray",
-  "category": "hymns",
+  "category": "imported_scores",
   "type": "song",
   "difficulty": "intermediate",
   "tags": [
@@ -23,11 +23,6 @@
     "min": 30,
     "max": 240
   },
-  "defaultChunkSize": 4,
-  "chunkSizeRange": {
-    "min": 2,
-    "max": 12
-  },
   "defaultOctave": 4,
   "allowedOctaves": [
     2,
@@ -35,10 +30,14 @@
     4,
     5
   ],
-  "notes": [],
-  "exercises": [
+  "timeSig": {
+    "beats": 4,
+    "beatType": 4
+  },
+  "measures": [
     {
-      "id": "ex_1",
+      "index": 0,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -46,7 +45,14 @@
           "midi": 62,
           "degree": "Sol",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 1,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -81,7 +87,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 0.5
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 2,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "G4",
@@ -109,7 +122,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 3,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -152,10 +172,12 @@
           "degree": "Do",
           "durationBeats": 1
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_2",
+      "index": 4,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -184,7 +206,14 @@
           "midi": 64,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 5,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -212,7 +241,14 @@
           "midi": 64,
           "degree": "La",
           "durationBeats": 0.5
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 6,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "G4",
@@ -240,7 +276,14 @@
           "midi": 71,
           "degree": "Mi",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 7,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -269,10 +312,12 @@
           "degree": "La",
           "durationBeats": 0.5
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_3",
+      "index": 8,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -280,7 +325,14 @@
           "midi": 62,
           "degree": "Sol",
           "durationBeats": 4
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 9,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -301,7 +353,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 10,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "B4",
@@ -329,7 +388,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1.5
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 11,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "B4",
@@ -351,10 +417,12 @@
           "degree": "Do",
           "durationBeats": 2
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_4",
+      "index": 12,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -383,7 +451,14 @@
           "midi": 62,
           "degree": "Sol",
           "durationBeats": 1.5
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 13,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -404,7 +479,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 14,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "B4",
@@ -432,7 +514,14 @@
           "midi": 67,
           "degree": "Do",
           "durationBeats": 1.5
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 15,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "B4",
@@ -475,10 +564,12 @@
           "degree": "La",
           "durationBeats": 1
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_5",
+      "index": 16,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -494,12 +585,13 @@
           "degree": "Sol",
           "durationBeats": 1
         }
-      ]
+      ],
+      "chords": []
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-02-24T18:38:19.623Z"
+  "updatedAt": "2026-03-02T00:45:18.892Z"
 }

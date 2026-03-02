@@ -7,20 +7,13 @@ import { XMLParser } from 'fast-xml-parser';
 const SOLFEGE_BY_SEMITONE = ['Do', 'Do', 'Re', 'Re', 'Mi', 'Fa', 'Fa', 'Sol', 'Sol', 'La', 'La', 'Ti'];
 const PITCH_CLASS_BY_SEMITONE = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
 
-const MEASURES_PER_EXERCISE = 4;       // how many measures are grouped into one exercise
 const MAX_LESSON_ID_LENGTH = 80;       // character limit for sanitized lesson IDs
 const FIFTHS_ARRAY_LENGTH = 15;        // circle-of-fifths lookup arrays span Cb(−7) … C#(+7)
 const FIFTHS_CENTER_OFFSET = 7;        // index of C (0 fifths) in those arrays
-const QUARTER_NOTE_BEAT_TYPE = 4;      // MusicXML beat-type value for a quarter note
 const MIN_TEMPO_BPM = 30;
 const MAX_TEMPO_BPM = 240;
-const MIN_CHUNK_SIZE = 2;
-const MAX_CHUNK_SIZE = 12;
 
-function asArray(value) {
-  if (value === undefined || value === null) return [];
-  return Array.isArray(value) ? value : [value];
-}
+// ── Utility functions ────────────────────────────────────────────────────────
 
 function sanitizeId(input) {
   return String(input || '')
@@ -57,6 +50,47 @@ function keyRootFromFifths(fifths = 0, mode = 'major') {
   return map[normalized] ?? 0;
 }
 
+// Normalise MusicXML kind strings to our compact set
+function normalizeChordKind(mxmlKind) {
+  const map = {
+    'major': 'major',
+    'minor': 'minor',
+    'dominant': 'dominant',
+    'major-seventh': 'major-seventh',
+    'minor-seventh': 'minor-seventh',
+    'diminished': 'diminished',
+    'augmented': 'augmented',
+    'suspended-fourth': 'sus4',
+    'suspended-second': 'sus2',
+    'major-sixth': 'major-sixth',
+    'minor-sixth': 'minor-sixth',
+  };
+  return map[String(mxmlKind ?? '').toLowerCase()] ?? (mxmlKind || 'major');
+}
+
+// ── preserveOrder XML helpers ────────────────────────────────────────────────
+// With preserveOrder:true each element is { tagName: [children], ":@": {attrs} }
+// Text nodes are { "#text": "value" }
+
+function poFirst(arr, tag) {
+  return arr?.find((item) => item[tag] !== undefined)?.[tag] ?? null;
+}
+
+function poAll(arr, tag) {
+  return arr?.filter((item) => item[tag] !== undefined).map((item) => item[tag]) ?? [];
+}
+
+function poText(arr) {
+  const t = arr?.find((c) => c['#text'] !== undefined);
+  return t ? String(t['#text']) : null;
+}
+
+function poAttrs(item) {
+  return item?.[':@'] ?? {};
+}
+
+// ── File I/O ─────────────────────────────────────────────────────────────────
+
 function parseXmlFromFile(filePath) {
   const ext = path.extname(filePath).toLowerCase();
   if (ext === '.mxl') {
@@ -67,8 +101,9 @@ function parseXmlFromFile(filePath) {
     }
     const parser = new XMLParser({ ignoreAttributes: false, attributeNamePrefix: '' });
     const containerObj = parser.parse(containerEntry.getData().toString('utf8'));
-    const rootfiles = asArray(containerObj?.container?.rootfiles?.rootfile);
-    const fullPath = rootfiles[0]?.['full-path'];
+    const rootfiles = containerObj?.container?.rootfiles?.rootfile;
+    const rootfilesArr = Array.isArray(rootfiles) ? rootfiles : rootfiles ? [rootfiles] : [];
+    const fullPath = rootfilesArr[0]?.['full-path'];
     if (!fullPath) {
       throw new Error('Invalid MXL: cannot locate root MusicXML file');
     }
@@ -82,36 +117,42 @@ function parseXmlFromFile(filePath) {
   return fs.readFileSync(filePath, 'utf8');
 }
 
-function firstPart(score) {
-  return score?.['score-partwise']?.part ?? score?.['score-timewise']?.part;
-}
+// ── Core parser ──────────────────────────────────────────────────────────────
 
-
-// Returns a single lesson object with an exercises array, each exercise is two measures
-function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
+// Produces a song lesson with a flat measures[] array.
+// Each measure has: index, beats, notes[], chords[]
+// Harmony (chord) elements are extracted in document order alongside notes,
+// giving accurate beat positions for mid-measure chord changes.
+function parseScoreToLesson(scoreXml, filePath, defaults) {
   const parser = new XMLParser({
     ignoreAttributes: false,
     attributeNamePrefix: '',
     trimValues: true,
     parseTagValue: false,
+    preserveOrder: true,
   });
 
   const parsed = parser.parse(scoreXml);
-  const scoreRoot = parsed?.['score-partwise'] ?? parsed?.['score-timewise'];
-  if (!scoreRoot) {
+
+  // Find score root element
+  const scoreItem = parsed.find((item) => item['score-partwise'] || item['score-timewise']);
+  const scoreTag = scoreItem?.['score-partwise'] ? 'score-partwise' : 'score-timewise';
+  const scoreChildren = scoreItem?.[scoreTag];
+  if (!scoreChildren) {
     throw new Error('Unsupported MusicXML format: missing score-partwise/score-timewise');
   }
 
-  const workTitle = scoreRoot?.work?.['work-title'];
-  const movementTitle = scoreRoot?.['movement-title'];
+  // Title
+  const workTitle = poText(poFirst(poFirst(scoreChildren, 'work'), 'work-title'));
+  const movementTitle = poText(poFirst(scoreChildren, 'movement-title'));
   const scoreTitle = movementTitle || workTitle || path.basename(filePath, path.extname(filePath));
 
-  const part = asArray(firstPart(parsed))[0];
-  if (!part) {
-    throw new Error('No part found in score');
-  }
+  // First part
+  const partChildren = poFirst(scoreChildren, 'part');
+  if (!partChildren) throw new Error('No part found in score');
 
-  const measures = asArray(part.measure);
+  const measureItems = poAll(partChildren, 'measure');
+
   let divisions = 1;
   let detectedTempo = defaults.defaultTempoBpm;
   let keyFifths = 0;
@@ -120,87 +161,151 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
   let beatType = 4;
   let selectedVoice = null;
 
-  // Split measures into chunks of MEASURES_PER_EXERCISE, each becomes an exercise
-  const exercises = [];
-  for (let i = 0; i < measures.length; i += MEASURES_PER_EXERCISE) {
-    const lessonMeasures = measures.slice(i, i + MEASURES_PER_EXERCISE);
-    const notes = [];
-    for (const measure of lessonMeasures) {
-      const attrs = measure?.attributes;
-      if (attrs) {
-        divisions = maybeNumber(attrs?.divisions, divisions);
-        keyFifths = maybeNumber(attrs?.key?.fifths, keyFifths);
-        keyMode = attrs?.key?.mode ?? keyMode;
-        beatsPerMeasure = maybeNumber(attrs?.time?.beats, beatsPerMeasure);
-        beatType = maybeNumber(attrs?.time?.['beat-type'], beatType);
+  const measures = [];
+
+  for (const measureChildren of measureItems) {
+    // ── Attributes (key, time, divisions) ──────────────────────────────────
+    const attrsChildren = poFirst(measureChildren, 'attributes');
+    if (attrsChildren) {
+      const divText = poText(poFirst(attrsChildren, 'divisions'));
+      divisions = maybeNumber(divText, divisions);
+
+      const keyChildren = poFirst(attrsChildren, 'key');
+      if (keyChildren) {
+        keyFifths = maybeNumber(poText(poFirst(keyChildren, 'fifths')), keyFifths);
+        keyMode = poText(poFirst(keyChildren, 'mode')) ?? keyMode;
       }
 
-      const direction = asArray(measure?.direction)[0];
-      const dirTempo = direction?.sound?.tempo ?? direction?.['direction-type']?.metronome?.['per-minute'];
-      detectedTempo = maybeNumber(dirTempo, detectedTempo);
+      const timeChildren = poFirst(attrsChildren, 'time');
+      if (timeChildren) {
+        beatsPerMeasure = maybeNumber(poText(poFirst(timeChildren, 'beats')), beatsPerMeasure);
+        beatType = maybeNumber(poText(poFirst(timeChildren, 'beat-type')), beatType);
+      }
+    }
 
-      for (const note of asArray(measure?.note)) {
-        if (note?.grace !== undefined) {
+    // ── Tempo from direction ───────────────────────────────────────────────
+    for (const dirChildren of poAll(measureChildren, 'direction')) {
+      // <sound tempo="90"/>  — tempo is an attribute, stored under ":@" on the sound item
+      const soundItem = dirChildren.find((c) => c['sound'] !== undefined);
+      if (soundItem) {
+        detectedTempo = maybeNumber(poAttrs(soundItem).tempo, detectedTempo);
+      }
+      // <metronome><per-minute>90</per-minute></metronome>
+      const dirTypeChildren = poFirst(dirChildren, 'direction-type');
+      if (dirTypeChildren) {
+        const metronomeChildren = poFirst(dirTypeChildren, 'metronome');
+        if (metronomeChildren) {
+          detectedTempo = maybeNumber(poText(poFirst(metronomeChildren, 'per-minute')), detectedTempo);
+        }
+      }
+    }
+
+    // ── Notes + harmonies in document order ───────────────────────────────
+    const measureNotes = [];
+    const measureChords = [];
+    let pendingHarmony = null;
+    let cumulativeDivisions = 0;
+    const keyRoot = keyRootFromFifths(keyFifths, keyMode);
+
+    for (const elem of measureChildren) {
+      // ── Harmony element ─────────────────────────────────────────────────
+      if (elem['harmony'] !== undefined) {
+        const harmChildren = elem['harmony'];
+        const rootChildren = poFirst(harmChildren, 'root');
+        if (rootChildren) {
+          const rootStep = poText(poFirst(rootChildren, 'root-step'));
+          const rootAlterRaw = poText(poFirst(rootChildren, 'root-alter'));
+          const rootAlter = maybeNumber(rootAlterRaw, 0);
+          const rootAlterSuffix = rootAlter === 1 ? '#' : rootAlter === -1 ? 'b' : '';
+
+          const kindRaw = poText(poFirst(harmChildren, 'kind'));
+
+          if (rootStep) {
+            pendingHarmony = {
+              root: rootStep + rootAlterSuffix,
+              kind: normalizeChordKind(kindRaw),
+            };
+          }
+        }
+      }
+
+      // ── Note element ────────────────────────────────────────────────────
+      if (elem['note'] !== undefined) {
+        const noteChildren = elem['note'];
+
+        // Skip grace notes
+        if (noteChildren.some((c) => c['grace'] !== undefined)) {
           continue;
         }
 
-        const voice = note?.voice;
-        if (selectedVoice === null && voice !== undefined) {
-          selectedVoice = String(voice);
-        }
-        if (selectedVoice !== null && voice !== undefined && String(voice) !== selectedVoice) {
-          continue;
-        }
+        // Voice filtering — lock to first voice encountered
+        const voiceText = poText(poFirst(noteChildren, 'voice'));
+        if (selectedVoice === null && voiceText !== null) selectedVoice = voiceText;
+        if (selectedVoice !== null && voiceText !== null && voiceText !== selectedVoice) continue;
 
-        if (note?.chord !== undefined) {
-          continue;
-        }
+        // Skip polyphonic chord notes (same beat, stacked pitches)
+        if (noteChildren.some((c) => c['chord'] !== undefined)) continue;
 
-        const durationDivisions = maybeNumber(note?.duration, 0);
-        if (durationDivisions <= 0) {
-          continue;
-        }
+        const durationDivisions = maybeNumber(poText(poFirst(noteChildren, 'duration')), 0);
+        if (durationDivisions <= 0) continue;
 
         const durationBeats = Number((durationDivisions / Math.max(1, divisions)).toFixed(4));
-        if (note?.rest !== undefined) {
-          notes.push({
-            type: 'rest',
-            durationBeats,
-          });
+
+        // Assign pending harmony to this note's beat position (1-indexed)
+        if (pendingHarmony !== null) {
+          const beat = Math.round(cumulativeDivisions / Math.max(1, divisions)) + 1;
+          measureChords.push({ beat, root: pendingHarmony.root, kind: pendingHarmony.kind });
+          pendingHarmony = null;
+        }
+
+        // Rest
+        if (noteChildren.some((c) => c['rest'] !== undefined)) {
+          measureNotes.push({ type: 'rest', durationBeats });
+          cumulativeDivisions += durationDivisions;
           continue;
         }
 
-        const step = note?.pitch?.step;
-        const alter = maybeNumber(note?.pitch?.alter, 0);
-        const octave = maybeNumber(note?.pitch?.octave, defaults.defaultOctave);
+        // Pitched note
+        const pitchChildren = poFirst(noteChildren, 'pitch');
+        const step = poText(poFirst(pitchChildren, 'step'));
+        const alter = maybeNumber(poText(poFirst(pitchChildren, 'alter')), 0);
+        const octave = maybeNumber(poText(poFirst(pitchChildren, 'octave')), defaults.defaultOctave);
+
         const midi = midiFromPitch(step, alter, octave);
         if (!Number.isFinite(midi)) {
+          cumulativeDivisions += durationDivisions;
           continue;
         }
 
         const pitchName = `${PITCH_CLASS_BY_SEMITONE[((midi % 12) + 12) % 12]}${octave}`;
-        const keyRoot = keyRootFromFifths(keyFifths, keyMode);
-        notes.push({
+        measureNotes.push({
           type: 'note',
           pitch: pitchName,
           midi,
           degree: degreeFromMidi(midi, keyRoot),
           durationBeats,
         });
+
+        cumulativeDivisions += durationDivisions;
       }
     }
-    if (notes.length) {
-      exercises.push({
-        id: `ex_${i / MEASURES_PER_EXERCISE + 1}`,
-        notes
+
+    if (measureNotes.length > 0) {
+      measures.push({
+        index: measures.length,
+        beats: beatsPerMeasure,
+        notes: measureNotes,
+        chords: measureChords,
       });
     }
   }
 
+  // ── Build output lesson ────────────────────────────────────────────────────
   const rawId = sanitizeId(scoreTitle);
   const lessonId = rawId.startsWith('song_') ? rawId : `song_${rawId}`;
-  const normalizedTempo = Math.round(Math.max(MIN_TEMPO_BPM, Math.min(MAX_TEMPO_BPM, detectedTempo || defaults.defaultTempoBpm)));
-  const inferredChunk = Math.max(MIN_CHUNK_SIZE, Math.min(MAX_CHUNK_SIZE, Math.round(beatsPerMeasure * (QUARTER_NOTE_BEAT_TYPE / Math.max(1, beatType)))));
+  const normalizedTempo = Math.round(
+    Math.max(MIN_TEMPO_BPM, Math.min(MAX_TEMPO_BPM, detectedTempo || defaults.defaultTempoBpm)),
+  );
 
   const keyRootSemitone = keyRootFromFifths(keyFifths, keyMode);
   const derivedDefaultKey = PITCH_CLASS_BY_SEMITONE[keyRootSemitone] ?? defaults.defaultKey;
@@ -217,12 +322,10 @@ function parseScoreToLessonWithExercises(scoreXml, filePath, defaults) {
     allowedKeys: defaults.allowedKeys,
     defaultTempoBpm: normalizedTempo,
     tempoRange: defaults.tempoRange,
-    defaultChunkSize: inferredChunk,
-    chunkSizeRange: defaults.chunkSizeRange,
     defaultOctave: defaults.defaultOctave,
     allowedOctaves: defaults.allowedOctaves,
-    notes: [],
-    exercises,
+    timeSig: { beats: beatsPerMeasure, beatType },
+    measures,
     source: {
       kind: 'preloaded',
       version: defaults.version,
@@ -243,7 +346,6 @@ function parseArgs(argv) {
     defaultTempoBpm: 90,
     tags: ['imported', 'musicxml'],
     tempoRange: { min: MIN_TEMPO_BPM, max: MAX_TEMPO_BPM },
-    chunkSizeRange: { min: MIN_CHUNK_SIZE, max: MAX_CHUNK_SIZE },
     allowedOctaves: [2, 3, 4, 5],
     version: '1.0.0',
   };
@@ -331,16 +433,16 @@ function main() {
 
   for (const filePath of files) {
     const xml = parseXmlFromFile(filePath);
-    const lesson = parseScoreToLessonWithExercises(xml, filePath, args);
+    const lesson = parseScoreToLesson(xml, filePath, args);
     const outputName = `${lesson.id}.json`;
     const outputPath = path.join(args.outputDir, outputName);
     fs.writeFileSync(outputPath, `${JSON.stringify(lesson, null, 2)}\n`, 'utf8');
-    results.push({ input: filePath, output: outputPath, exercises: lesson.exercises.length });
+    results.push({ input: filePath, output: outputPath, measures: lesson.measures.length });
   }
 
   console.log(`Converted ${results.length} file(s):`);
   for (const item of results) {
-    console.log(`- ${path.basename(item.input)} -> ${item.output} (${item.exercises} exercises)`);
+    console.log(`- ${path.basename(item.input)} -> ${item.output} (${item.measures} measures)`);
   }
 }
 

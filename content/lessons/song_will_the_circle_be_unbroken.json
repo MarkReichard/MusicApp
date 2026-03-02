@@ -1,7 +1,7 @@
 {
   "id": "song_will_the_circle_be_unbroken",
   "name": "Will The Circle Be Unbroken",
-  "category": "folk_songs",
+  "category": "imported_scores",
   "type": "song",
   "difficulty": "intermediate",
   "tags": [
@@ -23,11 +23,6 @@
     "min": 30,
     "max": 240
   },
-  "defaultChunkSize": 4,
-  "chunkSizeRange": {
-    "min": 2,
-    "max": 12
-  },
   "defaultOctave": 4,
   "allowedOctaves": [
     2,
@@ -35,10 +30,14 @@
     4,
     5
   ],
-  "notes": [],
-  "exercises": [
+  "timeSig": {
+    "beats": 4,
+    "beatType": 4
+  },
+  "measures": [
     {
-      "id": "ex_1",
+      "index": 0,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -53,7 +52,14 @@
           "midi": 59,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 1,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -67,7 +73,20 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 2,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -88,7 +107,14 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 3,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -103,10 +129,12 @@
           "degree": "Mi",
           "durationBeats": 2
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_2",
+      "index": 4,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -128,7 +156,14 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 5,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -142,7 +177,20 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 6,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -156,7 +204,14 @@
           "midi": 59,
           "degree": "La",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 7,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A3",
@@ -164,10 +219,18 @@
           "degree": "Sol",
           "durationBeats": 4
         }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
       ]
     },
     {
-      "id": "ex_3",
+      "index": 8,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -189,7 +252,14 @@
           "midi": 59,
           "degree": "La",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 9,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -203,7 +273,14 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 10,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -224,7 +301,14 @@
           "midi": 69,
           "degree": "Sol",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 11,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "A4",
@@ -239,10 +323,12 @@
           "degree": "Mi",
           "durationBeats": 2
         }
-      ]
+      ],
+      "chords": []
     },
     {
-      "id": "ex_4",
+      "index": 12,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -264,7 +350,14 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 13,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "F#4",
@@ -278,7 +371,14 @@
           "midi": 66,
           "degree": "Mi",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 14,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "E4",
@@ -299,7 +399,20 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": [
+        {
+          "beat": 3,
+          "root": "A",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 15,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -307,10 +420,18 @@
           "degree": "Do",
           "durationBeats": 4
         }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
       ]
     },
     {
-      "id": "ex_5",
+      "index": 16,
+      "beats": 4,
       "notes": [
         {
           "type": "note",
@@ -318,7 +439,14 @@
           "midi": 62,
           "degree": "Do",
           "durationBeats": 2
-        },
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 17,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "F#4",
@@ -339,14 +467,40 @@
           "midi": 64,
           "degree": "Re",
           "durationBeats": 1
-        },
+        }
+      ],
+      "chords": [
+        {
+          "beat": 3,
+          "root": "A",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 18,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
           "durationBeats": 4
-        },
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 19,
+      "beats": 4,
+      "notes": [
         {
           "type": "note",
           "pitch": "D4",
@@ -354,12 +508,13 @@
           "degree": "Do",
           "durationBeats": 2
         }
-      ]
+      ],
+      "chords": []
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-02-24T18:38:19.719Z"
+  "updatedAt": "2026-03-02T00:45:19.238Z"
 }

@@ -15,30 +15,36 @@ const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
 const DEFAULT_OCTAVE = 4;
 
 /**
- * Normalises the exercises array from a lesson object.
- * Handles both lessons with an `exercises` array and flat `notes` arrays.
- * @param {object|null} lesson
- * @returns {{ id: string, notes: object[] }[]}
+ * Returns true for song lessons that use the flat measures[] schema.
  */
-export function normalizeLessonExercises(lesson) {
-  if (!lesson) {
-    return [];
-  }
+export function isSongLesson(lesson) {
+  return lesson?.type === 'song' && Array.isArray(lesson.measures) && lesson.measures.length > 0;
+}
 
-  if (Array.isArray(lesson.exercises) && lesson.exercises.length) {
-    return lesson.exercises
-      .filter((exercise) => exercise && Array.isArray(exercise.notes) && exercise.notes.length)
-      .map((exercise, index) => ({
-        id: exercise.id ?? `${lesson.id}-exercise-${index + 1}`,
-        notes: exercise.notes,
-      }));
+/**
+ * Slices a lesson's measures[] into sections of `windowSize` measures each.
+ * Each section: { id, notes: flattenedNotes, measures: rawMeasures[] }
+ * @param {object|null} lesson
+ * @param {number} windowSize  Measures per section (default 4)
+ * @returns {{ id: string, notes: object[], measures: object[] }[]}
+ */
+export function buildSections(lesson, windowSize = 4) {
+  if (!lesson?.measures?.length) return [];
+  const { measures } = lesson;
+  const result = [];
+  for (let i = 0; i < measures.length; i += windowSize) {
+    const windowMeasures = measures.slice(i, i + windowSize);
+    const notes = windowMeasures.flatMap((m) => m.notes ?? []);
+    if (notes.length === 0) continue;
+    const startIdx = windowMeasures[0].index;
+    const endIdx = windowMeasures.at(-1).index;
+    result.push({
+      id: `m${startIdx}-${endIdx}`,
+      notes,
+      measures: windowMeasures,
+    });
   }
-
-  if (Array.isArray(lesson.notes) && lesson.notes.length) {
-    return [{ id: `${lesson.id}-exercise-1`, notes: lesson.notes }];
-  }
-
-  return [];
+  return result;
 }
 
 /**

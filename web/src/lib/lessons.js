@@ -15,11 +15,9 @@ export const lessons = Object.entries(lessonModules)
       return false;
     }
 
-    const hasNotes = Array.isArray(lesson.notes) && lesson.notes.length > 0;
-    const hasExercises = Array.isArray(lesson.exercises)
-      && lesson.exercises.some((exercise) => Array.isArray(exercise?.notes) && exercise.notes.length > 0);
+    const hasMeasures = Array.isArray(lesson.measures) && lesson.measures.length > 0;
 
-    return hasNotes || hasExercises;
+    return hasMeasures;
   })
   .sort((a, b) => a.name.localeCompare(b.name));
 

@@ -8,6 +8,8 @@ import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/t
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
+import { ChordBar } from '../components/trainer/ChordBar';
+import { useChordPlayer } from '../lib/useChordPlayer';
 import {
   tonicMidiFromKeyOctave,
   midiToFrequencyHz,
@@ -25,7 +27,7 @@ import {
   TARGET_NOTE_GAIN,
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
-import { normalizeLessonExercises, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
+import { buildSections, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
 
 const SING_GUIDE_NOTE_GAIN = 0.08;
@@ -34,7 +36,7 @@ export function SingTrainerV2Page() {
   const { lessonId } = useParams();
   const [searchParams] = useSearchParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
-  const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const isSong = isSongLesson(lesson);
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
   const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
@@ -53,14 +55,19 @@ export function SingTrainerV2Page() {
   const [hearExerciseFirst, setHearExerciseFirst] = useState(initialOptions.hearExerciseFirst);
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [exerciseIndex, setExerciseIndex] = useState(0);
+  const [sectionIndex, setSectionIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
   const [toleranceCents, setToleranceCents] = useState(initialOptions.toleranceCents);
   const [gracePeriodPercent, setGracePeriodPercent] = useState(initialOptions.gracePeriodPercent);
   const [instrument, setInstrument] = useState(initialOptions.instrument);
+  const [measureWindowSize, setMeasureWindowSize] = useState(4);
+  const sections = useMemo(() => buildSections(lesson, measureWindowSize), [lesson, measureWindowSize]);
+  const sectionMeasures = sections[sectionIndex]?.measures ?? null;
+  const [chordModeEnabled, setChordModeEnabled] = useState(true);
   const [session, setSession] = useState(null);
+  const { start: startChords, stop: stopChords } = useChordPlayer();
   const [barResults, setBarResults] = useState({});
   const evaluatedBarsRef = useRef(new Set());
   const historyRef = useRef([]);
@@ -83,8 +90,8 @@ export function SingTrainerV2Page() {
 
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
   const { totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
-  const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
-  const activeEvents = activeExercise?.notes ?? [];
+  const activeSection = sections[sectionIndex] ?? sections[0];
+  const activeEvents = activeSection?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
   const scoringHistory = useMemo(() => {
     if (!session?.expectedBars?.length || !Number.isFinite(session.startMs)) {
@@ -125,13 +132,13 @@ export function SingTrainerV2Page() {
   const disableApplyRangeDefaults = !rangeRecommendation
     || (rangeRecommendation.key === selectedKey && rangeRecommendation.octave === singOctave);
 
-  function setExercise(nextIndex) {
-    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
-    if (clamped === exerciseIndex) {
+  function setSection(nextIndex) {
+    const clamped = Math.max(0, Math.min(sections.length - 1, nextIndex));
+    if (clamped === sectionIndex) {
       return;
     }
 
-    setExerciseIndex(clamped);
+    setSectionIndex(clamped);
     setIndex(0);
     setCorrectIndices([]);
     setSession(null);
@@ -140,13 +147,13 @@ export function SingTrainerV2Page() {
     clearTrackingData();
   }
 
-  function prepareExerciseForAutoplay(nextIndex) {
-    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
-    if (clamped === exerciseIndex) {
+  function prepareSectionForAutoplay(nextIndex) {
+    const clamped = Math.max(0, Math.min(sections.length - 1, nextIndex));
+    if (clamped === sectionIndex) {
       return;
     }
 
-    setExerciseIndex(clamped);
+    setSectionIndex(clamped);
     setIndex(0);
     setCorrectIndices([]);
     setBarResults({});
@@ -154,10 +161,10 @@ export function SingTrainerV2Page() {
     clearTrackingData();
   }
 
-  function getShiftedNotesForExercise(targetExerciseIndex) {
-    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, targetExerciseIndex));
-    const targetExercise = lessonExercises[clamped] ?? lessonExercises[0];
-    const targetEvents = targetExercise?.notes ?? [];
+  function getShiftedNotesForSection(targetSectionIndex) {
+    const clamped = Math.max(0, Math.min(sections.length - 1, targetSectionIndex));
+    const targetSection = sections[clamped] ?? sections[0];
+    const targetEvents = targetSection?.notes ?? [];
 
     return targetEvents.map((note) => {
       if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
@@ -171,14 +178,14 @@ export function SingTrainerV2Page() {
     });
   }
 
-  function handleAdvanceToNextExercise() {
-    const nextIndex = Math.min(exerciseIndex + 1, lessonExercises.length - 1);
-    if (nextIndex === exerciseIndex) {
+  function handleAdvanceToNextSection() {
+    const nextIndex = Math.min(sectionIndex + 1, sections.length - 1);
+    if (nextIndex === sectionIndex) {
       return;
     }
 
-    const nextShiftedNotes = getShiftedNotesForExercise(nextIndex);
-    prepareExerciseForAutoplay(nextIndex);
+    const nextShiftedNotes = getShiftedNotesForSection(nextIndex);
+    prepareSectionForAutoplay(nextIndex);
     void playMidiSequence(nextShiftedNotes);
   }
 
@@ -214,6 +221,7 @@ export function SingTrainerV2Page() {
     }
 
     setIsPlayingTarget(false);
+    stopChords();
   }
 
   function handleToggleOptions() {
@@ -325,6 +333,10 @@ export function SingTrainerV2Page() {
       expectedBars: timeline.expectedBars,
     });
 
+    if (chordModeEnabled && isSong && sectionMeasures?.length) {
+      startChords(sectionMeasures, tempoBpm, totalMidiShift, false);
+    }
+
     setIsPlayingTarget(true);
     const context = getPianoAudioContext();
     await context.resume().catch(() => undefined);
@@ -419,7 +431,7 @@ export function SingTrainerV2Page() {
 
     setIndex(0);
     setCorrectIndices([]);
-    setExerciseIndex(0);
+    setSectionIndex(0);
     setSession(null);
     setBarResults({});
     evaluatedBarsRef.current = new Set();
@@ -518,7 +530,9 @@ export function SingTrainerV2Page() {
             <span>Detected note: </span>
             <strong>{current.note}</strong>
           </div>
-          {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : <span className="sing-title-spacer" />}
+          {sections.length > 1 ? (
+            <small>{`Measures ${sectionIndex * measureWindowSize + 1}–${Math.min((sectionIndex + 1) * measureWindowSize, lesson.measures.length)} of ${lesson.measures.length} · Key ${selectedKey}`}</small>
+          ) : <span className="sing-title-spacer" />}
         </div>
 
         {isDebug ? (
@@ -562,15 +576,36 @@ export function SingTrainerV2Page() {
           onGracePeriodPercentChange={setGracePeriodPercent}
         />
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          {lessonExercises.length > 1 ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          {isSong && (
+            <button
+              type="button"
+              className={`button secondary${chordModeEnabled ? ' chord-mode-active' : ''}`}
+              style={{ fontSize: 12, padding: '3px 10px' }}
+              onClick={() => setChordModeEnabled((v) => !v)}
+              title={chordModeEnabled ? 'Chord accompaniment on — click to mute' : 'Chord accompaniment off — click to enable'}
+            >
+              ♩ Chords {chordModeEnabled ? 'On' : 'Off'}
+            </button>
+          )}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#1e293b', borderRadius: 8, padding: '2px 8px' }}>
+            <span style={{ fontSize: 11, color: '#64748b', marginRight: 2 }}>Measures</span>
+            <button type="button" className="button secondary" style={{ padding: '2px 8px', fontSize: 13 }}
+              onClick={() => { setMeasureWindowSize((w) => Math.max(1, w - 1)); setSectionIndex(0); }}
+              disabled={measureWindowSize <= 1} title="Fewer measures per section">−</button>
+            <span style={{ minWidth: 18, textAlign: 'center', fontSize: 13 }}>{measureWindowSize}</span>
+            <button type="button" className="button secondary" style={{ padding: '2px 8px', fontSize: 13 }}
+              onClick={() => { setMeasureWindowSize((w) => Math.min(8, w + 1)); setSectionIndex(0); }}
+              disabled={measureWindowSize >= 8} title="More measures per section">+</button>
+          </div>
+          {sections.length > 1 ? (
             <button
               type="button"
               className="button secondary"
-              onClick={() => setExercise(exerciseIndex - 1)}
-              disabled={exerciseIndex <= 0}
-              title="Previous exercise"
-              aria-label="Previous exercise"
+              onClick={() => setSection(sectionIndex - 1)}
+              disabled={sectionIndex <= 0}
+              title="Previous section"
+              aria-label="Previous section"
             >
               ⏮
             </button>
@@ -588,19 +623,19 @@ export function SingTrainerV2Page() {
             type="button"
             className="button secondary"
             onClick={() => void playMidiSequence(shiftedLessonNotes)}
-            title="Replay exercise"
-            aria-label="Replay exercise"
+            title="Replay section"
+            aria-label="Replay section"
           >
             ↺
           </button>
-          {lessonExercises.length > 1 ? (
+          {sections.length > 1 ? (
             <button
               type="button"
               className="button secondary"
-              onClick={handleAdvanceToNextExercise}
-              disabled={exerciseIndex >= lessonExercises.length - 1}
-              title="Next exercise"
-              aria-label="Next exercise"
+              onClick={handleAdvanceToNextSection}
+              disabled={sectionIndex >= sections.length - 1}
+              title="Next section"
+              aria-label="Next section"
             >
               ⏭
             </button>
@@ -640,6 +675,10 @@ export function SingTrainerV2Page() {
             </div>
           </div>
         </div>
+
+        {isSong && sectionMeasures?.length ? (
+          <ChordBar measures={sectionMeasures} className="trainer-chord-bar" />
+        ) : null}
 
         <SingInputGraphV2
           minFrequencyHz={55}

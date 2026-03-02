@@ -22,7 +22,7 @@ import {
   CADENCE_CHORD_GAIN,
   TARGET_NOTE_GAIN,
 } from '../lib/musicTheory';
-import { normalizeLessonExercises, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
+import { buildSections, isSongLesson, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
 import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
 
 export function TrainerPage() {
@@ -30,7 +30,9 @@ export function TrainerPage() {
   const [searchParams] = useSearchParams();
   const requestedMode = searchParams.get('mode') === 'solfege' ? 'solfege' : 'piano';
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
-  const lessonExercises = useMemo(() => normalizeLessonExercises(lesson), [lesson]);
+  const [measureWindowSize, setMeasureWindowSize] = useState(4);
+  const [sectionIndex, setSectionIndex] = useState(0);
+  const sections = useMemo(() => buildSections(lesson, measureWindowSize), [lesson, measureWindowSize]);
   const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
   const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
   const rangeRecommendation = useMemo(
@@ -50,7 +52,6 @@ export function TrainerPage() {
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [instrument, setInstrument] = useState(initialOptions.instrument);
   const [optionsOpen, setOptionsOpen] = useState(false);
-  const [exerciseIndex, setExerciseIndex] = useState(0);
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);
   const [isPlayingTarget, setIsPlayingTarget] = useState(false);
@@ -68,8 +69,8 @@ export function TrainerPage() {
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
   const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
   const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
-  const activeExercise = lessonExercises[exerciseIndex] ?? lessonExercises[0];
-  const activeEvents = activeExercise?.notes ?? [];
+  const activeSection = sections[sectionIndex] ?? sections[0];
+  const activeEvents = activeSection?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
 
   const firstNoteShiftedMidi = Number.isFinite(activeNotes[0]?.midi) ? activeNotes[0].midi + totalMidiShift : null;
@@ -96,13 +97,13 @@ export function TrainerPage() {
     setIndex((previous) => Math.min(previous + 1, activeNotes.length - 1));
   }
 
-  function setExercise(nextIndex) {
-    const clamped = Math.max(0, Math.min(lessonExercises.length - 1, nextIndex));
-    if (clamped === exerciseIndex) {
+  function setSection(nextIndex) {
+    const clamped = Math.max(0, Math.min(sections.length - 1, nextIndex));
+    if (clamped === sectionIndex) {
       return;
     }
 
-    setExerciseIndex(clamped);
+    setSectionIndex(clamped);
     setIndex(0);
     setCorrectIndices([]);
   }
@@ -308,7 +309,7 @@ export function TrainerPage() {
     setMode(requestedMode);
     setIndex(0);
     setCorrectIndices([]);
-    setExerciseIndex(0);
+    setSectionIndex(0);
   }, [lesson, requestedMode]);
 
   useEffect(() => {
@@ -413,7 +414,7 @@ export function TrainerPage() {
         <div className="lesson-title-row">
           <h3>{lesson.name}</h3>
           <div className="lesson-title-right">
-            {lessonExercises.length > 1 ? <small>Exercise {exerciseIndex + 1} / {lessonExercises.length} · Key {selectedKey}</small> : null}
+            {sections.length > 1 ? <small>Measures {sectionIndex * measureWindowSize + 1}–{Math.min((sectionIndex + 1) * measureWindowSize, lesson.measures.length)} of {lesson.measures.length} · Key {selectedKey}</small> : null}
             <div className="trainer-mode-radios" role="radiogroup" aria-label="Input mode">
               <label>
                 <input
@@ -462,15 +463,25 @@ export function TrainerPage() {
           disableApplyRangeDefaults={disableApplyRangeDefaults}
         />
 
-        <div style={{ display: 'flex', gap: 8 }}>
-          {lessonExercises.length > 1 ? (
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, background: '#1e293b', borderRadius: 8, padding: '2px 8px' }}>
+            <span style={{ fontSize: 11, color: '#64748b', marginRight: 2 }}>Measures</span>
+            <button type="button" className="button secondary" style={{ padding: '2px 8px', fontSize: 13 }}
+              onClick={() => { setMeasureWindowSize((w) => Math.max(1, w - 1)); setSectionIndex(0); }}
+              disabled={measureWindowSize <= 1} title="Fewer measures per section">−</button>
+            <span style={{ minWidth: 18, textAlign: 'center', fontSize: 13 }}>{measureWindowSize}</span>
+            <button type="button" className="button secondary" style={{ padding: '2px 8px', fontSize: 13 }}
+              onClick={() => { setMeasureWindowSize((w) => Math.min(8, w + 1)); setSectionIndex(0); }}
+              disabled={measureWindowSize >= 8} title="More measures per section">+</button>
+          </div>
+          {sections.length > 1 ? (
             <button
               type="button"
               className="button secondary"
-              onClick={() => setExercise(exerciseIndex - 1)}
-              disabled={exerciseIndex <= 0}
-              title="Previous exercise"
-              aria-label="Previous exercise"
+              onClick={() => setSection(sectionIndex - 1)}
+              disabled={sectionIndex <= 0}
+              title="Previous section"
+              aria-label="Previous section"
             >
               ⏮
             </button>
@@ -495,14 +506,14 @@ export function TrainerPage() {
           >
             {isPlayingTarget ? (isPaused ? '▶' : '⏸') : '▶'}
           </button>
-          {lessonExercises.length > 1 ? (
+          {sections.length > 1 ? (
             <button
               type="button"
               className="button secondary"
-              onClick={() => setExercise(exerciseIndex + 1)}
-              disabled={exerciseIndex >= lessonExercises.length - 1}
-              title="Next exercise"
-              aria-label="Next exercise"
+              onClick={() => setSection(sectionIndex + 1)}
+              disabled={sectionIndex >= sections.length - 1}
+              title="Next section"
+              aria-label="Next section"
             >
               ⏭
             </button>

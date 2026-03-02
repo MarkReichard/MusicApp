@@ -8,6 +8,7 @@ import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchRangePage } from './pages/PitchRangePage';
 import { PitchMatchPage } from './pages/PitchMatchPage';
 import { SingGraphV2LabPage } from './pages/SingGraphV2LabPage';
+import { SongBuilderPage } from './pages/SongBuilderPage';
 import { HomePage } from './pages/HomePage';
 
 export function App() {
@@ -20,6 +21,7 @@ export function App() {
         <nav>
           <NavLink to="/" end>Home</NavLink>
           <NavLink to="/lessons">Lessons</NavLink>
+          <NavLink to="/song-builder">Song Builder</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
           <NavLink to="/pitch-range">Vocal Range</NavLink>
         </nav>
@@ -37,6 +39,7 @@ export function App() {
           <Route path="/pitch-match" element={<PitchMatchPage />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/sing-graph-v2" element={<SingGraphV2LabPage />} />
+          <Route path="/song-builder" element={<SongBuilderPage />} />
         </Routes>
       </main>
     </div>

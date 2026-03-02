@@ -13,11 +13,254 @@
     "allowedKeys",
     "defaultTempoBpm",
     "tempoRange",
-    "defaultChunkSize",
-    "chunkSizeRange",
     "defaultOctave",
     "allowedOctaves"
   ],
+  "properties": {
+    "id": { "type": "string", "minLength": 1 },
+    "name": { "type": "string", "minLength": 1 },
+    "category": {
+      "type": "string",
+      "description": "Lesson type bucket used by library UI",
+      "examples": ["3_note_pattern", "christmas_songs", "folk_songs"]
+    },
+    "type": {
+      "type": "string",
+      "enum": ["pattern", "song"]
+    },
+    "difficulty": {
+      "type": "string",
+      "enum": ["beginner", "intermediate", "advanced"]
+    },
+    "tags": {
+      "type": "array",
+      "items": { "type": "string" },
+      "default": []
+    },
+    "defaultKey": { "type": "string" },
+    "allowedKeys": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "defaultTempoBpm": { "type": "integer", "minimum": 30, "maximum": 240 },
+    "tempoRange": {
+      "type": "object",
+      "required": ["min", "max"],
+      "properties": {
+        "min": { "type": "integer", "minimum": 30, "maximum": 240 },
+        "max": { "type": "integer", "minimum": 30, "maximum": 240 }
+      },
+      "additionalProperties": false
+    },
+    "defaultChunkSize": {
+      "type": "integer", "minimum": 1, "maximum": 32,
+      "description": "Pattern lessons only — notes per practice chunk"
+    },
+    "chunkSizeRange": {
+      "type": "object",
+      "required": ["min", "max"],
+      "description": "Pattern lessons only",
+      "properties": {
+        "min": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "max": { "type": "integer", "minimum": 1, "maximum": 32 }
+      },
+      "additionalProperties": false
+    },
+    "defaultOctave": { "type": "integer", "minimum": 0, "maximum": 8 },
+    "allowedOctaves": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "type": "integer", "minimum": 0, "maximum": 8 }
+    },
+
+    "timeSig": {
+      "type": "object",
+      "description": "Song lessons only — time signature of the source score",
+      "required": ["beats", "beatType"],
+      "properties": {
+        "beats": { "type": "integer", "minimum": 1, "maximum": 32 },
+        "beatType": { "type": "integer", "enum": [2, 4, 8, 16] }
+      },
+      "additionalProperties": false
+    },
+
+    "measures": {
+      "type": "array",
+      "description": "Song lessons only — one entry per measure in document order",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["index", "beats", "notes", "chords"],
+        "properties": {
+          "index": { "type": "integer", "minimum": 0 },
+          "beats": { "type": "integer", "minimum": 1 },
+          "notes": {
+            "type": "array",
+            "minItems": 0,
+            "items": {
+              "type": "object",
+              "required": ["type", "durationBeats"],
+              "properties": {
+                "type": { "type": "string", "enum": ["note", "rest"], "default": "note" },
+                "pitch": { "type": "string" },
+                "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
+                "degree": { "type": "string", "enum": ["Do", "Re", "Mi", "Fa", "Sol", "La", "Ti"] },
+                "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
+              },
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": { "properties": { "type": { "const": "note" } } },
+                  "then": { "required": ["pitch", "midi", "degree"] }
+                }
+              ]
+            }
+          },
+          "chords": {
+            "type": "array",
+            "description": "Chord changes within this measure. beat is 1-indexed.",
+            "items": {
+              "type": "object",
+              "required": ["beat", "root", "kind"],
+              "properties": {
+                "beat": { "type": "integer", "minimum": 1 },
+                "root": {
+                  "type": "string",
+                  "description": "Root note name, e.g. 'D', 'F#', 'Bb'",
+                  "examples": ["C", "D", "F#", "Bb"]
+                },
+                "kind": {
+                  "type": "string",
+                  "description": "MusicXML-derived chord quality",
+                  "examples": ["major", "minor", "dominant", "major-seventh", "minor-seventh", "diminished", "augmented", "sus4", "sus2"]
+                }
+              },
+              "additionalProperties": false
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+
+    "notes": {
+      "type": "array",
+      "description": "Pattern lessons — flat note sequence",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "required": ["type", "durationBeats"],
+        "properties": {
+          "type": { "type": "string", "enum": ["note", "rest"], "default": "note" },
+          "pitch": { "type": "string" },
+          "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
+          "degree": { "type": "string", "enum": ["Do", "Re", "Mi", "Fa", "Sol", "La", "Ti"] },
+          "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
+        },
+        "additionalProperties": false,
+        "allOf": [
+          {
+            "if": { "properties": { "type": { "const": "note" } } },
+            "then": { "required": ["pitch", "midi", "degree"] }
+          }
+        ]
+      }
+    },
+    "exercises": {
+      "type": "array",
+      "description": "Pattern lessons — optional pre-grouped note sequences",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": ["notes"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "notes": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "required": ["type", "durationBeats"],
+              "properties": {
+                "type": { "type": "string", "enum": ["note", "rest"], "default": "note" },
+                "pitch": { "type": "string" },
+                "midi": { "type": "integer", "minimum": 0, "maximum": 127 },
+                "degree": { "type": "string", "enum": ["Do", "Re", "Mi", "Fa", "Sol", "La", "Ti"] },
+                "durationBeats": { "type": "number", "exclusiveMinimum": 0 }
+              },
+              "additionalProperties": false,
+              "allOf": [
+                {
+                  "if": { "properties": { "type": { "const": "note" } } },
+                  "then": { "required": ["pitch", "midi", "degree"] }
+                }
+              ]
+            }
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "phrases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["startNoteIndex", "endNoteIndex", "label"],
+        "properties": {
+          "startNoteIndex": { "type": "integer", "minimum": 0 },
+          "endNoteIndex": { "type": "integer", "minimum": 0 },
+          "label": { "type": "string" }
+        },
+        "additionalProperties": false
+      },
+      "default": []
+    },
+    "patternDefinition": {
+      "type": "object",
+      "required": ["relativeSemitones", "length"],
+      "properties": {
+        "relativeSemitones": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "integer", "minimum": -24, "maximum": 24 }
+        },
+        "length": { "type": "integer", "minimum": 1, "maximum": 32 }
+      },
+      "additionalProperties": false
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "kind": { "type": "string", "enum": ["preloaded", "remote"] },
+        "version": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "updatedAt": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [
+    {
+      "description": "A lesson must have either measures[] (song) or notes/exercises (pattern)",
+      "anyOf": [
+        { "required": ["measures"] },
+        { "properties": { "notes": { "type": "array", "minItems": 1 } }, "required": ["notes"] },
+        { "properties": { "exercises": { "type": "array", "minItems": 1 } }, "required": ["exercises"] }
+      ]
+    },
+    {
+      "description": "Song lessons must have timeSig and measures",
+      "if": { "properties": { "type": { "const": "song" } }, "required": ["type"] },
+      "then": { "required": ["timeSig", "measures"] }
+    },
+    {
+      "description": "Pattern lessons must have a patternDefinition",
+      "if": { "properties": { "type": { "const": "pattern" } }, "required": ["type"] },
+      "then": { "required": ["patternDefinition"] }
+    }
+  ],
+  "additionalProperties": false
+}
   "properties": {
     "id": { "type": "string", "minLength": 1 },
     "name": { "type": "string", "minLength": 1 },
