@@ -1,0 +1,283 @@
+CHORD-ACCOMPANIED SINGING MODE — IMPLEMENTATION PLAN
+=====================================================
+Created: 2026-03-01
+Updated: 2026-03-01 — exercises[] removed; song lessons use flat measures[]
+
+GOAL
+----
+Add a "Chord Accompaniment" mode to the singing trainer where:
+- A boom-chuck (3/4) or boom-chuck-chuck (4/4) rhythm plays the song's chords
+- Melody bars are still shown on the pitch graph (visual guide remains)
+- No piano audio plays the melody — the singer must produce it themselves
+- The singer's live pitch is displayed on the graph alongside the melody bars
+- A chord symbol is shown prominently so the singer knows what chord is active
+
+BACKGROUND
+----------
+MusicXML (.mxl) files contain <harmony> elements that encode chord symbols
+(root, kind, optional bass note). These sit just before the note they apply to.
+Example from will-the-circle-be-unbroken.mxl:
+
+  <harmony print-frame="no">
+    <root><root-step>D</root-step></root>
+    <kind>major</kind>
+  </harmony>
+
+The old converter (scripts/convert-mxml-to-lessons.mjs) grouped notes into
+pre-baked `exercises[]` of 4 measures each, erasing measure boundaries and
+discarding chord data. This approach has been replaced.
+
+ARCHITECTURAL DECISION — No More exercises[] on Song Lessons
+-------------------------------------------------------------
+Song lessons (type: "song") now use a flat top-level `measures[]` array.
+There are no `exercises[]` on song lessons.
+
+The trainer page is responsible for slicing a user-configurable window of
+N measures (default 4) from that array and advancing through the song.
+This makes the exercise window a runtime UI concern, not a baked-in data concern.
+
+Pattern/hand-authored lessons (type: "pattern") are UNCHANGED — they keep their
+existing `notes[]` and optional `exercises[]`. The trainer detects which mode
+to use based on `lesson.type` or the presence of `lesson.measures`.
+
+TWO LESSON PARADIGMS
+--------------------
+  Song lesson:
+    - Top-level: timeSig, measures[]
+    - No exercises[]
+    - Trainer navigation: currentMeasureIndex + windowSize (user-settable)
+
+  Pattern lesson (unchanged):
+    - Top-level: notes[], optional exercises[]
+    - Trainer navigation: chunkSize-based (existing logic)
+
+SCHEMA — Song Lesson Structure
+--------------------------------
+{
+  "id": "song_will_the_circle_be_unbroken",
+  "type": "song",
+  "timeSig": { "beats": 3, "beatType": 4 },
+  "measures": [
+    {
+      "index": 0,                        <- 0-based position in the song
+      "beats": 3,                        <- actual beats (may differ if time sig changes)
+      "notes": [                         <- notes belonging to this measure only
+        { "type": "note", "pitch": "D4", "midi": 62, "degree": "Do", "durationBeats": 3 }
+      ],
+      "chords": [                        <- chord changes within this measure
+        { "beat": 1, "root": "D", "kind": "major" }
+      ]
+    },
+    {
+      "index": 1,
+      "beats": 3,
+      "notes": [ ... ],
+      "chords": [
+        { "beat": 1, "root": "G", "kind": "major" },
+        { "beat": 3, "root": "A", "kind": "dominant" }  <- mid-measure change
+      ]
+    }
+  ]
+}
+
+KEY SCHEMA POINTS:
+- `beat` in chords[] is 1-indexed within the measure.
+- `kind` values mirror MusicXML: "major", "minor", "dominant",
+  "major-seventh", "minor-seventh", etc.
+- `chords` may be [] for measures with no chord symbol in the source.
+- notes[] on each measure may include rests: { "type": "rest", "durationBeats": 1 }
+- A pickup/anacrusis measure will have fewer beats than timeSig.beats.
+- No `beatOffset` is stored — the trainer computes it from `index * beats`
+  (or accumulates when time sig varies mid-song).
+
+HOW BOOM-CHUCK RESOLVES
+-----------------------
+Given currentMeasureIndex and beat position within that measure:
+
+  beatWithinMeasure  (1-indexed)
+  → beatWithinMeasure === 1           → BOOM (bass root, low octave, ~0.4s)
+  → beatWithinMeasure > 1            → CHUCK (chord voicing stab, ~0.1s)
+
+For mid-measure chord changes, the new chord triggers a BOOM on its beat.
+
+Patterns by time signature:
+  3/4  → BOOM chuck chuck
+  4/4  → BOOM chuck BOOM chuck  (boom on 1 & 3)
+  2/4  → BOOM chuck
+
+KNOWN LIMITATION: chord.beat is an integer. Fractional-beat chord changes
+(e.g., "and of 2") are not supported. Not needed for folk/country repertoire.
+
+TRAINER STATE FOR SONGS
+------------------------
+  currentMeasureIndex  — first measure of the current window (0-based)
+  windowSize           — number of measures in the practice loop (user sets this;
+                         default = 4 for 4/4, 4 for 3/4)
+  isLooping            — whether to loop the window or advance and stop
+
+  Active window = measures.slice(currentMeasureIndex, currentMeasureIndex + windowSize)
+  Advance: currentMeasureIndex += windowSize (clamp at end of song)
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 1 — JSON Schema + Converter Update
+─────────────────────────────────────────────────────────────────────────────
+Files: scripts/convert-mxml-to-lessons.mjs, schemas/lesson.schema.json
+
+Changes to converter:
+- Remove the MEASURES_PER_EXERCISE grouping logic
+- Emit one object per measure into a top-level `measures[]` array
+- Each measure object contains: index, beats, notes[], chords[]
+- notes[] is built exactly as before but scoped to each measure individually
+- chords[] is built by collecting <harmony> elements encountered within
+  the measure's XML, keyed to their beat position
+- Emit `timeSig: { beats, beatType }` at lesson top level
+- Remove `defaultChunkSize` / `chunkSizeRange` from song lessons (not needed)
+- Remove `notes: []` top-level stub (was always empty, now gone)
+- Keep all other top-level fields (id, name, defaultKey, allowedKeys, etc.)
+
+After changes: rerun converter and verify generated JSON for all 4 song files:
+  node scripts/convert-mxml-to-lessons.mjs --input content/mxml --output content/lessons
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 2 — Chord Playback Engine
+─────────────────────────────────────────────────────────────────────────────
+New file: web/src/lib/useChordPlayer.js
+
+Hook signature:
+  useChordPlayer(activeMeasures, timeSig, tempoBpm, isPlaying)
+
+- `activeMeasures` = the current window slice from lesson.measures
+- Uses Web Audio API (same pattern as pianoSynth.js)
+- Schedules beat ticks using AudioContext.currentTime for accurate timing
+- On each beat, determines boom vs. chuck from beat-within-measure position
+- Looks up the active chord from the current measure's chords[] by beat
+
+Synthesis:
+  BOOM:  bass root note, octave 2–3, ~0.4s decay, triangle/sine wave
+  CHUCK: chord voicing (root + 3rd + 5th), octave 4, ~0.1s staccato
+
+Chord voicing interval tables:
+  major:          [0, 4, 7]
+  minor:          [0, 3, 7]
+  dominant:       [0, 4, 7, 10]
+  major-seventh:  [0, 4, 7, 11]
+  minor-seventh:  [0, 3, 7, 10]
+  sus2:           [0, 2, 7]
+  sus4:           [0, 5, 7]
+
+Development tip: start with console.log on each beat tick to validate timing
+before adding audio synthesis.
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 3 — Chord Display Component
+─────────────────────────────────────────────────────────────────────────────
+New file: web/src/components/trainer/ChordBar.jsx
+
+Props: activeMeasures, timeSig, currentBeatInWindow
+- Derives the active chord from the current measure's chords[]
+- Displays current chord symbol prominently (e.g. "D", "Gm", "A7")
+- Shows upcoming chord ("next: G") so singer can anticipate chord changes
+- Chord symbol formatting:
+    major           → "D"
+    minor           → "Dm"
+    dominant        → "A7"
+    major-seventh   → "Dmaj7"
+    minor-seventh   → "Am7"
+    sus4            → "Dsus4"
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 4 — Singing Trainer UI Integration
+─────────────────────────────────────────────────────────────────────────────
+Files: web/src/pages/SingTrainerV2Page.jsx (and SingTrainerPage.jsx)
+
+Song lesson routing:
+- Trainer detects lesson.measures vs lesson.notes/exercises
+- For song lessons: tracks currentMeasureIndex + windowSize state
+- windowSize control in options panel (slider or +/- buttons, range 1–8)
+- "Previous" / "Next" section buttons advance currentMeasureIndex by windowSize
+
+Chord Accompaniment toggle (only shown if active window has chords):
+- When ON:
+    – useChordPlayer hook activated (boom-chuck rhythm sounds)
+    – Melody bars remain visible on the pitch graph as a visual guide
+    – Piano melody audio is silenced — singer provides the melody
+    – ChordBar renders above the pitch graph showing the active chord
+    – Measure grid shows "you are here" position within the song
+- When OFF: existing guide-note behavior unchanged (piano plays melody)
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 5 — Pattern Lesson Backward Compatibility
+─────────────────────────────────────────────────────────────────────────────
+Hand-authored lessons (tonic_triad_outlines.json, pattern_*.json, etc.) are
+unchanged. They have no measures[] so chord mode is simply unavailable.
+The trainer detects this and hides the chord accompaniment toggle.
+
+If chord mode is ever desired for a hand-authored lesson, a `measures[]`
+array can be added manually to that JSON file following the schema above.
+
+─────────────────────────────────────────────────────────────────────────────
+PHASE 6 — Song Builder UI Page
+─────────────────────────────────────────────────────────────────────────────
+New file: web/src/pages/SongBuilderPage.jsx
+Route:    /song-builder  (no nav link — direct URL access only)
+
+Purpose: allow a user to construct a song lesson JSON file through a UI
+and copy-paste the result into a new file under content/lessons/.
+
+UI sections:
+
+  1. Song Metadata
+     - Song name (text input)
+     - Category (select or free text)
+     - Difficulty (beginner / intermediate / advanced)
+     - Default key (A–G)
+     - Time signature (3/4, 4/4, 2/4)
+     - Tempo BPM
+
+  2. Measure Editor (repeating rows)
+     Each row represents one measure:
+     - Chord(s): root (A–G + #/b), kind (dropdown), beat (1–N)
+       → "Add chord" button for mid-measure changes
+     - Notes: free-text entry (e.g. "D4:2 E4:1 F#4:1") or note-by-note UI
+       Format: <pitch>:<durationBeats> space-separated
+     - "Add measure" / "Remove measure" buttons
+     - Drag-to-reorder (optional stretch goal)
+
+  3. JSON Preview
+     - Live-rendered, read-only JSON text area showing the full lesson object
+       in the correct schema format
+     - "Copy JSON" button (copies to clipboard)
+
+  4. Instructions panel
+     - Tells user to save the JSON as content/lessons/song_<name>.json
+     - Notes that the file will appear in the Lessons page after app reload
+
+The page generates JSON conforming to the song lesson schema (Phase 1).
+No server-side persistence — pure client-side generation.
+
+─────────────────────────────────────────────────────────────────────────────
+IMPLEMENTATION ORDER
+─────────────────────────────────────────────────────────────────────────────
+Step 1   Update convert-mxml-to-lessons.mjs to emit timeSig + flat measures[]
+Step 2   Update schemas/lesson.schema.json to document the new song schema
+Step 3   Rerun converter; inspect generated song_*.json files
+Step 4   Update trainer pages to navigate by measure window for song lessons
+Step 5   Build useChordPlayer.js (beat-tick logging first, then audio)
+Step 6   Build ChordBar.jsx display component
+Step 7   Wire chord mode toggle into SingTrainerV2Page
+Step 8   Build SongBuilderPage.jsx at /song-builder
+
+─────────────────────────────────────────────────────────────────────────────
+RELEVANT FILES
+─────────────────────────────────────────────────────────────────────────────
+  scripts/convert-mxml-to-lessons.mjs                        <- update (Step 1)
+  schemas/lesson.schema.json                                 <- update (Step 2)
+  content/lessons/song_*.json                                <- regenerated (Step 3)
+  web/src/pages/SingTrainerV2Page.jsx                        <- update (Step 4, 7)
+  web/src/pages/SingTrainerPage.jsx                          <- update (Step 4)
+  web/src/lib/useChordPlayer.js                              <- new (Step 5)
+  web/src/lib/pianoSynth.js                                  <- reference for Web Audio
+  web/src/components/trainer/ChordBar.jsx                    <- new (Step 6)
+  web/src/components/trainer/SingTrainingOptionsSection.jsx  <- update (Step 7)
+  web/src/pages/SongBuilderPage.jsx                          <- new (Step 8)
+  web/src/App.jsx                                            <- add /song-builder route (Step 8)
