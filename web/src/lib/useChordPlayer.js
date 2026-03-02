@@ -28,8 +28,8 @@ const LOOKAHEAD_MS = 100;    // scheduler fires every N ms
 const SCHEDULE_WINDOW_S = 0.2; // schedule this many seconds ahead per tick
 const BOOM_OCTAVE_BASE = 36;   // MIDI C2 — bass register for beat-1 chord
 const CHUCK_OCTAVE_BASE = 48;  // MIDI C3 — mid register for chop (unused but kept for reference)
-const BOOM_GAIN = 0.08;
-const CHUCK_GAIN = 0.05;
+const BOOM_GAIN = 0.048;
+const CHUCK_GAIN = 0.03;
 const NOTE_DURATION_RATIO = 0.82; // fraction of a beat the note sounds
 const CHOP_DURATION_S = 0.055;    // very short — gives off-beats a percussive "chop" feel
 
@@ -221,5 +221,20 @@ export function useChordPlayer() {
     [stop, scheduleChunk],
   );
 
-  return { start, stop, isPlaying };
+  /**
+   * Returns the current fractional beat position within the loop cycle,
+   * normalised to [0, totalBeats). Returns -1 when not playing.
+   * Reading ctx.currentTime here is fine — it's just a getter.
+   */
+  const getCurrentBeatFloat = useCallback(() => {
+    const st = s.current;
+    if (!st.active || !st.beatDurationS) return -1;
+    const ctx = getPianoAudioContext();
+    const elapsed = ctx.currentTime - st.startContextTime;
+    if (elapsed < 0) return 0; // before first beat; show measure 0
+    const totalBeats = st.totalBeats || 1;
+    return (elapsed / st.beatDurationS) % totalBeats;
+  }, []);
+
+  return { start, stop, isPlaying, getCurrentBeatFloat };
 }

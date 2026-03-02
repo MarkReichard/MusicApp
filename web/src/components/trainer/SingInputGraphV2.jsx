@@ -3,7 +3,9 @@ import PropTypes from 'prop-types';
 
 const MIN_TIMELINE_SECONDS = 12;
 const TIMELINE_RIGHT_PAD_SECONDS = 1;
-const PIXELS_PER_SECOND = 90;
+export const GRAPH_PIXELS_PER_SECOND = 90;
+const PIXELS_PER_SECOND = GRAPH_PIXELS_PER_SECOND;
+const CHORD_STRIP_H = 22; // canvas pixels reserved at bottom for chord labels
 const FOLLOW_CURSOR_RATIO = 0.35;
 const TARGET_FRAME_MS = 33;
 const SCROLL_SMOOTHING_FACTOR = 0.18;
@@ -22,6 +24,9 @@ export function SingInputGraphV2({
   playedBars = [],
   expectedBars = [],
   barResults = {},
+  chordMeasures = null,
+  chordStartSec = 0,
+  chordBeatSec = 0,
 }) {
   const canvasRef = useRef(null);
   const scrollContainerRef = useRef(null);
@@ -37,6 +42,9 @@ export function SingInputGraphV2({
     playedBars,
     expectedBars,
     barResults,
+    chordMeasures,
+    chordStartSec,
+    chordBeatSec,
   });
 
   latestRef.current = {
@@ -47,6 +55,9 @@ export function SingInputGraphV2({
     playedBars,
     expectedBars,
     barResults,
+    chordMeasures,
+    chordStartSec,
+    chordBeatSec,
   };
 
   useEffect(() => {
@@ -172,6 +183,9 @@ export function SingInputGraphV2({
         barResults: renderBarResults,
         history: renderHistory,
         sessionStartMs: latest.sessionStartMs,
+        chordMeasures: latest.chordMeasures,
+        chordStartSec: latest.chordStartSec,
+        chordBeatSec: latest.chordBeatSec,
       });
 
       const scroller = scrollContainerRef.current;
@@ -247,6 +261,9 @@ function drawTimeline({
   barResults,
   history,
   sessionStartMs,
+  chordMeasures,
+  chordStartSec,
+  chordBeatSec,
 }) {
   context.clearRect(0, 0, width, height);
 
@@ -305,6 +322,10 @@ function drawTimeline({
     context.setLineDash([]);
   }
 
+  if (chordMeasures?.length && chordBeatSec > 0) {
+    drawChordStrip(context, chordMeasures, { toX, chordStartSec, chordBeatSec, nowSec, height });
+  }
+
   const nowX = toX(nowSec);
   context.strokeStyle = '#f8fafc';
   context.lineWidth = 2;
@@ -312,6 +333,66 @@ function drawTimeline({
   context.moveTo(nowX, 0);
   context.lineTo(nowX, height);
   context.stroke();
+}
+
+const CHORD_KIND_SUFFIX = {
+  major: '', 'major-seventh': 'M7', 'major-sixth': '6',
+  minor: 'm', 'minor-seventh': 'm7', 'minor-sixth': 'm6',
+  dominant: '7', 'dominant-seventh': '7', 'dominant-ninth': '9',
+  diminished: '°', 'diminished-seventh': '°7', 'half-diminished': 'ø7',
+  augmented: '+', 'suspended-fourth': 'sus4', 'suspended-second': 'sus2', power: '5',
+};
+
+function chordLabelFor(chord) {
+  if (!chord) return '';
+  const suffix = CHORD_KIND_SUFFIX[chord.kind] ?? (chord.kind ? `(${chord.kind})` : '');
+  return `${chord.root}${suffix}`;
+}
+
+function drawChordStrip(context, measures, { toX, chordStartSec, chordBeatSec, nowSec, height }) {
+  const stripY = height - CHORD_STRIP_H;
+  let t = chordStartSec;
+
+  for (const measure of measures) {
+    const beats = measure.beats ?? 4;
+    const dur = beats * chordBeatSec;
+    const x1 = toX(t);
+    const x2 = toX(t + dur);
+    const w = x2 - x1;
+    const isActive = nowSec >= t && nowSec < t + dur;
+
+    // Background
+    context.fillStyle = isActive ? 'rgba(30, 58, 95, 0.90)' : 'rgba(15, 23, 42, 0.82)';
+    context.fillRect(x1, stripY, w, CHORD_STRIP_H);
+
+    // Border
+    context.strokeStyle = isActive ? '#3b82f6' : '#1e293b';
+    context.lineWidth = 1;
+    context.strokeRect(x1 + 0.5, stripY + 0.5, w - 1, CHORD_STRIP_H - 1);
+
+    // Chord label — build from chord changes in this measure
+    const chords = measure.chords ?? [];
+    const labels = [];
+    for (let b = 1; b <= beats; b++) {
+      const c = chords.find((ch) => ch.beat === b);
+      if (c) labels.push(chordLabelFor(c));
+    }
+    const label = labels.join(' / ') || '—';
+
+    context.fillStyle = isActive ? '#93c5fd' : '#94a3b8';
+    context.font = `bold ${Math.min(12, Math.max(9, w / 5))}px sans-serif`;
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    // Clip to cell so long labels don't overflow
+    context.save();
+    context.beginPath();
+    context.rect(x1 + 2, stripY, w - 4, CHORD_STRIP_H);
+    context.clip();
+    context.fillText(label, x1 + w / 2, stripY + CHORD_STRIP_H / 2);
+    context.restore();
+
+    t += dur;
+  }
 }
 
 function drawGrid(context, width, height, minMidi, maxMidi) {
@@ -509,6 +590,9 @@ SingInputGraphV2.propTypes = {
     }),
   ),
   barResults: PropTypes.objectOf(PropTypes.bool),
+  chordMeasures: PropTypes.array,
+  chordStartSec: PropTypes.number,
+  chordBeatSec: PropTypes.number,
 };
 
 SingInputGraphV2.defaultProps = {
@@ -521,4 +605,7 @@ SingInputGraphV2.defaultProps = {
   playedBars: [],
   expectedBars: [],
   barResults: {},
+  chordMeasures: null,
+  chordStartSec: 0,
+  chordBeatSec: 0,
 };

@@ -8,7 +8,6 @@ import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/t
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
-import { ChordBar } from '../components/trainer/ChordBar';
 import { useChordPlayer } from '../lib/useChordPlayer';
 import {
   tonicMidiFromKeyOctave,
@@ -127,21 +126,6 @@ export function SingTrainerV2Page() {
 
   const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
   const shiftedLessonNotes = shiftNotes(activeEvents, totalMidiShift);
-
-  // Map the current note index to a measure index so ChordBar can highlight
-  // the active measure in sync with the guide melody.
-  const activeMeasureIdx = useMemo(() => {
-    if (!sectionMeasures?.length) return 0;
-    let noteCount = 0;
-    for (let i = 0; i < sectionMeasures.length; i++) {
-      const nonRestNotes = (sectionMeasures[i].notes ?? []).filter(
-        (n) => n.type !== 'rest' && Number.isFinite(n.midi)
-      );
-      noteCount += nonRestNotes.length;
-      if (index < noteCount) return i;
-    }
-    return sectionMeasures.length - 1;
-  }, [index, sectionMeasures]);
 
   const rangeSuggestionText = getRangeSuggestionText(hasSavedPitchRange, rangeRecommendation);
 
@@ -336,6 +320,10 @@ export function SingTrainerV2Page() {
       countdownBeats: SING_COUNTDOWN_BEATS,
     });
 
+    const beatSeconds = beatSecondsFromTempo(tempoBpm);
+    const effectiveBeatS = NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS;
+    const chordStartSec = timeline.singStartSec + beatSeconds * SING_COUNTDOWN_BEATS;
+
     const startMs = performance.now() + 30;
     evaluatedBarsRef.current = new Set();
     setIndex(0);
@@ -347,6 +335,9 @@ export function SingTrainerV2Page() {
       stopScrollSec: timeline.stopScrollSec,
       playedBars: timeline.playedBars,
       expectedBars: timeline.expectedBars,
+      chordMeasures: (chordModeEnabled && isSong && sectionMeasures?.length) ? sectionMeasures : null,
+      chordStartSec,
+      chordBeatSec: effectiveBeatS,
     });
 
     setIsPlayingTarget(true);
@@ -354,20 +345,15 @@ export function SingTrainerV2Page() {
     await context.resume().catch(() => undefined);
 
     try {
-      const beatSeconds = beatSecondsFromTempo(tempoBpm);
       let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
       if (chordModeEnabled && isSong && sectionMeasures?.length) {
         // Align chord beat 1 with the first note the user sings.
         // singStartSec accounts for cadence + hear-exercise lead-in;
         // SING_COUNTDOWN_BEATS puts chord player exactly on beat 1 of measure 1.
-        const chordDelay = timeline.singStartSec + beatSeconds * SING_COUNTDOWN_BEATS;
-        // Guide melody consumes (NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS)
-        // per quarter-note item rather than strict beatSeconds, so the chord player
-        // must use the same effective tempo to stay in sync.
-        const effectiveBeatS = NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS;
+        // effectiveBeatS matches the guide melody's compressed note duration.
         const effectiveBpm = 60 / effectiveBeatS;
-        startChords(sectionMeasures, effectiveBpm, totalMidiShift, false, chordDelay);
+        startChords(sectionMeasures, effectiveBpm, totalMidiShift, false, chordStartSec);
       }
 
       if (playTonicCadence) {
@@ -718,10 +704,6 @@ export function SingTrainerV2Page() {
           </div>
         </div>
 
-        {isSong && sectionMeasures?.length ? (
-          <ChordBar measures={sectionMeasures} activeMeasureIdx={activeMeasureIdx} className="trainer-chord-bar" />
-        ) : null}
-
         <SingInputGraphV2
           minFrequencyHz={55}
           maxFrequencyHz={1200}
@@ -732,6 +714,9 @@ export function SingTrainerV2Page() {
           playedBars={session?.playedBars ?? []}
           expectedBars={session?.expectedBars ?? []}
           barResults={barResults}
+          chordMeasures={session?.chordMeasures ?? null}
+          chordStartSec={session?.chordStartSec ?? 0}
+          chordBeatSec={session?.chordBeatSec ?? 0}
         />
       </div>
     </div>

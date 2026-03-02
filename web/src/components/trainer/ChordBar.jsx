@@ -9,6 +9,7 @@
  */
 
 import PropTypes from 'prop-types';
+import { GRAPH_PIXELS_PER_SECOND } from './SingInputGraphV2';
 
 // ── Chord label helpers ────────────────────────────────────────────────────────
 
@@ -53,7 +54,7 @@ function chordAtBeat(chords, beat) {
  * Renders a single beat cell. Shows chord label on beat 1 and on any
  * mid-measure chord changes; other beats show a rhythm dash.
  */
-function BeatCell({ beats, beat1Chord, chords, isFirst, isActive, beatsInMeasure }) {
+function BeatCell({ beats, beat1Chord, chords, isFirst, isActive, beatsInMeasure, pxPerBeat }) {
   // Collect unique chord changes for this measure
   const changes = [];
   for (let b = 1; b <= beatsInMeasure; b++) {
@@ -67,7 +68,7 @@ function BeatCell({ beats, beat1Chord, chords, isFirst, isActive, beatsInMeasure
   return (
     <div
       className={`chord-bar-measure${isActive ? ' chord-bar-measure--active' : ''}${!hasChord ? ' chord-bar-measure--empty' : ''}`}
-      style={{ flex: beatsInMeasure }}  // wider measures get more width
+      style={{ width: pxPerBeat ? `${beatsInMeasure * pxPerBeat}px` : undefined, flexShrink: 0 }}
       aria-label={hasChord ? `Measure chord: ${changes.map(chordLabel).join(', ')}` : 'No chord'}
     >
       {/* Measure number */}
@@ -101,12 +102,16 @@ BeatCell.propTypes = {
   isFirst: PropTypes.bool,
   isActive: PropTypes.bool,
   beatsInMeasure: PropTypes.number.isRequired,
+  pxPerBeat: PropTypes.number,
 };
 
 // ── Main component ─────────────────────────────────────────────────────────────
 
-export function ChordBar({ measures, activeMeasureIdx, className }) {
+export function ChordBar({ measures, activeMeasureIdx, tempoBpm, className }) {
   if (!measures?.length) return null;
+
+  // Fixed pixel width per beat so each cell matches 4 beats on the pitch graph.
+  const pxPerBeat = tempoBpm ? (60 / tempoBpm) * GRAPH_PIXELS_PER_SECOND : null;
 
   return (
     <div className={`chord-bar${className ? ` ${className}` : ''}`} aria-label="Chord progression">
@@ -123,6 +128,7 @@ export function ChordBar({ measures, activeMeasureIdx, className }) {
             isFirst={i === 0}
             isActive={activeMeasureIdx === i}
             beatsInMeasure={beats ?? 4}
+            pxPerBeat={pxPerBeat}
           />
         );
       })}
@@ -145,5 +151,6 @@ ChordBar.propTypes = {
     }),
   ),
   activeMeasureIdx: PropTypes.number,
+  tempoBpm: PropTypes.number,
   className: PropTypes.string,
 };
