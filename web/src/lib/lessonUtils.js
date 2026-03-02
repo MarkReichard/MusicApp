@@ -115,7 +115,7 @@ export function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, pl
   const lastExpectedEndSec = expectedBars.length
     ? expectedBars.at(-1).endSec
     : singStartSec;
-  const stopScrollSec = lastExpectedEndSec + beatSeconds * 2;
+  const stopScrollSec = lastExpectedEndSec + beatSeconds * 0.5;
 
   return { playedBars, expectedBars, singStartSec, stopScrollSec };
 }
