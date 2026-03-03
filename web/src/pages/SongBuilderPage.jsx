@@ -190,7 +190,7 @@ function measureTotalBeats(measure) {
 // ── State factories ────────────────────────────────────────────────────────────
 
 function emptyNote() {
-  return { _id: uid(), type: 'note', pitch: 'C4', durationBeats: '1', degree: 'Do' };
+  return { _id: uid(), type: 'note', pitch: 'C4', durationBeats: '1', degree: 'Do', lyric: '' };
 }
 function emptyRest() {
   return { _id: uid(), type: 'rest', pitch: '', durationBeats: '1', degree: '' };
@@ -247,6 +247,7 @@ function buildLesson(meta, measures) {
           midi: pitchToMidi(n.pitch) ?? 60,
           degree: n.degree,
           durationBeats: parseFloatOr(n.durationBeats, 1),
+          ...(n.lyric?.trim() ? { lyric: n.lyric.trim() } : {}),
         };
       }),
       chords: m.chords.map((c) => ({
@@ -296,6 +297,7 @@ function lessonToState(lesson) {
       pitch: n.pitch ?? 'C4',
       durationBeats: String(n.durationBeats ?? 1),
       degree: n.degree ?? 'Do',
+      lyric: n.lyric ?? '',
     })),
     chords: (m.chords ?? []).map((c) => ({
       _id: uid(),
@@ -596,25 +598,44 @@ function NoteRow({ note, songKey, onChange, onRemove }) {
             className={`sb-pitch-input sb-note-input${pitchValid ? '' : ' sb-input-error'}`}
             title="Pitch (e.g. C4, F#4, Bb3)"
           />
+          <select
+            value={note.durationBeats}
+            onChange={(e) => set('durationBeats', e.target.value)}
+            className="sb-small-select sb-dur-select"
+            title="Duration"
+          >
+            {DURATION_OPTIONS.map((d) => (
+              <option key={d.value} value={d.value}>{d.label}</option>
+            ))}
+          </select>
           <span className="sb-midi-hint" title="MIDI number">
             {pitchValid ? `m${midi}` : '—'}
           </span>
           <select value={note.degree} onChange={(e) => set('degree', e.target.value)} className="sb-small-select" title="Solfège degree">
             {DEGREES.map((d) => <option key={d} value={d}>{d}</option>)}
           </select>
+          <input
+            value={note.lyric ?? ''}
+            onChange={(e) => set('lyric', e.target.value)}
+            placeholder="lyric"
+            className="sb-lyric-input sb-note-input"
+            title="Lyric syllable for this note"
+          />
         </>
       )}
 
-      <select
-        value={note.durationBeats}
-        onChange={(e) => set('durationBeats', e.target.value)}
-        className="sb-small-select sb-dur-select"
-        title="Duration"
-      >
-        {DURATION_OPTIONS.map((d) => (
-          <option key={d.value} value={d.value}>{d.label}</option>
-        ))}
-      </select>
+      {note.type === 'rest' && (
+        <select
+          value={note.durationBeats}
+          onChange={(e) => set('durationBeats', e.target.value)}
+          className="sb-small-select sb-dur-select"
+          title="Duration"
+        >
+          {DURATION_OPTIONS.map((d) => (
+            <option key={d.value} value={d.value}>{d.label}</option>
+          ))}
+        </select>
+      )}
 
       <button type="button" className="sb-remove-btn" onClick={onRemove} title="Remove">×</button>
     </div>
@@ -627,6 +648,7 @@ NoteRow.propTypes = {
     pitch: PropTypes.string,
     durationBeats: PropTypes.string.isRequired,
     degree: PropTypes.string,
+    lyric: PropTypes.string,
   }).isRequired,
   songKey: PropTypes.string,
   onChange: PropTypes.func.isRequired,

@@ -107,6 +107,7 @@ export function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, pl
         endSec: singCursor + scoreDurationSeconds,
         scoreEndSec: singCursor + scoreDurationSeconds,
         midi: note.midi,
+        lyric: note.lyric ?? '',
       });
     }
     singCursor += noteDurationSeconds + NOTE_GAP_SECONDS;

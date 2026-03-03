@@ -7,6 +7,7 @@ import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
+import { KaraokeOverlay } from '../components/trainer/KaraokeOverlay';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
 import { useChordPlayer } from '../lib/useChordPlayer';
 import {
@@ -703,6 +704,12 @@ export function SingTrainerV2Page() {
             </div>
           </div>
         </div>
+
+        <KaraokeOverlay
+          sessionStartMs={session?.startMs}
+          stopScrollSec={session?.stopScrollSec}
+          expectedBars={session?.expectedBars ?? []}
+        />
 
         <SingInputGraphV2
           minFrequencyHz={55}
