@@ -4,7 +4,7 @@ import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
-import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
+import { getTrainerOptionsForLesson, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { KaraokeOverlay } from '../components/trainer/KaraokeOverlay';
@@ -37,6 +37,7 @@ export function SingTrainerV2Page() {
   const [searchParams] = useSearchParams();
   const lesson = useMemo(() => getLessonById(lessonId), [lessonId]);
   const isSong = isSongLesson(lesson);
+  const optionsKey = useMemo(() => trainerOptionsStorageKey(lesson?.id, 'sing'), [lesson]);
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const savedPitchRange = useMemo(() => loadPitchRangeSettings(), []);
   const hasSavedPitchRange = Number.isFinite(savedPitchRange.minMidi) && Number.isFinite(savedPitchRange.maxMidi);
@@ -48,7 +49,7 @@ export function SingTrainerV2Page() {
     }),
     [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
   );
-  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
+  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson, optionsKey), [lesson, optionsKey]);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
@@ -125,7 +126,7 @@ export function SingTrainerV2Page() {
     });
   }, [history, session]);
 
-  const progress = `${Math.min(index + 1, activeNotes.length)} / ${activeNotes.length}`;
+  const progress = `${correctIndices.length} / ${activeNotes.length}`;
   const shiftedLessonNotes = shiftNotes(activeEvents, totalMidiShift);
 
   const rangeSuggestionText = getRangeSuggestionText(hasSavedPitchRange, rangeRecommendation);
@@ -457,7 +458,7 @@ export function SingTrainerV2Page() {
       return;
     }
 
-    const persistedOptions = getTrainerOptionsForLesson(lesson);
+    const persistedOptions = getTrainerOptionsForLesson(lesson, optionsKey);
 
     setSelectedKey(persistedOptions.selectedKey);
     setTempoBpm(persistedOptions.tempoBpm);
@@ -490,8 +491,8 @@ export function SingTrainerV2Page() {
       toleranceCents,
       gracePeriodPercent,
       instrument,
-    });
-  }, [lesson, playTonicCadence, hearExerciseFirst, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
+    }, optionsKey);
+  }, [lesson, optionsKey, playTonicCadence, hearExerciseFirst, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
 
   useEffect(() => {
     void loadInstrument(instrument);
@@ -646,6 +647,19 @@ export function SingTrainerV2Page() {
               onClick={() => { setMeasureWindowSize((w) => Math.min(8, w + 1)); setSectionIndex(0); }}
               disabled={measureWindowSize >= 8} title="More measures per section">+</button>
           </div>
+          <button
+            type="button"
+            className="button secondary"
+            onClick={() => {
+              const firstShiftedNotes = getShiftedNotesForSection(0);
+              prepareSectionForAutoplay(0);
+              void playMidiSequence(firstShiftedNotes);
+            }}
+            title="Start song over"
+            aria-label="Start song over"
+          >
+            Replay
+          </button>
           {sections.length > 1 ? (
             <button
               type="button"
@@ -658,6 +672,7 @@ export function SingTrainerV2Page() {
               ⏮
             </button>
           ) : null}
+
           <button
             type="button"
             className="button"
@@ -666,15 +681,6 @@ export function SingTrainerV2Page() {
             aria-label="Play target notes"
           >
             ▶
-          </button>
-          <button
-            type="button"
-            className="button secondary"
-            onClick={() => void playMidiSequence(shiftedLessonNotes)}
-            title="Replay section"
-            aria-label="Replay section"
-          >
-            ↺
           </button>
           {sections.length > 1 ? (
             <button

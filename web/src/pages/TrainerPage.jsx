@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
-import { getTrainerOptionsForLesson, saveTrainerOptionsSettings } from '../lib/trainerOptionsSettings';
+import { getTrainerOptionsForLesson, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
@@ -43,7 +43,8 @@ export function TrainerPage() {
     }),
     [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
   );
-  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson), [lesson]);
+  const optionsKey = useMemo(() => trainerOptionsStorageKey(lesson?.id, 'piano'), [lesson]);
+  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson, optionsKey), [lesson, optionsKey]);
   const isDebug = searchParams.get('debug') === 'true';
   const [mode, setMode] = useState(requestedMode);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
@@ -298,7 +299,7 @@ export function TrainerPage() {
       return;
     }
 
-    const persistedOptions = getTrainerOptionsForLesson(lesson);
+    const persistedOptions = getTrainerOptionsForLesson(lesson, optionsKey);
 
     setSelectedKey(persistedOptions.selectedKey);
     setTempoBpm(persistedOptions.tempoBpm);
@@ -327,8 +328,8 @@ export function TrainerPage() {
       playTonicCadence,
       singOctave,
       instrument,
-    });
-  }, [lesson, playTonicCadence, selectedKey, singOctave, tempoBpm, instrument]);
+    }, optionsKey);
+  }, [lesson, optionsKey, playTonicCadence, selectedKey, singOctave, tempoBpm, instrument]);
 
   useEffect(() => {
     void loadInstrument(instrument);

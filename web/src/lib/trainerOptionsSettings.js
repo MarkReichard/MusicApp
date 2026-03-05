@@ -1,5 +1,16 @@
 const STORAGE_KEY = 'musicapp.web.trainerOptions.v1';
 
+/**
+ * Returns a per-lesson, per-mode localStorage key.
+ * Falls back to the global legacy key if lessonId or mode is missing.
+ */
+export function trainerOptionsStorageKey(lessonId, mode) {
+  if (!lessonId || !mode) {
+    return STORAGE_KEY;
+  }
+  return `${STORAGE_KEY}.${mode}.${lessonId}`;
+}
+
 const defaultTrainerOptions = {
   playTonicCadence: true,
   hearExerciseFirst: true,
@@ -8,8 +19,8 @@ const defaultTrainerOptions = {
   instrument: 'acoustic_grand_piano',
 };
 
-export function getTrainerOptionsForLesson(lesson) {
-  const stored = loadTrainerOptionsSettings();
+export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY) {
+  const stored = loadTrainerOptionsSettings(storageKey);
 
   if (!lesson) {
     return {
@@ -64,20 +75,20 @@ export function getTrainerOptionsForLesson(lesson) {
   };
 }
 
-export function saveTrainerOptionsSettings(nextSettings) {
-  const current = loadTrainerOptionsSettings();
+export function saveTrainerOptionsSettings(nextSettings, storageKey = STORAGE_KEY) {
+  const current = loadTrainerOptionsSettings(storageKey);
   const merged = { ...current, ...nextSettings };
 
   try {
-    globalThis.localStorage.setItem(STORAGE_KEY, JSON.stringify(merged));
+    globalThis.localStorage.setItem(storageKey, JSON.stringify(merged));
   } catch {
     // ignore storage failures
   }
 }
 
-function loadTrainerOptionsSettings() {
+function loadTrainerOptionsSettings(storageKey = STORAGE_KEY) {
   try {
-    const raw = globalThis.localStorage.getItem(STORAGE_KEY);
+    const raw = globalThis.localStorage.getItem(storageKey);
     if (!raw) {
       return { ...defaultTrainerOptions };
     }
