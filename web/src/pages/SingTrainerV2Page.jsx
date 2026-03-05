@@ -27,7 +27,7 @@ import {
   TARGET_NOTE_GAIN,
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
-import { buildSections, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
+import { buildSections, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, transposeChordMeasures, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
 
 const SING_GUIDE_NOTE_GAIN = 0.08;
@@ -90,7 +90,7 @@ export function SingTrainerV2Page() {
   const isDebug = searchParams.get('debug') === 'true';
 
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
-  const { totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
+  const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
   const activeSection = sections[sectionIndex] ?? sections[0];
   const activeEvents = activeSection?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
@@ -225,6 +225,25 @@ export function SingTrainerV2Page() {
     stopChords();
   }
 
+  async function handlePlayCadence() {
+    await stopTargetPlayback();
+    const context = getPianoAudioContext();
+    await context.resume().catch(() => undefined);
+    const beatSeconds = beatSecondsFromTempo(tempoBpm);
+    const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
+    let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
+    CADENCE_CHORD_OFFSETS.forEach((offset) => {
+      const chordRoot = tonicMidi + offset;
+      TRIAD_INTERVALS.forEach((triadOffset) => {
+        const stopNote = schedulePianoNote(context, midiToFrequencyHz(chordRoot + triadOffset), startAt, beatSeconds, CADENCE_CHORD_GAIN);
+        if (typeof stopNote === 'function') {
+          playbackRef.current.noteStops.push(stopNote);
+        }
+      });
+      startAt += beatSeconds;
+    });
+  }
+
   function handleToggleOptions() {
     setOptionsOpen((open) => {
       const next = !open;
@@ -336,7 +355,7 @@ export function SingTrainerV2Page() {
       stopScrollSec: timeline.stopScrollSec,
       playedBars: timeline.playedBars,
       expectedBars: timeline.expectedBars,
-      chordMeasures: (chordModeEnabled && isSong && sectionMeasures?.length) ? sectionMeasures : null,
+      chordMeasures: (chordModeEnabled && isSong && sectionMeasures?.length) ? transposeChordMeasures(sectionMeasures, keySemitoneShift) : null,
       chordStartSec,
       chordBeatSec: effectiveBeatS,
     });
@@ -669,6 +688,16 @@ export function SingTrainerV2Page() {
               ⏭
             </button>
           ) : null}
+                    <button
+            type="button"
+            className="button secondary"
+            onClick={() => void handlePlayCadence()}
+            title="Play tonic cadence (I–IV–V–IV)"
+            aria-label="Play tonic cadence"
+          >
+            ♩
+          </button>
+
           <Link
             className="button secondary home-icon-button"
             to="/lessons"

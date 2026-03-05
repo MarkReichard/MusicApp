@@ -473,7 +473,8 @@
           "pitch": "B4",
           "midi": 71,
           "degree": "Mi",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "my"
         }
       ],
       "chords": [

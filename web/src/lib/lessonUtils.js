@@ -9,6 +9,8 @@ import {
   MIN_NOTE_DURATION_SECONDS,
   NOTE_DURATION_SCALE,
   AUDIO_START_OFFSET_SECONDS,
+  NOTE_NAMES,
+  KEY_TO_SEMITONE,
 } from './musicTheory.js';
 
 const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
@@ -184,6 +186,22 @@ export function computeTransposition(lesson, selectedKey, singOctave) {
   const octaveShift = (singOctave - lesson.defaultOctave) * SEMITONES_PER_OCTAVE;
   const totalMidiShift = keySemitoneShift + octaveShift;
   return { keySemitoneShift, octaveShift, totalMidiShift };
+}
+
+/**
+ * Returns a new measures array with every chord root transposed by `semitones`.
+ * Only affects the display root name — use for canvas label rendering.
+ */
+export function transposeChordMeasures(measures, semitones) {
+  if (!semitones || !measures) return measures;
+  return measures.map((measure) => ({
+    ...measure,
+    chords: (measure.chords ?? []).map((chord) => {
+      const rootSemitone = KEY_TO_SEMITONE[chord.root] ?? 0;
+      const newSemitone = ((rootSemitone + semitones) % 12 + 12) % 12;
+      return { ...chord, root: NOTE_NAMES[newSemitone] };
+    }),
+  }));
 }
 
 /**
