@@ -47,6 +47,15 @@ export function HomePage() {
         </div>
 
         <div className="card home-card">
+          <div className="home-card-icon">🎧</div>
+          <div className="home-card-content">
+            <h3>Ear Training</h3>
+            <p>Identify scale degrees by ear. Sing the prompted note and resolve it stepwise. Spaced repetition keeps you working on the notes you find hardest.</p>
+          </div>
+          <Link className="button" to="/ear-training">Start training</Link>
+        </div>
+
+        <div className="card home-card">
           <div className="home-card-icon">📊</div>
           <div className="home-card-content">
             <h3>Vocal Range</h3>

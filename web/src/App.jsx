@@ -10,6 +10,7 @@ import { PitchMatchPage } from './pages/PitchMatchPage';
 import { SingGraphV2LabPage } from './pages/SingGraphV2LabPage';
 import { SongBuilderPage } from './pages/SongBuilderPage';
 import { HomePage } from './pages/HomePage';
+import { EarTrainingPage } from './pages/EarTrainingPage';
 
 export function App() {
   useEffect(() => { loadPiano(); }, []);
@@ -24,6 +25,7 @@ export function App() {
           <NavLink to="/song-builder">Song Builder</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
           <NavLink to="/pitch-range">Vocal Range</NavLink>
+          <NavLink to="/ear-training">Ear Training</NavLink>
         </nav>
       </header>
 
@@ -40,6 +42,7 @@ export function App() {
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/sing-graph-v2" element={<SingGraphV2LabPage />} />
           <Route path="/song-builder" element={<SongBuilderPage />} />
+          <Route path="/ear-training" element={<EarTrainingPage />} />
         </Routes>
       </main>
     </div>
