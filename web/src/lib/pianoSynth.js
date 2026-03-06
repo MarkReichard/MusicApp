@@ -10,7 +10,7 @@
  */
 
 import { SplendidGrandPiano, Soundfont } from 'smplr';
-import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS } from './musicTheory';
+import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS, MASTER_VOLUME } from './musicTheory';
 
 export const INSTRUMENT_OPTIONS = [
   { value: 'acoustic_grand_piano', label: 'Grand Piano' },
@@ -176,7 +176,9 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
  * @param {number} peakGain   Peak amplitude (default 0.18)
  * @returns {number} Delay in ms
  */
-export function playPianoNoteNow(midi, durationS = 1.2, peakGain = 0.18) {
+const DEFAULT_PIANO_NOTE_GAIN = 0.18 * MASTER_VOLUME;
+
+export function playPianoNoteNow(midi, durationS = 1.2, peakGain = DEFAULT_PIANO_NOTE_GAIN) {
   const ctx = getOrCreateContext();
   const time = ctx.currentTime + NOTE_START_OFFSET_S;
   if (_piano && typeof _piano.start === 'function') {

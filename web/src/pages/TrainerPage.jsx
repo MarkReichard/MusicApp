@@ -21,6 +21,7 @@ import {
   PLAYBACK_BUFFER_MS,
   CADENCE_CHORD_GAIN,
   TARGET_NOTE_GAIN,
+  MASTER_VOLUME,
 } from '../lib/musicTheory';
 import { buildSections, isSongLesson, getLessonDefaults, computeTransposition, shiftNotes, getRangeSuggestionText } from '../lib/lessonUtils';
 import { schedulePianoNote, startHeldPianoTone, stopHeldTone, loadInstrument, scheduleCadence, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
@@ -650,4 +651,4 @@ const WHITE_KEY_WIDTH_PX = 44;
 const BLACK_KEY_OFFSET_PX = 13;
 
 // ── Audio – gain levels ───────────────────────────────────────────────────────
-const INPUT_TONE_GAIN = 0.14;
+const INPUT_TONE_GAIN = 0.14 * MASTER_VOLUME;

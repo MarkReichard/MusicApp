@@ -25,12 +25,13 @@ import {
   PLAYBACK_BUFFER_MS,
   CADENCE_CHORD_GAIN,
   TARGET_NOTE_GAIN,
+  MASTER_VOLUME,
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
 import { buildSections, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, transposeChordMeasures, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
 
-const SING_GUIDE_NOTE_GAIN = 0.08;
+const SING_GUIDE_NOTE_GAIN = 0.08 * MASTER_VOLUME;
 
 export function SingTrainerV2Page() {
   const { lessonId } = useParams();

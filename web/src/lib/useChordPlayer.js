@@ -21,15 +21,15 @@
 
 import { useRef, useCallback, useState } from 'react';
 import { getPianoAudioContext, schedulePianoNote } from './pianoSynth';
-import { midiToFrequencyHz, KEY_TO_SEMITONE, beatSecondsFromTempo } from './musicTheory';
+import { midiToFrequencyHz, KEY_TO_SEMITONE, beatSecondsFromTempo, MASTER_VOLUME } from './musicTheory';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const LOOKAHEAD_MS = 100;    // scheduler fires every N ms
 const SCHEDULE_WINDOW_S = 0.2; // schedule this many seconds ahead per tick
 const BOOM_OCTAVE_BASE = 48;   // MIDI C3 — bass register for beat-1 chord
 const CHUCK_OCTAVE_BASE = 60;  // MIDI C4 — mid register for chop
-const BOOM_GAIN = 0.048;
-const CHUCK_GAIN = 0.03;
+const BOOM_GAIN = 0.048 * MASTER_VOLUME;
+const CHUCK_GAIN = 0.03 * MASTER_VOLUME;
 const NOTE_DURATION_RATIO = 0.82; // fraction of a beat the note sounds
 const CHOP_DURATION_S = 0.055;    // very short — gives off-beats a percussive "chop" feel
 

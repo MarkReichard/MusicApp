@@ -1,8 +1,63 @@
-1. Change bar color to gradient based on percentage match in singing
-2. Manually divide songs into lessons to get phrases
-3. Extract the piano and soflege stuff from trainer page to the related components or a separate helper file
+I’m thinking of a functional ear training pitch matching page.  IT should play
+ a 1 4 5 4 cadence and then plays a note. It should prompt the user 
+to sing the note and the descending (for fa or lower) or ascending (for so or higher) notes. User 
+should be able to choose the key and the octave. Octave should default to their store range. For 
+notes in the ascending or descending scale to get back to “do”, it should display graph of user’s 
+actual pitch, but only first note should be scored. I’d like to capture history and use spaced 
+repetition to emphasize tones the user needs to work on.
 
-Ideas
-1. Add instrument tuner
-2. Add history to track notes that are problematic
-3. Generate exercises - arpeggios, ascending scales, etc.
+
+Cadence and prompt
+
+App plays I–IV–V–IV chords in the selected key.
+
+App plays a target scale degree in the selected octave/register.
+
+Target may be any of the 8 degrees: do (lower tonic) through do (upper tonic).
+
+User singing rule
+
+User first sings the prompted note (this is the only scored note).
+
+Octave must match exactly.
+
+After that, the user sings stepwise to do.
+
+Direction rule
+
+If the target is fa or lower, the user descends stepwise to do.
+
+If the target is so or higher, the user ascends stepwise to do.
+
+Examples (major scale):
+
+Descending side
+
+do → stop (already at tonic)
+
+re → re–do
+
+mi → mi–re–do
+
+fa → fa–mi–re–do
+
+Ascending side
+
+so → so–la–ti–do
+
+la → la–ti–do
+
+ti → ti–do
+
+do (upper tonic) → stop
+
+Only the first sung pitch is scored.
+The remaining notes are displayed on the pitch graph but not scored.
+
+Graph behavior
+
+Graph shows continuous detected pitch vs time.
+
+Optional overlay: horizontal bars for target pitches (karaoke-style).
+
+Bars are only visual guides; timing is not enforced.

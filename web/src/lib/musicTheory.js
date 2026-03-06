@@ -18,8 +18,9 @@ export const MIN_NOTE_DURATION_SECONDS = 0.12;     // floor on note playback dur
 export const AUDIO_START_OFFSET_SECONDS = 0.03;    // initial delay before first scheduled event
 export const NOTE_GAP_SECONDS = 0.03;              // silence between consecutive notes
 export const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding after last note
-export const CADENCE_CHORD_GAIN = 0.08;            // gain for cadence chords
-export const TARGET_NOTE_GAIN = 0.16;              // gain for target notes
+export const MASTER_VOLUME = 1.3;                  // master volume multiplier — adjust to scale all audio gain
+export const CADENCE_CHORD_GAIN = 0.08 * MASTER_VOLUME;  // gain for cadence chords
+export const TARGET_NOTE_GAIN = 0.16 * MASTER_VOLUME;    // gain for target notes
 export const SING_COUNTDOWN_BEATS = 1;             // beats for sing countdown
 
 // ── Key → semitone map ─────────────────────────────────────────────────────────
