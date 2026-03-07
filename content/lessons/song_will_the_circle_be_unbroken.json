@@ -48,14 +48,16 @@
           "pitch": "A3",
           "midi": 57,
           "degree": "Sol",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "Will"
         },
         {
           "type": "note",
           "pitch": "B3",
           "midi": 59,
           "degree": "La",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "the"
         }
       ],
       "chords": []
@@ -69,14 +71,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "cir"
         },
         {
           "type": "note",
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "cle"
         }
       ],
       "chords": [
@@ -103,14 +107,16 @@
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "be"
         },
         {
           "type": "note",
           "pitch": "E4",
           "midi": 64,
           "degree": "Re",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "un"
         }
       ],
       "chords": [
@@ -130,14 +136,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "brok"
         },
         {
           "type": "note",
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "ken"
         }
       ],
       "chords": [
@@ -164,14 +172,16 @@
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "by"
         },
         {
           "type": "note",
           "pitch": "E4",
           "midi": 64,
           "degree": "Re",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "and"
         }
       ],
       "chords": [
@@ -191,14 +201,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 3
+          "durationBeats": 3,
+          "lyric": "by"
         },
         {
           "type": "note",
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "lord"
         }
       ],
       "chords": [
@@ -218,14 +230,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "by"
         },
         {
           "type": "note",
           "pitch": "B3",
           "midi": 59,
           "degree": "La",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "and"
         }
       ],
       "chords": [
@@ -245,7 +259,8 @@
           "pitch": "A3",
           "midi": 57,
           "degree": "Sol",
-          "durationBeats": 4
+          "durationBeats": 4,
+          "lyric": "by"
         }
       ],
       "chords": [
@@ -269,14 +284,16 @@
           "pitch": "A3",
           "midi": 57,
           "degree": "Sol",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "There's"
         },
         {
           "type": "note",
           "pitch": "B3",
           "midi": 59,
           "degree": "La",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "a"
         }
       ],
       "chords": [
@@ -296,14 +313,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "bet"
         },
         {
           "type": "note",
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "ter"
         }
       ],
       "chords": [
@@ -330,14 +349,16 @@
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "home"
         },
         {
           "type": "note",
           "pitch": "A4",
           "midi": 69,
           "degree": "Sol",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "a"
         }
       ],
       "chords": [
@@ -357,14 +378,16 @@
           "pitch": "A4",
           "midi": 69,
           "degree": "Sol",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "wait"
         },
         {
           "type": "note",
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "ting"
         }
       ],
       "chords": [
@@ -391,14 +414,16 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "in"
         },
         {
           "type": "note",
           "pitch": "E4",
           "midi": 64,
           "degree": "Re",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "the"
         }
       ],
       "chords": [
@@ -418,14 +443,16 @@
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "sky"
         },
         {
           "type": "note",
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "lord"
         }
       ],
       "chords": [
@@ -445,21 +472,24 @@
           "pitch": "E4",
           "midi": 64,
           "degree": "Re",
-          "durationBeats": 2
+          "durationBeats": 2,
+          "lyric": "in"
         },
         {
           "type": "note",
           "pitch": "F#4",
           "midi": 66,
           "degree": "Mi",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "the"
         },
         {
           "type": "note",
           "pitch": "E4",
           "midi": 64,
           "degree": "Re",
-          "durationBeats": 1
+          "durationBeats": 1,
+          "lyric": "a"
         }
       ],
       "chords": [
@@ -479,7 +509,8 @@
           "pitch": "D4",
           "midi": 62,
           "degree": "Do",
-          "durationBeats": 4
+          "durationBeats": 4,
+          "lyric": "sky"
         }
       ],
       "chords": [
@@ -495,5 +526,5 @@
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-03-02T23:37:31.754Z"
+  "updatedAt": "2026-03-07T22:23:03.390Z"
 }
