@@ -179,6 +179,7 @@ export function EarTrainingPage() {
   const [barResults,         setBarResults]         = useState({});
   const [lastResult,         setLastResult]         = useState(null);
   const [revealed,           setRevealed]           = useState(true);
+  const [singDetected,       setSingDetected]       = useState(false);
   const [earHistory,         setEarHistory]         = useState(() => loadEarTrainingHistory());
 
   const playbackRef      = useRef({ runId: 0, timeoutId: null, resolve: null });
@@ -310,6 +311,7 @@ export function EarTrainingPage() {
     evaluatedBarsRef.current = new Set();
     setLastResult(null);
     setRevealed(!snapHideNoteName); // reveal immediately if not hiding
+    setSingDetected(false);
     setRoundPhase('playing');
 
     const ctx = getPianoAudioContext();
@@ -351,6 +353,7 @@ export function EarTrainingPage() {
       const cadenceEndMs = startMs + singStartSec * 1000;
       const singOnsetMs = await waitForSingOnset(cadenceEndMs, runId);
       if (!singOnsetMs || playbackRef.current.runId !== runId) return;
+      setSingDetected(true);
 
       // Anchor expected bars to the moment singing was detected
       const singOffsetSec = (singOnsetMs - startMs) / 1000;
@@ -474,6 +477,12 @@ export function EarTrainingPage() {
   if (lastResult === 'correct') resultColor = '#22c55e';
   else if (lastResult === 'wrong') resultColor = '#ef4444';
 
+  // Color for the large degree display: grey ? while waiting, green ? when singing detected, normal result color otherwise
+  let degreeDisplayColor = resultColor;
+  if (hideNoteName && !revealed) {
+    degreeDisplayColor = singDetected ? '#22c55e' : '#94a3b8';
+  }
+
   // When hideNoteName is on, graph is kept mounted but invisible until revealed,
   // so it's already populated with data the moment it becomes visible.
   const graphHidden = hideNoteName && !revealed;
@@ -576,7 +585,7 @@ export function EarTrainingPage() {
         {/* Current degree display */}
         {currentDegree && (
           <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1, color: resultColor, transition: 'color 0.3s' }}>
+            <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1, color: degreeDisplayColor, transition: 'color 0.2s' }}>
               {hideNoteName && !revealed ? '?' : currentDegree.name}
             </div>
             <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>

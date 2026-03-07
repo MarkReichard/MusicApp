@@ -815,6 +815,8 @@ export function SongBuilderPage() {
   const [selectedIdx, setSelectedIdx] = useState(0);
   const [detailsOpen, setDetailsOpen] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [dragMeasureIdx, setDragMeasureIdx] = useState(null);
+  const [dropMeasureIdx, setDropMeasureIdx] = useState(null);
   const editorRef = useRef(null);
   const jsonAreaRef = useRef(null);
 
@@ -876,6 +878,17 @@ export function SongBuilderPage() {
   function removeMeasure(i) {
     if (measures.length <= 1) return;
     setMeasures((prev) => prev.filter((_, mi) => mi !== i));
+  }
+
+  function reorderMeasures(from, to) {
+    if (from === to) return;
+    setMeasures((prev) => {
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+    setSelectedIdx(to);
   }
 
   const timeSigBeats = parseIntOr(meta.timeSigBeats, 4);
@@ -1044,14 +1057,28 @@ export function SongBuilderPage() {
             <p className="sb-score-hint">Click a measure to select and edit it below.</p>
             <div className="sb-score-grid">
               {measures.map((m, i) => (
-                <MeasureNotation
+                <div
                   key={m._id}
-                  measure={m}
-                  index={i}
-                  timeSigBeats={timeSigBeats}
-                  isSelected={i === safeIdx}
-                  onClick={() => selectMeasure(i)}
-                />
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.effectAllowed = 'move'; setDragMeasureIdx(i); }}
+                  onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (dropMeasureIdx !== i) setDropMeasureIdx(i); }}
+                  onDrop={(e) => { e.preventDefault(); if (dragMeasureIdx !== null && dragMeasureIdx !== i) reorderMeasures(dragMeasureIdx, i); setDragMeasureIdx(null); setDropMeasureIdx(null); }}
+                  onDragEnd={() => { setDragMeasureIdx(null); setDropMeasureIdx(null); }}
+                  className={[
+                    'sb-measure-drag-wrapper',
+                    dragMeasureIdx === i ? 'sb-measure-dragging' : '',
+                    dropMeasureIdx === i && dragMeasureIdx !== i ? 'sb-measure-drop-target' : '',
+                  ].filter(Boolean).join(' ')}
+                  title="Drag to reorder measure"
+                >
+                  <MeasureNotation
+                    measure={m}
+                    index={i}
+                    timeSigBeats={timeSigBeats}
+                    isSelected={i === safeIdx}
+                    onClick={() => selectMeasure(i)}
+                  />
+                </div>
               ))}
             </div>
           </div>
