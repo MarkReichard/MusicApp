@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { getLessonById } from '../lib/lessons';
-import { getTrainerOptionsForLesson, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
+import { getTrainerOptionsForLesson, hasStoredTrainerOptions, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
 import { TrainerOptionsSection } from '../components/trainer/TrainerOptionsSection';
@@ -45,7 +45,10 @@ export function TrainerPage() {
     [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
   );
   const optionsKey = useMemo(() => trainerOptionsStorageKey(lesson?.id, 'piano'), [lesson]);
-  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson, optionsKey), [lesson, optionsKey]);
+  const initialOptions = useMemo(
+    () => getTrainerOptionsForLesson(lesson, optionsKey, rangeRecommendation),
+    [lesson, optionsKey, rangeRecommendation],
+  );
   const isDebug = searchParams.get('debug') === 'true';
   const [mode, setMode] = useState(requestedMode);
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
@@ -53,6 +56,17 @@ export function TrainerPage() {
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [instrument, setInstrument] = useState(initialOptions.instrument);
+
+  // Save range-based defaults on first visit so they persist
+  useEffect(() => {
+    if (!hasStoredTrainerOptions(optionsKey) && rangeRecommendation) {
+      saveTrainerOptionsSettings(
+        { selectedKey: initialOptions.selectedKey, singOctave: initialOptions.singOctave },
+        optionsKey,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [index, setIndex] = useState(0);
   const [correctIndices, setCorrectIndices] = useState([]);

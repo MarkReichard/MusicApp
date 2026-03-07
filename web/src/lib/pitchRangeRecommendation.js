@@ -80,8 +80,11 @@ function collectLessonMidis(lesson) {
   const fromExercises = Array.isArray(lesson.exercises)
     ? lesson.exercises.flatMap((exercise) => (Array.isArray(exercise?.notes) ? exercise.notes : []))
     : [];
+  const fromMeasures = Array.isArray(lesson.measures)
+    ? lesson.measures.flatMap((measure) => (Array.isArray(measure?.notes) ? measure.notes : []))
+    : [];
 
-  return [...fromNotes, ...fromExercises]
+  return [...fromNotes, ...fromExercises, ...fromMeasures]
     .map((note) => Number(note?.midi))
     .filter((midi) => Number.isFinite(midi));
 }

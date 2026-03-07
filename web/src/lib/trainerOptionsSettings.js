@@ -11,6 +11,17 @@ export function trainerOptionsStorageKey(lessonId, mode) {
   return `${STORAGE_KEY}.${mode}.${lessonId}`;
 }
 
+/**
+ * Returns true if options have previously been saved for this storage key.
+ */
+export function hasStoredTrainerOptions(storageKey = STORAGE_KEY) {
+  try {
+    return globalThis.localStorage.getItem(storageKey) !== null;
+  } catch {
+    return false;
+  }
+}
+
 const defaultTrainerOptions = {
   playTonicCadence: true,
   hearExerciseFirst: true,
@@ -19,8 +30,9 @@ const defaultTrainerOptions = {
   instrument: 'acoustic_grand_piano',
 };
 
-export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY) {
+export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, rangeRecommendation = null) {
   const stored = loadTrainerOptionsSettings(storageKey);
+  const nothingStored = !hasStoredTrainerOptions(storageKey);
 
   if (!lesson) {
     return {
@@ -36,7 +48,9 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY) {
 
   const allowedKeys = lesson.allowedKeys?.length ? lesson.allowedKeys : [lesson.defaultKey ?? 'C'];
   const defaultKey = lesson.defaultKey ?? allowedKeys[0] ?? 'C';
-  const selectedKey = allowedKeys.includes(stored.selectedKey) ? stored.selectedKey : defaultKey;
+  const rangeKey = nothingStored && rangeRecommendation?.key && allowedKeys.includes(rangeRecommendation.key)
+    ? rangeRecommendation.key : null;
+  const selectedKey = allowedKeys.includes(stored.selectedKey) ? stored.selectedKey : (rangeKey ?? defaultKey);
 
   const tempoRange = lesson.tempoRange ?? { min: 30, max: 180 };
   const defaultTempoBpm = lesson.defaultTempoBpm ?? 60;
@@ -47,7 +61,9 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY) {
   const allowedOctaves = lesson.allowedOctaves?.length ? lesson.allowedOctaves : [lesson.defaultOctave ?? 4];
   const defaultOctave = lesson.defaultOctave ?? allowedOctaves[0] ?? 4;
   const storedOctave = Number(stored.singOctave);
-  const singOctave = allowedOctaves.includes(storedOctave) ? storedOctave : defaultOctave;
+  const rangeOctave = nothingStored && Number.isFinite(rangeRecommendation?.octave) && allowedOctaves.includes(rangeRecommendation.octave)
+    ? rangeRecommendation.octave : null;
+  const singOctave = allowedOctaves.includes(storedOctave) ? storedOctave : (rangeOctave ?? defaultOctave);
 
   const toleranceRaw = Number(stored.toleranceCents);
   const toleranceCents = Number.isFinite(toleranceRaw)

@@ -4,7 +4,7 @@ import { getLessonById } from '../lib/lessons';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { recommendKeyAndOctaveForRange } from '../lib/pitchRangeRecommendation';
-import { getTrainerOptionsForLesson, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
+import { getTrainerOptionsForLesson, hasStoredTrainerOptions, saveTrainerOptionsSettings, trainerOptionsStorageKey } from '../lib/trainerOptionsSettings';
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { KaraokeOverlay } from '../components/trainer/KaraokeOverlay';
@@ -50,7 +50,10 @@ export function SingTrainerV2Page() {
     }),
     [lesson, savedPitchRange.maxMidi, savedPitchRange.minMidi],
   );
-  const initialOptions = useMemo(() => getTrainerOptionsForLesson(lesson, optionsKey), [lesson, optionsKey]);
+  const initialOptions = useMemo(
+    () => getTrainerOptionsForLesson(lesson, optionsKey, rangeRecommendation),
+    [lesson, optionsKey, rangeRecommendation],
+  );
   const [selectedKey, setSelectedKey] = useState(initialOptions.selectedKey);
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
@@ -64,6 +67,17 @@ export function SingTrainerV2Page() {
   const [toleranceCents, setToleranceCents] = useState(initialOptions.toleranceCents);
   const [gracePeriodPercent, setGracePeriodPercent] = useState(initialOptions.gracePeriodPercent);
   const [instrument, setInstrument] = useState(initialOptions.instrument);
+
+  // Save range-based defaults on first visit so they persist
+  useEffect(() => {
+    if (!hasStoredTrainerOptions(optionsKey) && rangeRecommendation) {
+      saveTrainerOptionsSettings(
+        { selectedKey: initialOptions.selectedKey, singOctave: initialOptions.singOctave },
+        optionsKey,
+      );
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [measureWindowSize, setMeasureWindowSize] = useState(4);
   const sections = useMemo(() => buildSections(lesson, measureWindowSize), [lesson, measureWindowSize]);
   const sectionMeasures = sections[sectionIndex]?.measures ?? null;
