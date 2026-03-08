@@ -19,18 +19,21 @@ import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import {
-  CADENCE_CHORD_OFFSETS,
-  TRIAD_INTERVALS,
-  tonicMidiFromKeyOctave,
-  midiToFrequencyHz,
-  beatSecondsFromTempo,
   AUDIO_START_OFFSET_SECONDS,
-  NOTE_GAP_SECONDS,
-  NOTE_DURATION_SCALE,
-  MIN_NOTE_DURATION_SECONDS,
   CADENCE_CHORD_GAIN,
+  CADENCE_CHORD_OFFSETS,
+  buildMajorScaleRouteMidi,
+  beatSecondsFromTempo,
+  KEY_OPTIONS,
+  midiToFrequencyHz,
+  MIN_NOTE_DURATION_SECONDS,
+  NOTE_DURATION_SCALE,
+  NOTE_GAP_SECONDS,
   TARGET_NOTE_GAIN,
   PLAYBACK_BUFFER_MS,
+  solfegeForMajorScaleSemitone,
+  tonicMidiFromKeyOctave,
+  TRIAD_INTERVALS,
 } from '../lib/musicTheory';
 import { schedulePianoNote, scheduleMetronomeClick, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
 import { isBarMatched } from '../lib/lessonUtils';
@@ -44,17 +47,8 @@ import {
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const KEY_OPTIONS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 const NOTE_LIMIT_OPTIONS = [5, 10, 15, 20, 30];
 const DEFAULT_NOTE_LIMIT = 10;
-
-/** Major scale semitone steps, including upper tonic. */
-const MAJOR_SCALE = [0, 2, 4, 5, 7, 9, 11, 12];
-
-/** Semitone offset → solfège label. */
-const SEMITONE_TO_SOLFEGE = {
-  0: 'Do', 2: 'Re', 4: 'Mi', 5: 'Fa', 7: 'Sol', 9: 'La', 11: 'Ti', 12: "Do'",
-};
 
 /** First (scored) note is "DAAAH" — 2 beats. */
 const DAAAH_BEATS = 1;
@@ -66,19 +60,6 @@ const TOLERANCE_CENTS = 50;
 const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.35;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
-
-/**
- * Returns the sequence of MIDI notes for the given tonic and target semitone:
- *   - target note first
- *   - then stepwise back to Do (descend) or up to Do′ (ascend)
- */
-function buildNoteSequence(tonicMidi, semitones) {
-  const idx = MAJOR_SCALE.indexOf(semitones);
-  const semSeq = semitones <= 5
-    ? MAJOR_SCALE.slice(0, idx + 1).reverse() // descend: [semitones, ..., 0]
-    : MAJOR_SCALE.slice(idx);                  // ascend:  [semitones, ..., 12]
-  return semSeq.map((s) => tonicMidi + s);
-}
 
 /**
  * Builds timeline arrays (playedBars, expectedBars) and timing anchors.
@@ -117,7 +98,7 @@ function buildTimeline({ tonicMidi, midiSeq, beatSeconds }) {
   midiSeq.forEach((midi, i) => {
     const dur     = i === 0 ? daahDur : daDur;
     const semOff  = midi - tonicMidi;
-    const lyric   = SEMITONE_TO_SOLFEGE[semOff] ?? '';
+    const lyric   = solfegeForMajorScaleSemitone(semOff);
     expectedBars.push({
       id: `note-${i}`,
       index: i,
@@ -285,7 +266,7 @@ export function EarTrainingPage() {
     const degree      = EAR_DEGREES[degreeIndex];
     const beatSeconds = beatSecondsFromTempo(tempoBpm);
     const tonicMidi   = tonicMidiFromKeyOctave(selectedKey, singOctave);
-    const midiSeq     = buildNoteSequence(tonicMidi, degree.semitones);
+    const midiSeq     = buildMajorScaleRouteMidi(tonicMidi, degree.semitones);
 
     const { playedBars, expectedBars, singStartSec, stopScrollSec, reinforceStartSec, daahDur, daDur } =
       buildTimeline({ tonicMidi, midiSeq, beatSeconds });

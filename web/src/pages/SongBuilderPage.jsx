@@ -15,7 +15,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
 import { lessons } from '../lib/lessons';
 import { isSongLesson } from '../lib/lessonUtils';
-import { KEY_TO_SEMITONE } from '../lib/musicTheory';
+import { KEY_OPTIONS, KEY_TO_SEMITONE } from '../lib/musicTheory';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
@@ -72,8 +72,6 @@ const NOTE_ROOTS = [
   'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E',
   'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
 ];
-
-const KEY_OPTIONS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 const CHORD_KIND_SUFFIX = {
   major: '', minor: 'm', dominant: '7', 'dominant-seventh': '7',

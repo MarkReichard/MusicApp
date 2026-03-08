@@ -3,6 +3,20 @@ export const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A',
 export const SEMITONES_PER_OCTAVE = 12;
 export const CONCERT_A_MIDI = 69;   // A4
 export const CONCERT_A_HZ = 440;
+export const KEY_OPTIONS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const DIATONIC_SCALE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+export const DIATONIC_SOLFEGE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
+export const MAJOR_SCALE_SEMITONES = [...DIATONIC_SCALE_SEMITONES, 12];
+export const MAJOR_SOLFEGE_BY_SEMITONE = {
+  0: 'Do',
+  2: 'Re',
+  4: 'Mi',
+  5: 'Fa',
+  7: 'Sol',
+  9: 'La',
+  11: 'Ti',
+  12: "Do'",
+};
 
 // ── Cadence intervals ──────────────────────────────────────────────────────────
 export const CADENCE_CHORD_OFFSETS = [0, 5, 7, 5];  // I – IV – V – IV
@@ -71,4 +85,25 @@ export function midiToNoteLabel(midi) {
 /** Returns the tonic MIDI number for a given key name and sing octave. */
 export function tonicMidiFromKeyOctave(key, octave) {
   return SEMITONES_PER_OCTAVE * (octave + 1) + keyToSemitone(key);
+}
+
+/** Returns the major-scale solfege syllable for a semitone offset above tonic. */
+export function solfegeForMajorScaleSemitone(semitones) {
+  return MAJOR_SOLFEGE_BY_SEMITONE[semitones] ?? '';
+}
+
+/** Returns the route through the major scale from a scale degree back to tonic. */
+export function buildMajorScaleRouteSemitones(semitones) {
+  const index = MAJOR_SCALE_SEMITONES.indexOf(semitones);
+  if (index === -1) {
+    return [];
+  }
+  return semitones <= 5
+    ? MAJOR_SCALE_SEMITONES.slice(0, index + 1).reverse()
+    : MAJOR_SCALE_SEMITONES.slice(index);
+}
+
+/** Returns the MIDI notes for the major-scale route from a target degree back to tonic. */
+export function buildMajorScaleRouteMidi(tonicMidi, semitones) {
+  return buildMajorScaleRouteSemitones(semitones).map((offset) => tonicMidi + offset);
 }
