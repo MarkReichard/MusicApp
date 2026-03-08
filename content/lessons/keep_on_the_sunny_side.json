@@ -763,7 +763,13 @@
           "lyric": "the"
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 21,
@@ -802,7 +808,13 @@
           "lyric": "of"
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 22,
@@ -1156,12 +1168,18 @@
           "durationBeats": 2
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-03-08T19:41:07.782Z"
+  "updatedAt": "2026-03-08T19:54:26.371Z"
 }
