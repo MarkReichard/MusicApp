@@ -32,7 +32,7 @@ import {
   TARGET_NOTE_GAIN,
   PLAYBACK_BUFFER_MS,
 } from '../lib/musicTheory';
-import { schedulePianoNote, getPianoAudioContext } from '../lib/pianoSynth';
+import { schedulePianoNote, scheduleMetronomeClick, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
 import { isBarMatched } from '../lib/lessonUtils';
 import {
   EAR_DEGREES,
@@ -63,6 +63,7 @@ const DA_BEATS = 1;
 
 const REINFORCEMENT_GAIN = TARGET_NOTE_GAIN * 0.85;
 const TOLERANCE_CENTS = 50;
+const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.35;
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -149,6 +150,12 @@ function getBarchartColor(rate) {
   return '#7f1d1d';
 }
 
+function scheduleMetronomeBeats(ctx, startAt, beatCount, beatSeconds) {
+  for (let index = 0; index < beatCount; index += 1) {
+    scheduleMetronomeClick(ctx, startAt + index * beatSeconds, METRONOME_CLICK_GAIN);
+  }
+}
+
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function EarTrainingPage() {
@@ -169,6 +176,7 @@ export function EarTrainingPage() {
   const [tempoBpm,     setTempoBpm]     = useState(72);
   const [noteLimit,    setNoteLimit]    = useState(DEFAULT_NOTE_LIMIT);
   const [hideNoteName, setHideNoteName] = useState(false);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
 
   // ── Session state ──────────────────────────────────────────────────────────
   // roundPhase: 'idle' | 'playing' | 'done' | 'finished'
@@ -179,7 +187,6 @@ export function EarTrainingPage() {
   const [barResults,         setBarResults]         = useState({});
   const [lastResult,         setLastResult]         = useState(null);
   const [revealed,           setRevealed]           = useState(true);
-  const [singDetected,       setSingDetected]       = useState(false);
   const [earHistory,         setEarHistory]         = useState(() => loadEarTrainingHistory());
 
   const playbackRef      = useRef({ runId: 0, timeoutId: null, resolve: null });
@@ -242,6 +249,7 @@ export function EarTrainingPage() {
 
   function cancelPlayback() {
     playbackRef.current.runId += 1;
+    stopAllNotes();
     if (playbackRef.current.timeoutId) {
       clearTimeout(playbackRef.current.timeoutId);
       playbackRef.current.timeoutId = null;
@@ -262,28 +270,6 @@ export function EarTrainingPage() {
         playbackRef.current.resolve = null;
         resolve();
       }, Math.max(0, ms));
-    });
-  }
-
-  /**
-   * Polls pitch history for the first voiced entry whose timeMs >= afterTimeMs.
-   * Returns that timeMs, or null if playback was cancelled first.
-   */
-  function waitForSingOnset(afterTimeMs, runId) {
-    return new Promise((resolve) => {
-      const check = () => {
-        if (playbackRef.current.runId !== runId) { resolve(null); return; }
-        const h = historyRef.current;
-        for (let i = h.length - 1; i >= 0; i--) {
-          if (h[i].timeMs < afterTimeMs) break;
-          if (h[i].voiced && h[i].midi !== null) {
-            resolve(h[i].timeMs);
-            return;
-          }
-        }
-        setTimeout(check, 40);
-      };
-      setTimeout(check, 40);
     });
   }
 
@@ -311,7 +297,6 @@ export function EarTrainingPage() {
     evaluatedBarsRef.current = new Set();
     setLastResult(null);
     setRevealed(!snapHideNoteName); // reveal immediately if not hiding
-    setSingDetected(false);
     setRoundPhase('playing');
 
     const ctx = getPianoAudioContext();
@@ -321,10 +306,14 @@ export function EarTrainingPage() {
     const ctxNow  = ctx.currentTime;
     const perfNow = performance.now();
     const startMs = perfNow + AUDIO_START_OFFSET_SECONDS * 1000;
+    const cadenceStartAt = ctxNow + AUDIO_START_OFFSET_SECONDS;
+    const promptGuideBeats = 2;
+    const countdownBeats = 1;
+    const sungPhraseBeats = DAAAH_BEATS + Math.max(0, midiSeq.length - 1) * DA_BEATS;
 
     // ── Schedule audio ──────────────────────────────────────────────────────
 
-    let ac = ctxNow + AUDIO_START_OFFSET_SECONDS;
+    let ac = cadenceStartAt;
 
     CADENCE_CHORD_OFFSETS.forEach((offset) => {
       const chordRoot = tonicMidi + offset;
@@ -335,74 +324,41 @@ export function EarTrainingPage() {
     });
     ac += NOTE_GAP_SECONDS * 2;
 
+    const guideStartAt = ac;
+
     schedulePianoNote(ctx, midiToFrequencyHz(midiSeq[0]), ac, beatSeconds * 2, TARGET_NOTE_GAIN);
     ac += beatSeconds * 2 + NOTE_GAP_SECONDS;
+
+    const countdownStartAt = ac;
     ac += beatSeconds; // countdown silence — ac is now at audio ctx equivalent of singStartSec
 
-    // ── Determine expectedBars and schedule reinforcement ───────────────────
-
-    let liveExpectedBars;
-    let liveTotalAudioEndMs;
-
-    if (snapHideNoteName) {
-      // Sing-triggered: wait for user to start singing, then anchor bars + schedule reinforcement
-      // Show cadence bars in graph but no expected bars yet
-      setSession({ startMs, singStartSec: 9999, stopScrollSec: 9999, playedBars, expectedBars: [] });
-
-      // Wait for first voiced pitch after the cadence + guide note finish
-      const cadenceEndMs = startMs + singStartSec * 1000;
-      const singOnsetMs = await waitForSingOnset(cadenceEndMs, runId);
-      if (!singOnsetMs || playbackRef.current.runId !== runId) return;
-      setSingDetected(true);
-
-      // Anchor expected bars to the moment singing was detected
-      const singOffsetSec = (singOnsetMs - startMs) / 1000;
-      let c = singOffsetSec;
-      liveExpectedBars = midiSeq.map((midi, i) => {
-        const dur    = i === 0 ? daahDur : daDur;
-        const semOff = midi - tonicMidi;
-        const lyric  = SEMITONE_TO_SOLFEGE[semOff] ?? '';
-        const bar    = { id: `note-${i}`, index: i, startSec: c, endSec: c + dur, scoreEndSec: c + dur, midi, lyric };
-        c += dur + NOTE_GAP_SECONDS;
-        return bar;
-      });
-
-      const liveStopScrollSec   = c + beatSeconds * 0.5;
-      const liveReinforceOffset = liveStopScrollSec + beatSeconds * 0.25;
-
-      // Schedule reinforcement at the now-known timing
-      let rc = ctxNow + AUDIO_START_OFFSET_SECONDS + liveReinforceOffset;
-      midiSeq.forEach((midi, i) => {
-        const dur = i === 0 ? daahDur : daDur;
-        schedulePianoNote(ctx, midiToFrequencyHz(midi), rc, dur, REINFORCEMENT_GAIN);
-        rc += dur + NOTE_GAP_SECONDS;
-      });
-      liveTotalAudioEndMs = (rc - ctxNow) * 1000 + PLAYBACK_BUFFER_MS;
-
-      setSession({ startMs, singStartSec: singOffsetSec, stopScrollSec: liveStopScrollSec, playedBars, expectedBars: liveExpectedBars });
-    } else {
-      // Fixed timeline: reinforcement already determined by buildTimeline
-      liveExpectedBars = expectedBars;
-
-      let rc = ctxNow + reinforceStartSec;
-      midiSeq.forEach((midi, i) => {
-        const dur = i === 0 ? daahDur : daDur;
-        schedulePianoNote(ctx, midiToFrequencyHz(midi), rc, dur, REINFORCEMENT_GAIN);
-        rc += dur + NOTE_GAP_SECONDS;
-      });
-      liveTotalAudioEndMs = (rc - ctxNow) * 1000 + PLAYBACK_BUFFER_MS;
-
-      setSession({ startMs, singStartSec, stopScrollSec, playedBars, expectedBars });
+    if (metronomeEnabled) {
+      scheduleMetronomeBeats(ctx, cadenceStartAt, CADENCE_CHORD_OFFSETS.length, beatSeconds);
+      scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds);
+      scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds);
+      scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds);
     }
+
+    // ── Fixed expected bars and reinforcement ───────────────────────────────
+
+    let rc = ctxNow + reinforceStartSec;
+    midiSeq.forEach((midi, i) => {
+      const dur = i === 0 ? daahDur : daDur;
+      schedulePianoNote(ctx, midiToFrequencyHz(midi), rc, dur, REINFORCEMENT_GAIN);
+      rc += dur + NOTE_GAP_SECONDS;
+    });
+    const totalAudioEndMs = (rc - ctxNow) * 1000 + PLAYBACK_BUFFER_MS;
+
+    setSession({ startMs, singStartSec, stopScrollSec, playedBars, expectedBars });
 
     // ── Wait for singing bars to elapse ─────────────────────────────────────
 
-    const lastLiveBar    = liveExpectedBars.at(-1);
+    const lastLiveBar    = expectedBars.at(-1);
     const scoreDeadline  = startMs + lastLiveBar.scoreEndSec * 1000 + 200;
     await waitMs(scoreDeadline - performance.now());
     if (playbackRef.current.runId !== runId) return;
 
-    const matched = barResultsRef.current[liveExpectedBars[0].id] ?? false;
+    const matched = barResultsRef.current[expectedBars[0].id] ?? false;
     setLastResult(matched ? 'correct' : 'wrong');
 
     const newHistory = recordAttempt(earHistoryRef.current, degreeIndex, matched);
@@ -414,7 +370,7 @@ export function EarTrainingPage() {
     setRevealed(true);
 
     // Wait for reinforcement to finish
-    const remainingMs = liveTotalAudioEndMs - (performance.now() - perfNow);
+    const remainingMs = totalAudioEndMs - (performance.now() - perfNow);
     if (remainingMs > 50) await waitMs(remainingMs);
     if (playbackRef.current.runId !== runId) return;
 
@@ -477,10 +433,10 @@ export function EarTrainingPage() {
   if (lastResult === 'correct') resultColor = '#22c55e';
   else if (lastResult === 'wrong') resultColor = '#ef4444';
 
-  // Color for the large degree display: grey ? while waiting, green ? when singing detected, normal result color otherwise
+  // Color for the large degree display: grey ? while hidden, normal result color otherwise
   let degreeDisplayColor = resultColor;
   if (hideNoteName && !revealed) {
-    degreeDisplayColor = singDetected ? '#22c55e' : '#94a3b8';
+    degreeDisplayColor = '#94a3b8';
   }
 
   // When hideNoteName is on, graph is kept mounted but invisible until revealed,
@@ -558,6 +514,16 @@ export function EarTrainingPage() {
               disabled={isPlaying}
             />
             {' '}Hide note name
+          </label>
+
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <input
+              type="checkbox"
+              checked={metronomeEnabled}
+              onChange={(e) => setMetronomeEnabled(e.target.checked)}
+              disabled={isPlaying}
+            />
+            {' '}Metronome
           </label>
         </div>
 

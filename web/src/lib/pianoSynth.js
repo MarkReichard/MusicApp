@@ -25,6 +25,7 @@ let _ctx = null;
 let _piano = null;
 let _loadPromise = null;
 let _loadedInstrument = null;
+let _clickBuffer = null;
 /** All stop-handles for currently scheduled/playing notes. */
 const _activeStops = new Set();
 
@@ -37,6 +38,7 @@ const BING_FREQ_HZ    = 1047;       // C6
 const BING_DURATION_S = 0.9;
 const BUZZ_FREQ_HZ    = 160;
 const BUZZ_DURATION_S = 0.45;
+const CLICK_DURATION_S = 0.024;
 
 // ── Context management ─────────────────────────────────────────────────────────
 
@@ -165,6 +167,20 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
   }
 
   return scheduleFallbackTone(ctx, freq, time, safeDuration, safeGain);
+}
+
+/**
+ * Schedules a short synthesized metronome click at a future time.
+ *
+ * @param {AudioContext} externalCtx  Caller's reference context (used only for time translation)
+ * @param {number}       startAt      Absolute time in `externalCtx` to start
+ * @param {number}       peakGain     Peak amplitude (0-1)
+ */
+export function scheduleMetronomeClick(externalCtx, startAt, peakGain = 0.18) {
+  const ctx = getOrCreateContext();
+  const time = translateTime(startAt, externalCtx);
+  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || 0.18);
+  return scheduleClickBurst(ctx, time, safeGain);
 }
 
 /**
@@ -300,6 +316,64 @@ function scheduleFallbackTone(ctx, freq, time, durationS, peakGain) {
       // ignore stop race
     }
   };
+}
+
+function scheduleClickBurst(ctx, time, peakGain) {
+  const source = ctx.createBufferSource();
+  source.buffer = getOrCreateClickBuffer(ctx);
+
+  const filter = ctx.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.setValueAtTime(2400, time);
+  filter.Q.setValueAtTime(1.1, time);
+
+  const gainNode = ctx.createGain();
+  gainNode.gain.setValueAtTime(NEAR_ZERO, time);
+  gainNode.gain.linearRampToValueAtTime(Math.max(NEAR_ZERO, peakGain), time + 0.001);
+  gainNode.gain.exponentialRampToValueAtTime(NEAR_ZERO, time + CLICK_DURATION_S);
+
+  source.connect(filter);
+  filter.connect(gainNode);
+  gainNode.connect(ctx.destination);
+
+  source.start(time);
+  source.stop(time + CLICK_DURATION_S + 0.01);
+
+  const tracked = () => {
+    try {
+      gainNode.gain.cancelScheduledValues(ctx.currentTime);
+      gainNode.gain.setValueAtTime(NEAR_ZERO, ctx.currentTime);
+      source.stop();
+    } catch {
+      // ignore stop race
+    } finally {
+      _activeStops.delete(tracked);
+    }
+  };
+
+  _activeStops.add(tracked);
+  source.onended = () => {
+    _activeStops.delete(tracked);
+    source.onended = null;
+  };
+
+  return tracked;
+}
+
+function getOrCreateClickBuffer(ctx) {
+  if (_clickBuffer && _clickBuffer.sampleRate === ctx.sampleRate) {
+    return _clickBuffer;
+  }
+
+  const frameCount = Math.max(1, Math.floor(ctx.sampleRate * CLICK_DURATION_S));
+  const buffer = ctx.createBuffer(1, frameCount, ctx.sampleRate);
+  const channel = buffer.getChannelData(0);
+  for (let index = 0; index < frameCount; index += 1) {
+    const decay = 1 - index / frameCount;
+    channel[index] = (Math.random() * 2 - 1) * decay;
+  }
+  _clickBuffer = buffer;
+  return buffer;
 }
 
 function startFallbackHeldTone(ctx, freq, peakGain) {
