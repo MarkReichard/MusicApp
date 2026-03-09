@@ -1175,11 +1175,2294 @@
           "kind": "major"
         }
       ]
+    },
+    {
+      "index": 32,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "Oh"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "the"
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 33,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "storm"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1.5,
+          "lyric": "and"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 0.5,
+          "lyric": "its"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 34,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "fu-"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "ry"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "broke"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "to-"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 35,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 4,
+          "lyric": "day"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 36,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "Crush-"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ing"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 37,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "hopes"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1.5,
+          "lyric": "that"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 0.5,
+          "lyric": "we"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 38,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "cher-"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ish"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "so"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "dear"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 39,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 3
+        },
+        {
+          "type": "rest",
+          "durationBeats": 1
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 40,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "The"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "clouds"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 41,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 2,
+          "lyric": "and"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 0.5,
+          "lyric": "storm"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 0.5,
+          "lyric": "will"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "in"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 42,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "time"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "pass"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1,
+          "lyric": "a-"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 43,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 3,
+          "lyric": "way"
+        },
+        {
+          "type": "rest",
+          "durationBeats": 1
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 44,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 3
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "The"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 45,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1.5,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 0.5,
+          "lyric": "a-"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "gain"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "will"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 46,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "B4",
+          "midi": 71,
+          "degree": "Ti",
+          "durationBeats": 1,
+          "lyric": "shine"
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "bright"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "and"
+        },
+        {
+          "type": "note",
+          "pitch": "B4",
+          "midi": 71,
+          "degree": "Ti",
+          "durationBeats": 1,
+          "lyric": "clear"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 47,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 4
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 48,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "Keep"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 49,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "Sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "side"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 50,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "al"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "ways"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 51,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "side"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 52,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "keep"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 53,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1,
+          "lyric": "side"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "of"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 54,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 4,
+          "lyric": "li"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 55,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 2,
+          "lyric": "fe"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "It"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "will"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 56,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "A5",
+          "midi": 81,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "help"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "us"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "ev"
+        },
+        {
+          "type": "note",
+          "pitch": "A5",
+          "midi": 81,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "ery"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 57,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 2,
+          "lyric": "day"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "it"
+        },
+        {
+          "type": "note",
+          "pitch": "e5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "will"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 58,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "bright"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "en"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "all"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 59,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "way"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "if"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "we"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 60,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 2,
+          "lyric": "keep"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        },
+        {
+          "beat": 3,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 61,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "side"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "of"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        },
+        {
+          "beat": 3,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 62,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 4,
+          "lyric": "life"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 63,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "e"
+        },
+        {
+          "type": "rest",
+          "durationBeats": 2
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 64,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "Let"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "us"
+        }
+      ],
+      "chords": []
+    },
+    {
+      "index": 65,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "greet"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1.5,
+          "lyric": "with"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 0.5,
+          "lyric": "a"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 66,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "song"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "of"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "hope"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "each"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 67,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 4,
+          "lyric": "day"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 68,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "Though"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 69,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "mo-"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1.5,
+          "lyric": "ment"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 0.5,
+          "lyric": "be"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 70,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "cloud-"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "y"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "or"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "fair"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 71,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 3
+        },
+        {
+          "type": "rest",
+          "durationBeats": 1
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 72,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 2
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "Let"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "us"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 73,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 2,
+          "lyric": "trust"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 0.5,
+          "lyric": "in"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 0.5,
+          "lyric": "our"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "Sav-"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 74,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "ior"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "al-"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1,
+          "lyric": "ways"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 75,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 3
+        },
+        {
+          "type": "rest",
+          "durationBeats": 1
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 76,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "rest",
+          "durationBeats": 3
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "To"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 77,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1.5,
+          "lyric": "keep"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 0.5,
+          "lyric": "us"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "ev-"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "ery"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 78,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "B4",
+          "midi": 71,
+          "degree": "Ti",
+          "durationBeats": 1,
+          "lyric": "one"
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "in"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "His"
+        },
+        {
+          "type": "note",
+          "pitch": "B4",
+          "midi": 71,
+          "degree": "Ti",
+          "durationBeats": 1,
+          "lyric": "care"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 79,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 4
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 80,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "Keep"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 81,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "Sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "side"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 82,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "al"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "ways"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 83,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "side"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 84,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "keep"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 85,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1,
+          "lyric": "side"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "of"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 86,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 4,
+          "lyric": "li"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 87,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 2,
+          "lyric": "fe"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "It"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "will"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 88,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "A5",
+          "midi": 81,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "help"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "us"
+        },
+        {
+          "type": "note",
+          "pitch": "G5",
+          "midi": 79,
+          "degree": "Sol",
+          "durationBeats": 1,
+          "lyric": "ev"
+        },
+        {
+          "type": "note",
+          "pitch": "A5",
+          "midi": 81,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "ery"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 89,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 2,
+          "lyric": "day"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "it"
+        },
+        {
+          "type": "note",
+          "pitch": "e5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "will"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 90,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "bright"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "en"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "all"
+        },
+        {
+          "type": "note",
+          "pitch": "A4",
+          "midi": 69,
+          "degree": "La",
+          "durationBeats": 1,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 91,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "G4",
+          "midi": 67,
+          "degree": "Sol",
+          "durationBeats": 2,
+          "lyric": "way"
+        },
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 1,
+          "lyric": "if"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "we"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 92,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 2,
+          "lyric": "keep"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 1.5,
+          "lyric": "on"
+        },
+        {
+          "type": "note",
+          "pitch": "F5",
+          "midi": 77,
+          "degree": "Fa",
+          "durationBeats": 0.5,
+          "lyric": "the"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        },
+        {
+          "beat": 3,
+          "root": "F",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 93,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "sun"
+        },
+        {
+          "type": "note",
+          "pitch": "E5",
+          "midi": 76,
+          "degree": "Mi",
+          "durationBeats": 1,
+          "lyric": "ny"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "side"
+        },
+        {
+          "type": "note",
+          "pitch": "D5",
+          "midi": 74,
+          "degree": "Re",
+          "durationBeats": 1,
+          "lyric": "of"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        },
+        {
+          "beat": 3,
+          "root": "G",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 94,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 4,
+          "lyric": "life"
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
+    },
+    {
+      "index": 95,
+      "beats": 4,
+      "notes": [
+        {
+          "type": "note",
+          "pitch": "C5",
+          "midi": 72,
+          "degree": "Do",
+          "durationBeats": 2,
+          "lyric": "e"
+        },
+        {
+          "type": "rest",
+          "durationBeats": 2
+        }
+      ],
+      "chords": [
+        {
+          "beat": 1,
+          "root": "C",
+          "kind": "major"
+        }
+      ]
     }
   ],
   "source": {
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-03-08T19:54:26.371Z"
+  "updatedAt": "2026-03-08T20:10:00.000Z"
 }
