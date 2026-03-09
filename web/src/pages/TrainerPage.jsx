@@ -83,14 +83,19 @@ export function TrainerPage() {
   const playbackNoteIndexRef = useRef(0);
 
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
-  const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
+  const { totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
   const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
   const activeSection = sections[sectionIndex] ?? sections[0];
   const activeEvents = activeSection?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
 
   const firstNoteShiftedMidi = Number.isFinite(activeNotes[0]?.midi) ? activeNotes[0].midi + totalMidiShift : null;
-  const firstNoteOctave = firstNoteShiftedMidi !== null ? Math.floor(firstNoteShiftedMidi / SEMITONES_PER_OCTAVE) - 1 : null;
+  // Solfege-relative octave: which register group the first note falls in (singOctave + offset).
+  // Uses tonicMidi as the reference so the highlight correctly matches the button group that
+  // plays the right pitch regardless of the selected key's chromatic octave offset.
+  const firstNoteOctave = firstNoteShiftedMidi !== null
+    ? singOctave + Math.floor((firstNoteShiftedMidi - tonicMidi) / 12)
+    : null;
   // Tonic-aligned octave start containing the first note. e.g. key D, first note A4:
   // tonicMidi=62 (D4), offset=7 → keyOctaveStart=62 → highlights D4..C#5 on the piano.
   const firstNoteKeyOctaveStart = firstNoteShiftedMidi !== null
@@ -595,7 +600,7 @@ export function TrainerPage() {
           <SolfegeInputMode
             singOctave={singOctave}
             firstNoteOctave={firstNoteOctave}
-            keySemitoneShift={keySemitoneShift}
+            tonicMidi={tonicMidi}
             onInputPress={handleInputPress}
             onInputRelease={stopInputTone}
           />

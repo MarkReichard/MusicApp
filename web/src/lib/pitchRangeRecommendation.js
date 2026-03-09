@@ -1,22 +1,4 @@
-const KEY_TO_SEMITONE = {
-  C: 0,
-  'C#': 1,
-  Db: 1,
-  D: 2,
-  'D#': 3,
-  Eb: 3,
-  E: 4,
-  F: 5,
-  'F#': 6,
-  Gb: 6,
-  G: 7,
-  'G#': 8,
-  Ab: 8,
-  A: 9,
-  'A#': 10,
-  Bb: 10,
-  B: 11,
-};
+import { keyToSemitone } from './musicTheory.js';
 
 export function recommendKeyAndOctaveForRange({ lesson, userMinMidi, userMaxMidi, marginSemitones = 1 }) {
   if (!lesson) {
@@ -89,6 +71,4 @@ function collectLessonMidis(lesson) {
     .filter((midi) => Number.isFinite(midi));
 }
 
-function keyToSemitone(key) {
-  return KEY_TO_SEMITONE[key] ?? 0;
-}
+
