@@ -67,7 +67,7 @@ const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.35;
  * Cursor starts at AUDIO_START_OFFSET_SECONDS so the first events align with
  * the audio context schedule (same convention as buildSingTimeline).
  */
-function buildTimeline({ tonicMidi, midiSeq, beatSeconds }) {
+function buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords }) {
   const daahDur = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * DAAAH_BEATS * NOTE_DURATION_SCALE);
   const daDur   = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * DA_BEATS   * NOTE_DURATION_SCALE);
 
@@ -76,14 +76,16 @@ function buildTimeline({ tonicMidi, midiSeq, beatSeconds }) {
   const expectedBars = [];
 
   // I–IV–V–IV cadence
-  CADENCE_CHORD_OFFSETS.forEach((offset, ci) => {
-    const chordRoot = tonicMidi + offset;
-    TRIAD_INTERVALS.forEach((ti, tii) => {
-      playedBars.push({ id: `cad-${ci}-${tii}`, startSec: cursor, endSec: cursor + beatSeconds, midi: chordRoot + ti });
+  if (playCadenceChords) {
+    CADENCE_CHORD_OFFSETS.forEach((offset, ci) => {
+      const chordRoot = tonicMidi + offset;
+      TRIAD_INTERVALS.forEach((ti, tii) => {
+        playedBars.push({ id: `cad-${ci}-${tii}`, startSec: cursor, endSec: cursor + beatSeconds, midi: chordRoot + ti });
+      });
+      cursor += beatSeconds;
     });
-    cursor += beatSeconds;
-  });
-  cursor += NOTE_GAP_SECONDS * 2;
+    cursor += NOTE_GAP_SECONDS * 2;
+  }
 
   // Guide: app plays target note (2 beats)
   const guideDur = beatSeconds * 2;
@@ -156,6 +158,7 @@ export function EarTrainingPage() {
   const [singOctave,   setSingOctave]   = useState(defaultOctave);
   const [tempoBpm,     setTempoBpm]     = useState(72);
   const [noteLimit,    setNoteLimit]    = useState(DEFAULT_NOTE_LIMIT);
+  const [playCadenceChords, setPlayCadenceChords] = useState(true);
   const [hideNoteName, setHideNoteName] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(false);
 
@@ -269,7 +272,7 @@ export function EarTrainingPage() {
     const midiSeq     = buildMajorScaleRouteMidi(tonicMidi, degree.semitones);
 
     const { playedBars, expectedBars, singStartSec, stopScrollSec, reinforceStartSec, daahDur, daDur } =
-      buildTimeline({ tonicMidi, midiSeq, beatSeconds });
+      buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords });
 
     clearTrackingData();
     setCurrentDegreeIndex(degreeIndex);
@@ -288,6 +291,7 @@ export function EarTrainingPage() {
     const perfNow = performance.now();
     const startMs = perfNow + AUDIO_START_OFFSET_SECONDS * 1000;
     const cadenceStartAt = ctxNow + AUDIO_START_OFFSET_SECONDS;
+    const cadenceBeatCount = playCadenceChords ? CADENCE_CHORD_OFFSETS.length : 0;
     const promptGuideBeats = 2;
     const countdownBeats = 1;
     const sungPhraseBeats = DAAAH_BEATS + Math.max(0, midiSeq.length - 1) * DA_BEATS;
@@ -296,14 +300,16 @@ export function EarTrainingPage() {
 
     let ac = cadenceStartAt;
 
-    CADENCE_CHORD_OFFSETS.forEach((offset) => {
-      const chordRoot = tonicMidi + offset;
-      TRIAD_INTERVALS.forEach((ti) => {
-        schedulePianoNote(ctx, midiToFrequencyHz(chordRoot + ti), ac, beatSeconds, CADENCE_CHORD_GAIN);
+    if (playCadenceChords) {
+      CADENCE_CHORD_OFFSETS.forEach((offset) => {
+        const chordRoot = tonicMidi + offset;
+        TRIAD_INTERVALS.forEach((ti) => {
+          schedulePianoNote(ctx, midiToFrequencyHz(chordRoot + ti), ac, beatSeconds, CADENCE_CHORD_GAIN);
+        });
+        ac += beatSeconds;
       });
-      ac += beatSeconds;
-    });
-    ac += NOTE_GAP_SECONDS * 2;
+      ac += NOTE_GAP_SECONDS * 2;
+    }
 
     const guideStartAt = ac;
 
@@ -314,7 +320,9 @@ export function EarTrainingPage() {
     ac += beatSeconds; // countdown silence — ac is now at audio ctx equivalent of singStartSec
 
     if (metronomeEnabled) {
-      scheduleMetronomeBeats(ctx, cadenceStartAt, CADENCE_CHORD_OFFSETS.length, beatSeconds);
+      if (cadenceBeatCount > 0) {
+        scheduleMetronomeBeats(ctx, cadenceStartAt, cadenceBeatCount, beatSeconds);
+      }
       scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds);
       scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds);
       scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds);
@@ -485,6 +493,16 @@ export function EarTrainingPage() {
             >
               {NOTE_LIMIT_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
             </select>
+          </label>
+
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <input
+              type="checkbox"
+              checked={playCadenceChords}
+              onChange={(e) => setPlayCadenceChords(e.target.checked)}
+              disabled={isPlaying}
+            />
+            {' '}Play chords
           </label>
 
           <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
