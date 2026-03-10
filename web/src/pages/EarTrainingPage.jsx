@@ -1,5 +1,5 @@
 /**
- * EarTrainingPage — functional ear training with spaced repetition.
+ * EarTrainingPage — functional ear training with spaced repetition and pattern drills.
  *
  * Each round:
  *  1. App plays I–IV–V–IV cadence, then the target pitch once as a guide.
@@ -22,7 +22,6 @@ import {
   AUDIO_START_OFFSET_SECONDS,
   CADENCE_CHORD_GAIN,
   CADENCE_CHORD_OFFSETS,
-  buildMajorScaleRouteMidi,
   beatSecondsFromTempo,
   KEY_OPTIONS,
   midiToFrequencyHz,
@@ -44,11 +43,21 @@ import {
   recordAttempt,
   pickWeightedDegree,
 } from '../lib/earTrainingSettings';
+import {
+  EAR_EXERCISE_MODES,
+  EAR_EXERCISE_MODE_OPTIONS,
+  EAR_PATTERN_TYPES,
+  EAR_PATTERN_TYPE_OPTIONS,
+  getAvailablePatternMidis,
+  buildPatternRound,
+  buildSingleTonicRound,
+} from '../lib/earTrainingExercise';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 const NOTE_LIMIT_OPTIONS = [5, 10, 15, 20, 30];
 const DEFAULT_NOTE_LIMIT = 10;
+const PATTERN_NOTE_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => i + 2);
 
 /** First (scored) note is "DAAAH" — 2 beats. */
 const DAAAH_BEATS = 1;
@@ -67,7 +76,7 @@ const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.35;
  * Cursor starts at AUDIO_START_OFFSET_SECONDS so the first events align with
  * the audio context schedule (same convention as buildSingTimeline).
  */
-function buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords }) {
+function buildTimeline({ tonicMidi, midiSeq, promptMidiSeq, beatSeconds, playCadenceChords, guideBeatsPerNote = 1, useSolfegeLabels = true }) {
   const daahDur = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * DAAAH_BEATS * NOTE_DURATION_SCALE);
   const daDur   = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * DA_BEATS   * NOTE_DURATION_SCALE);
 
@@ -87,10 +96,12 @@ function buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords }) {
     cursor += NOTE_GAP_SECONDS * 2;
   }
 
-  // Guide: app plays target note (2 beats)
-  const guideDur = beatSeconds * 2;
-  playedBars.push({ id: 'guide', startSec: cursor, endSec: cursor + guideDur, midi: midiSeq[0] });
-  cursor += guideDur + NOTE_GAP_SECONDS;
+  // Guide: app plays either a single target note or a full note pattern.
+  const guideDur = beatSeconds * Math.max(1, guideBeatsPerNote);
+  promptMidiSeq.forEach((midi, i) => {
+    playedBars.push({ id: `guide-${i}`, startSec: cursor, endSec: cursor + guideDur, midi });
+    cursor += guideDur + NOTE_GAP_SECONDS;
+  });
 
   // 1-beat countdown silence before user sings
   cursor += beatSeconds;
@@ -100,7 +111,7 @@ function buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords }) {
   midiSeq.forEach((midi, i) => {
     const dur     = i === 0 ? daahDur : daDur;
     const semOff  = midi - tonicMidi;
-    const lyric   = solfegeForMajorScaleSemitone(semOff);
+    const lyric   = useSolfegeLabels ? solfegeForMajorScaleSemitone(semOff) : '';
     expectedBars.push({
       id: `note-${i}`,
       index: i,
@@ -156,6 +167,10 @@ export function EarTrainingPage() {
   // ── Options ───────────────────────────────────────────────────────────────
   const [selectedKey,  setSelectedKey]  = useState('C');
   const [singOctave,   setSingOctave]   = useState(defaultOctave);
+  const [exerciseMode, setExerciseMode] = useState(EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE);
+  const [patternType, setPatternType] = useState(EAR_PATTERN_TYPES.RANDOM_ARPEGGIO);
+  const [patternNoteCount, setPatternNoteCount] = useState(4);
+  const [limitPatternToStartingChord, setLimitPatternToStartingChord] = useState(false);
   const [tempoBpm,     setTempoBpm]     = useState(72);
   const [noteLimit,    setNoteLimit]    = useState(DEFAULT_NOTE_LIMIT);
   const [playCadenceChords, setPlayCadenceChords] = useState(true);
@@ -168,6 +183,7 @@ export function EarTrainingPage() {
   const [notesPlayed,        setNotesPlayed]        = useState(0);
   const [currentDegreeIndex, setCurrentDegreeIndex] = useState(null);
   const [session,            setSession]            = useState(null);
+  const [activeRound,        setActiveRound]        = useState(null);
   const [barResults,         setBarResults]         = useState({});
   const [lastResult,         setLastResult]         = useState(null);
   const [revealed,           setRevealed]           = useState(true);
@@ -219,7 +235,7 @@ export function EarTrainingPage() {
         setBarResults((prev) => (prev[bar.id] === matched ? prev : { ...prev, [bar.id]: matched }));
 
         // First bar result drives the visible indicator (set after reveal)
-        if (bar.index === 0) {
+        if (bar.index === 0 && session.scoreMode === 'first-note') {
           const nextResult = matched ? 'correct' : 'wrong';
           setLastResult((prev) => (prev === null ? null : nextResult));
         }
@@ -228,6 +244,51 @@ export function EarTrainingPage() {
 
     return () => { globalThis.clearInterval(timerId); };
   }, [session]);
+
+  function buildRoundConfig() {
+    const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
+    const minMidi = Number.isFinite(pitchRange.minMidi) ? pitchRange.minMidi : null;
+    const maxMidi = Number.isFinite(pitchRange.maxMidi) ? pitchRange.maxMidi : null;
+
+    if (exerciseMode === EAR_EXERCISE_MODES.NOTE_PATTERN) {
+      return buildPatternRound({
+        tonicMidi,
+        patternType,
+        noteCount: patternNoteCount,
+        minMidi,
+        maxMidi,
+        limitToStartingChord: limitPatternToStartingChord,
+      });
+    }
+
+    const validDegreeIndices = EAR_DEGREES
+      .map((degree, degreeIndex) => {
+        const round = buildSingleTonicRound({
+          tonicMidi,
+          degree: { ...degree, index: degreeIndex },
+          minMidi,
+          maxMidi,
+        });
+        return round ? degreeIndex : null;
+      })
+      .filter((degreeIndex) => Number.isInteger(degreeIndex));
+
+    if (validDegreeIndices.length === 0) {
+      return null;
+    }
+
+    const weightedPick = pickWeightedDegree(earHistoryRef.current);
+    const degreeIndex = validDegreeIndices.includes(weightedPick)
+      ? weightedPick
+      : validDegreeIndices[Math.floor(Math.random() * validDegreeIndices.length)];
+
+    return buildSingleTonicRound({
+      tonicMidi,
+      degree: { ...EAR_DEGREES[degreeIndex], index: degreeIndex },
+      minMidi,
+      maxMidi,
+    });
+  }
 
   // ── Playback control ─────────────────────────────────────────────────────────
 
@@ -259,23 +320,31 @@ export function EarTrainingPage() {
 
   // ── Single round ─────────────────────────────────────────────────────────────
 
-  async function playRound(degreeIndex) {
+  async function playRound(roundConfig) {
     playbackRef.current.runId += 1;
     const runId = playbackRef.current.runId;
 
     // Capture state that must survive across awaits
     const snapHideNoteName = hideNoteName;
 
-    const degree      = EAR_DEGREES[degreeIndex];
     const beatSeconds = beatSecondsFromTempo(tempoBpm);
     const tonicMidi   = tonicMidiFromKeyOctave(selectedKey, singOctave);
-    const midiSeq     = buildMajorScaleRouteMidi(tonicMidi, degree.semitones);
+    const midiSeq     = roundConfig.singMidiSeq;
 
     const { playedBars, expectedBars, singStartSec, stopScrollSec, reinforceStartSec, daahDur, daDur } =
-      buildTimeline({ tonicMidi, midiSeq, beatSeconds, playCadenceChords });
+      buildTimeline({
+        tonicMidi,
+        midiSeq,
+        promptMidiSeq: roundConfig.promptMidiSeq,
+        beatSeconds,
+        playCadenceChords,
+        guideBeatsPerNote: roundConfig.guideBeatsPerNote,
+        useSolfegeLabels: roundConfig.mode === EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE,
+      });
 
     clearTrackingData();
-    setCurrentDegreeIndex(degreeIndex);
+    setActiveRound(roundConfig);
+    setCurrentDegreeIndex(roundConfig.degreeIndex);
     setBarResults({});
     barResultsRef.current = {};
     evaluatedBarsRef.current = new Set();
@@ -292,9 +361,9 @@ export function EarTrainingPage() {
     const startMs = perfNow + AUDIO_START_OFFSET_SECONDS * 1000;
     const cadenceStartAt = ctxNow + AUDIO_START_OFFSET_SECONDS;
     const cadenceBeatCount = playCadenceChords ? CADENCE_CHORD_OFFSETS.length : 0;
-    const promptGuideBeats = 2;
+    const promptGuideBeats = roundConfig.promptMidiSeq.length * Math.max(1, roundConfig.guideBeatsPerNote);
     const countdownBeats = 1;
-    const sungPhraseBeats = DAAAH_BEATS + Math.max(0, midiSeq.length - 1) * DA_BEATS;
+    const sungPhraseBeats = midiSeq.length * DA_BEATS;
 
     // ── Schedule audio ──────────────────────────────────────────────────────
 
@@ -313,8 +382,11 @@ export function EarTrainingPage() {
 
     const guideStartAt = ac;
 
-    schedulePianoNote(ctx, midiToFrequencyHz(midiSeq[0]), ac, beatSeconds * 2, TARGET_NOTE_GAIN);
-    ac += beatSeconds * 2 + NOTE_GAP_SECONDS;
+    const guideDur = beatSeconds * Math.max(1, roundConfig.guideBeatsPerNote);
+    roundConfig.promptMidiSeq.forEach((midi) => {
+      schedulePianoNote(ctx, midiToFrequencyHz(midi), ac, guideDur, TARGET_NOTE_GAIN);
+      ac += guideDur + NOTE_GAP_SECONDS;
+    });
 
     const countdownStartAt = ac;
     ac += beatSeconds; // countdown silence — ac is now at audio ctx equivalent of singStartSec
@@ -338,22 +410,30 @@ export function EarTrainingPage() {
     });
     const totalAudioEndMs = (rc - ctxNow) * 1000 + PLAYBACK_BUFFER_MS;
 
-    setSession({ startMs, singStartSec, stopScrollSec, playedBars, expectedBars });
+    setSession({ startMs, singStartSec, stopScrollSec, playedBars, expectedBars, scoreMode: roundConfig.scoreMode });
 
     // ── Wait for singing bars to elapse ─────────────────────────────────────
 
     const lastLiveBar    = expectedBars.at(-1);
+    if (!lastLiveBar) {
+      setRoundPhase('done');
+      return;
+    }
     const scoreDeadline  = startMs + lastLiveBar.scoreEndSec * 1000 + 200;
     await waitMs(scoreDeadline - performance.now());
     if (playbackRef.current.runId !== runId) return;
 
-    const matched = barResultsRef.current[expectedBars[0].id] ?? false;
+    const matched = roundConfig.scoreMode === 'all-notes'
+      ? expectedBars.every((bar) => barResultsRef.current[bar.id] ?? false)
+      : (barResultsRef.current[expectedBars[0]?.id] ?? false);
     setLastResult(matched ? 'correct' : 'wrong');
 
-    const newHistory = recordAttempt(earHistoryRef.current, degreeIndex, matched);
-    setEarHistory(newHistory);
-    earHistoryRef.current = newHistory;
-    saveEarTrainingHistory(newHistory);
+    if (Number.isInteger(roundConfig.degreeIndex)) {
+      const newHistory = recordAttempt(earHistoryRef.current, roundConfig.degreeIndex, matched);
+      setEarHistory(newHistory);
+      earHistoryRef.current = newHistory;
+      saveEarTrainingHistory(newHistory);
+    }
 
     // Reveal note name just before reinforcement plays
     setRevealed(true);
@@ -370,9 +450,10 @@ export function EarTrainingPage() {
   }
 
   function handleStart() {
+    const round = buildRoundConfig();
+    if (!round) return;
     setNotesPlayed(1);
-    const degreeIndex = pickWeightedDegree(earHistoryRef.current);
-    void playRound(degreeIndex);
+    void playRound(round);
   }
 
   async function handleNext() {
@@ -381,19 +462,21 @@ export function EarTrainingPage() {
       setRoundPhase('finished');
       return;
     }
+    const round = buildRoundConfig();
+    if (!round) return;
     setNotesPlayed(nextCount);
-    const degreeIndex = pickWeightedDegree(earHistoryRef.current);
-    await playRound(degreeIndex);
+    await playRound(round);
   }
 
   async function handleReplay() {
-    if (currentDegreeIndex === null) return;
-    await playRound(currentDegreeIndex);
+    if (!activeRound) return;
+    await playRound(activeRound);
   }
 
   function handleStop() {
     cancelPlayback();
     setSession(null);
+    setActiveRound(null);
     setRoundPhase('idle');
     setBarResults({});
     setLastResult(null);
@@ -407,16 +490,13 @@ export function EarTrainingPage() {
 
   // ── Derived display ──────────────────────────────────────────────────────────
 
-  const currentDegree = currentDegreeIndex === null ? null : EAR_DEGREES[currentDegreeIndex];
+  const isPatternMode = exerciseMode === EAR_EXERCISE_MODES.NOTE_PATTERN;
   const isPlaying     = roundPhase === 'playing';
   const isDone        = roundPhase === 'done';
   const isFinished    = roundPhase === 'finished';
   const isIdle        = roundPhase === 'idle';
 
-  let directionLabel = null;
-  if (currentDegree) {
-    directionLabel = currentDegree.semitones <= 5 ? '↓ descend to Do' : '↑ ascend to Do′';
-  }
+  const directionLabel = activeRound?.detailLabel ?? null;
 
   let resultColor = '#f8fafc';
   if (lastResult === 'correct') resultColor = '#22c55e';
@@ -431,6 +511,25 @@ export function EarTrainingPage() {
   // When hideNoteName is on, graph is kept mounted but invisible until revealed,
   // so it's already populated with data the moment it becomes visible.
   const graphHidden = hideNoteName && !revealed;
+  const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
+  const minMidi = Number.isFinite(pitchRange.minMidi) ? pitchRange.minMidi : null;
+  const maxMidi = Number.isFinite(pitchRange.maxMidi) ? pitchRange.maxMidi : null;
+  const hasRangeLimits = Number.isFinite(minMidi) && Number.isFinite(maxMidi);
+  const hasValidSingleDegrees = EAR_DEGREES.some((degree, degreeIndex) => {
+    const round = buildSingleTonicRound({ tonicMidi, degree: { ...degree, index: degreeIndex }, minMidi, maxMidi });
+    return Boolean(round);
+  });
+  const hasValidPatternNotes = getAvailablePatternMidis({
+    tonicMidi,
+    patternType,
+    minMidi,
+    maxMidi,
+    limitToStartingChord: limitPatternToStartingChord,
+  }).length > 0;
+  const hasValidRoundForSettings = isPatternMode ? hasValidPatternNotes : hasValidSingleDegrees;
+  const rangeHint = hasRangeLimits && !hasValidRoundForSettings
+    ? 'No exercise notes fit your saved range for this key/octave. Change key, octave, or pattern type.'
+    : null;
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -461,7 +560,7 @@ export function EarTrainingPage() {
           </label>
 
           <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
-            <span>Octave</span>
+            <span>{isPatternMode ? 'Start octave' : 'Octave'}</span>
             <select
               value={singOctave}
               onChange={(e) => setSingOctave(Number(e.target.value))}
@@ -470,6 +569,59 @@ export function EarTrainingPage() {
               {[2, 3, 4, 5].map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
+
+          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <span>Exercise</span>
+            <select
+              value={exerciseMode}
+              onChange={(e) => setExerciseMode(e.target.value)}
+              disabled={isPlaying}
+            >
+              {EAR_EXERCISE_MODE_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
+              ))}
+            </select>
+          </label>
+
+          {isPatternMode && (
+            <>
+              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>Pattern type</span>
+                <select
+                  value={patternType}
+                  onChange={(e) => setPatternType(e.target.value)}
+                  disabled={isPlaying}
+                >
+                  {EAR_PATTERN_TYPE_OPTIONS.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <span>Pattern notes</span>
+                <select
+                  value={patternNoteCount}
+                  onChange={(e) => setPatternNoteCount(Number(e.target.value))}
+                  disabled={isPlaying}
+                >
+                  {PATTERN_NOTE_COUNT_OPTIONS.map((count) => (
+                    <option key={count} value={count}>{count}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+                <input
+                  type="checkbox"
+                  checked={limitPatternToStartingChord}
+                  onChange={(e) => setLimitPatternToStartingChord(e.target.checked)}
+                  disabled={isPlaying}
+                />
+                {' '}Within starting chord
+              </label>
+            </>
+          )}
 
           <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
             Tempo&nbsp;{tempoBpm}&nbsp;bpm
@@ -529,11 +681,11 @@ export function EarTrainingPage() {
         {/* Buttons */}
         <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
           {isIdle && (
-            <button type="button" className="button" onClick={handleStart}>▶ Start</button>
+            <button type="button" className="button" onClick={handleStart} disabled={!hasValidRoundForSettings}>▶ Start</button>
           )}
           {isDone && (
             <>
-              <button type="button" className="button" onClick={handleNext}>Next ▶</button>
+              <button type="button" className="button" onClick={handleNext} disabled={!hasValidRoundForSettings}>Next ▶</button>
               <button type="button" className="button secondary" onClick={handleReplay}>↺ Replay</button>
               <button type="button" className="button secondary" onClick={handleStop}>■ Stop</button>
             </>
@@ -542,16 +694,22 @@ export function EarTrainingPage() {
             <button type="button" className="button secondary" onClick={handleStop}>■ Stop</button>
           )}
           {isFinished && (
-            <button type="button" className="button" onClick={handleStart}>▶ Start Again</button>
+            <button type="button" className="button" onClick={handleStart} disabled={!hasValidRoundForSettings}>▶ Start Again</button>
           )}
           <Link className="button secondary home-icon-button" to="/" title="Home" aria-label="Home">⌂</Link>
         </div>
 
-        {/* Current degree display */}
-        {currentDegree && (
+        {rangeHint && (
+          <div style={{ marginTop: 8, fontSize: 12, color: '#fca5a5' }}>
+            {rangeHint}
+          </div>
+        )}
+
+        {/* Current round display */}
+        {activeRound && (
           <div style={{ marginTop: 16, textAlign: 'center' }}>
             <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1, color: degreeDisplayColor, transition: 'color 0.2s' }}>
-              {hideNoteName && !revealed ? '?' : currentDegree.name}
+              {hideNoteName && !revealed ? '?' : activeRound.displayName}
             </div>
             <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
               {hideNoteName && !revealed ? '' : directionLabel}
@@ -568,7 +726,7 @@ export function EarTrainingPage() {
             )}
           </div>
         )}
-        {!currentDegree && isFinished && (
+        {!activeRound && isFinished && (
           <div style={{ marginTop: 16, textAlign: 'center', fontSize: 18, fontWeight: 700, color: '#60a5fa' }}>
             Session complete — {noteLimit} notes played!
           </div>
@@ -597,7 +755,7 @@ export function EarTrainingPage() {
       </div>
 
       {/* ── Spaced-rep stats ── */}
-      <div className="card controls">
+      {!isPatternMode && <div className="card controls">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
           <h3 style={{ margin: 0 }}>Progress</h3>
           <button
@@ -658,7 +816,7 @@ export function EarTrainingPage() {
             );
           })}
         </div>
-      </div>
+      </div>}
 
     </div>
   );
