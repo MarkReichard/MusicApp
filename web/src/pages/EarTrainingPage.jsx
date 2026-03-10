@@ -467,7 +467,7 @@ export function EarTrainingPage() {
               onChange={(e) => setSingOctave(Number(e.target.value))}
               disabled={isPlaying}
             >
-              {[3, 4, 5].map((o) => <option key={o} value={o}>{o}</option>)}
+              {[2, 3, 4, 5].map((o) => <option key={o} value={o}>{o}</option>)}
             </select>
           </label>
 
