@@ -25,6 +25,7 @@ export function hasStoredTrainerOptions(storageKey = STORAGE_KEY) {
 const defaultTrainerOptions = {
   playTonicCadence: true,
   hearExerciseFirst: true,
+  karaokeLabelMode: 'lyrics',
   toleranceCents: 25,
   gracePeriodPercent: 95,
   instrument: 'acoustic_grand_piano',
@@ -41,6 +42,7 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
       singOctave: 4,
       playTonicCadence: defaultTrainerOptions.playTonicCadence,
       hearExerciseFirst: defaultTrainerOptions.hearExerciseFirst,
+      karaokeLabelMode: defaultTrainerOptions.karaokeLabelMode,
       toleranceCents: defaultTrainerOptions.toleranceCents,
       gracePeriodPercent: defaultTrainerOptions.gracePeriodPercent,
     };
@@ -78,6 +80,7 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
   const instrument = typeof stored.instrument === 'string' && stored.instrument
     ? stored.instrument
     : defaultTrainerOptions.instrument;
+  const karaokeLabelMode = stored.karaokeLabelMode === 'solfege' ? 'solfege' : 'lyrics';
 
   return {
     selectedKey,
@@ -85,6 +88,7 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
     singOctave,
     playTonicCadence: Boolean(stored.playTonicCadence),
     hearExerciseFirst: stored.hearExerciseFirst !== false,
+    karaokeLabelMode,
     toleranceCents,
     gracePeriodPercent,
     instrument,

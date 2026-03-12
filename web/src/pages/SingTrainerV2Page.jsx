@@ -58,6 +58,7 @@ export function SingTrainerV2Page() {
   const [tempoBpm, setTempoBpm] = useState(initialOptions.tempoBpm);
   const [playTonicCadence, setPlayTonicCadence] = useState(initialOptions.playTonicCadence);
   const [hearExerciseFirst, setHearExerciseFirst] = useState(initialOptions.hearExerciseFirst);
+  const [karaokeLabelMode, setKaraokeLabelMode] = useState(initialOptions.karaokeLabelMode ?? 'lyrics');
   const [singOctave, setSingOctave] = useState(initialOptions.singOctave);
   const [optionsOpen, setOptionsOpen] = useState(false);
   const [sectionIndex, setSectionIndex] = useState(0);
@@ -195,6 +196,12 @@ export function SingTrainerV2Page() {
     });
   }
 
+  function getMeasuresForSection(targetSectionIndex) {
+    const clamped = Math.max(0, Math.min(sections.length - 1, targetSectionIndex));
+    const targetSection = sections[clamped] ?? sections[0];
+    return targetSection?.measures ?? null;
+  }
+
   function handleAdvanceToNextSection() {
     const nextIndex = Math.min(sectionIndex + 1, sections.length - 1);
     if (nextIndex === sectionIndex) {
@@ -202,8 +209,9 @@ export function SingTrainerV2Page() {
     }
 
     const nextShiftedNotes = getShiftedNotesForSection(nextIndex);
+    const nextSectionMeasures = getMeasuresForSection(nextIndex);
     prepareSectionForAutoplay(nextIndex);
-    void playMidiSequence(nextShiftedNotes);
+    void playMidiSequence(nextShiftedNotes, nextSectionMeasures);
   }
 
   function resetCurrentExerciseState() {
@@ -334,7 +342,7 @@ export function SingTrainerV2Page() {
     URL.revokeObjectURL(url);
   }
 
-  async function playMidiSequence(notes) {
+  async function playMidiSequence(notes, playbackMeasures = sectionMeasures) {
     if (!notes.length) {
       return;
     }
@@ -355,6 +363,13 @@ export function SingTrainerV2Page() {
       gracePeriodPercent,
       countdownBeats: SING_COUNTDOWN_BEATS,
     });
+    const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
+    const expectedBars = karaokeLabelMode === 'solfege'
+      ? timeline.expectedBars.map((bar) => ({
+        ...bar,
+        lyric: solfegeForChromaticOffset(bar.midi - tonicMidi),
+      }))
+      : timeline.expectedBars;
 
     const beatSeconds = beatSecondsFromTempo(tempoBpm);
     const effectiveBeatS = NOTE_DURATION_SCALE * beatSeconds + NOTE_GAP_SECONDS;
@@ -370,8 +385,8 @@ export function SingTrainerV2Page() {
       singStartSec: timeline.singStartSec,
       stopScrollSec: timeline.stopScrollSec,
       playedBars: timeline.playedBars,
-      expectedBars: timeline.expectedBars,
-      chordMeasures: (chordModeEnabled && isSong && sectionMeasures?.length) ? transposeChordMeasures(sectionMeasures, keySemitoneShift) : null,
+      expectedBars,
+      chordMeasures: (chordModeEnabled && isSong && playbackMeasures?.length) ? transposeChordMeasures(playbackMeasures, keySemitoneShift) : null,
       chordStartSec,
       chordBeatSec: effectiveBeatS,
     });
@@ -383,13 +398,13 @@ export function SingTrainerV2Page() {
     try {
       let startAt = context.currentTime + AUDIO_START_OFFSET_SECONDS;
 
-      if (chordModeEnabled && isSong && sectionMeasures?.length) {
+      if (chordModeEnabled && isSong && playbackMeasures?.length) {
         // Align chord beat 1 with the first note the user sings.
         // singStartSec accounts for cadence + hear-exercise lead-in;
         // SING_COUNTDOWN_BEATS puts chord player exactly on beat 1 of measure 1.
         // effectiveBeatS matches the guide melody's compressed note duration.
         const effectiveBpm = 60 / effectiveBeatS;
-        startChords(sectionMeasures, effectiveBpm, totalMidiShift, false, chordStartSec);
+        startChords(playbackMeasures, effectiveBpm, totalMidiShift, false, chordStartSec);
       }
 
       if (playTonicCadence) {
@@ -479,6 +494,7 @@ export function SingTrainerV2Page() {
     setTempoBpm(persistedOptions.tempoBpm);
     setPlayTonicCadence(persistedOptions.playTonicCadence);
     setHearExerciseFirst(persistedOptions.hearExerciseFirst);
+    setKaraokeLabelMode(persistedOptions.karaokeLabelMode ?? 'lyrics');
     setSingOctave(persistedOptions.singOctave);
     setToleranceCents(persistedOptions.toleranceCents);
     setGracePeriodPercent(persistedOptions.gracePeriodPercent);
@@ -502,12 +518,13 @@ export function SingTrainerV2Page() {
       tempoBpm,
       playTonicCadence,
       hearExerciseFirst,
+      karaokeLabelMode,
       singOctave,
       toleranceCents,
       gracePeriodPercent,
       instrument,
     }, optionsKey);
-  }, [lesson, optionsKey, playTonicCadence, hearExerciseFirst, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
+  }, [lesson, optionsKey, playTonicCadence, hearExerciseFirst, karaokeLabelMode, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
 
   useEffect(() => {
     void loadInstrument(instrument);
@@ -620,6 +637,8 @@ export function SingTrainerV2Page() {
           onPlayTonicCadenceChange={setPlayTonicCadence}
           hearExerciseFirst={hearExerciseFirst}
           onHearExerciseFirstChange={setHearExerciseFirst}
+          karaokeLabelMode={karaokeLabelMode}
+          onKaraokeLabelModeChange={setKaraokeLabelMode}
           rangeSuggestionText={rangeSuggestionText}
           onApplyRangeDefaults={applyRangeDefaults}
           disableApplyRangeDefaults={disableApplyRangeDefaults}
@@ -667,8 +686,9 @@ export function SingTrainerV2Page() {
             className="button secondary"
             onClick={() => {
               const firstShiftedNotes = getShiftedNotesForSection(0);
+              const firstSectionMeasures = getMeasuresForSection(0);
               prepareSectionForAutoplay(0);
-              void playMidiSequence(firstShiftedNotes);
+              void playMidiSequence(firstShiftedNotes, firstSectionMeasures);
             }}
             title="Start song over"
             aria-label="Start song over"
@@ -814,4 +834,19 @@ function nearestMidiByOctave(candidateMidi, referenceMidi) {
     best += 12;
   }
   return best;
+}
+
+function solfegeForChromaticOffset(semitoneOffset) {
+  if (!Number.isFinite(semitoneOffset)) {
+    return '';
+  }
+  const names = ['Do', 'Di', 'Re', 'Ri', 'Mi', 'Fa', 'Fi', 'Sol', 'Si', 'La', 'Li', 'Ti'];
+  const rounded = Math.round(semitoneOffset);
+  const normalized = ((rounded % 12) + 12) % 12;
+  const octaveShift = Math.floor(rounded / 12);
+  const base = names[normalized] ?? '';
+  if (!base) {
+    return '';
+  }
+  return octaveShift > 0 ? `${base}${"'".repeat(octaveShift)}` : base;
 }

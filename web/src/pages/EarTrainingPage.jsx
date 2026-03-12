@@ -537,7 +537,7 @@ export function EarTrainingPage() {
     <div className="trainer-grid">
 
       {/* ── Controls ── */}
-      <div className="card controls">
+      <div className="card controls ear-main-card">
         <div className="lesson-title-row sing-title-row">
           <h3>Functional Ear Training</h3>
           <div className="trainer-detected-note sing-title-detected">
@@ -545,10 +545,13 @@ export function EarTrainingPage() {
             <strong>{detectedPitch.note}</strong>
           </div>
         </div>
+        <p className="ear-page-subtitle">Choose an exercise, then sing what you hear and match each target note.</p>
 
-        {/* Key / Octave / Tempo / NoteLimit / HideNoteName */}
-        <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap', alignItems: 'center', marginBottom: 10 }}>
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+        <div className="ear-controls-layout">
+          <section className="ear-controls-section">
+            <h4 className="ear-controls-title">Exercise Setup</h4>
+
+            <label className="ear-inline-field">
             <span>Key</span>
             <select
               value={selectedKey}
@@ -559,7 +562,7 @@ export function EarTrainingPage() {
             </select>
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label className="ear-inline-field">
             <span>{isPatternMode ? 'Start octave' : 'Octave'}</span>
             <select
               value={singOctave}
@@ -570,7 +573,7 @@ export function EarTrainingPage() {
             </select>
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label className="ear-inline-field">
             <span>Exercise</span>
             <select
               value={exerciseMode}
@@ -583,9 +586,9 @@ export function EarTrainingPage() {
             </select>
           </label>
 
-          {isPatternMode && (
-            <>
-              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+            {isPatternMode && (
+              <>
+                <label className="ear-inline-field">
                 <span>Pattern type</span>
                 <select
                   value={patternType}
@@ -598,7 +601,7 @@ export function EarTrainingPage() {
                 </select>
               </label>
 
-              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+                <label className="ear-inline-field">
                 <span>Pattern notes</span>
                 <select
                   value={patternNoteCount}
@@ -611,19 +614,23 @@ export function EarTrainingPage() {
                 </select>
               </label>
 
-              <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
-                <input
-                  type="checkbox"
-                  checked={limitPatternToStartingChord}
-                  onChange={(e) => setLimitPatternToStartingChord(e.target.checked)}
-                  disabled={isPlaying}
-                />
-                {' '}Within starting chord
-              </label>
-            </>
-          )}
+                <label className="ear-checkbox-field">
+                  <input
+                    type="checkbox"
+                    checked={limitPatternToStartingChord}
+                    onChange={(e) => setLimitPatternToStartingChord(e.target.checked)}
+                    disabled={isPlaying}
+                  />
+                  {' '}Within starting chord
+                </label>
+              </>
+            )}
+          </section>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6 }}>
+          <section className="ear-controls-section">
+            <h4 className="ear-controls-title">Session Options</h4>
+
+            <label className="ear-tempo-field">
             Tempo&nbsp;{tempoBpm}&nbsp;bpm
             <input
               type="range"
@@ -636,7 +643,7 @@ export function EarTrainingPage() {
             />
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 4 }}>
+            <label className="ear-inline-field">
             <span>Notes</span>
             <select
               value={noteLimit}
@@ -647,7 +654,7 @@ export function EarTrainingPage() {
             </select>
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <label className="ear-checkbox-field">
             <input
               type="checkbox"
               checked={playCadenceChords}
@@ -657,7 +664,7 @@ export function EarTrainingPage() {
             {' '}Play chords
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <label className="ear-checkbox-field">
             <input
               type="checkbox"
               checked={hideNoteName}
@@ -667,7 +674,7 @@ export function EarTrainingPage() {
             {' '}Hide note name
           </label>
 
-          <label style={{ fontSize: 13, display: 'flex', alignItems: 'center', gap: 6, whiteSpace: 'nowrap' }}>
+            <label className="ear-checkbox-field">
             <input
               type="checkbox"
               checked={metronomeEnabled}
@@ -676,10 +683,11 @@ export function EarTrainingPage() {
             />
             {' '}Metronome
           </label>
+          </section>
         </div>
 
         {/* Buttons */}
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className="ear-action-row">
           {isIdle && (
             <button type="button" className="button" onClick={handleStart} disabled={!hasValidRoundForSettings}>▶ Start</button>
           )}
@@ -700,34 +708,34 @@ export function EarTrainingPage() {
         </div>
 
         {rangeHint && (
-          <div style={{ marginTop: 8, fontSize: 12, color: '#fca5a5' }}>
+          <div className="ear-range-hint">
             {rangeHint}
           </div>
         )}
 
         {/* Current round display */}
         {activeRound && (
-          <div style={{ marginTop: 16, textAlign: 'center' }}>
-            <div style={{ fontSize: 56, fontWeight: 800, lineHeight: 1, color: degreeDisplayColor, transition: 'color 0.2s' }}>
+          <div className="ear-round-display">
+            <div className="ear-round-name" style={{ color: degreeDisplayColor }}>
               {hideNoteName && !revealed ? '?' : activeRound.displayName}
             </div>
-            <div style={{ fontSize: 13, color: '#94a3b8', marginTop: 4 }}>
+            <div className="ear-round-detail">
               {hideNoteName && !revealed ? '' : directionLabel}
             </div>
             {lastResult && (
-              <div style={{ fontSize: 14, fontWeight: 600, marginTop: 6, color: resultColor }}>
+              <div className="ear-round-result" style={{ color: resultColor }}>
                 {lastResult === 'correct' ? '✓ Matched' : '✗ Missed'}
               </div>
             )}
             {isFinished && (
-              <div style={{ fontSize: 18, fontWeight: 700, marginTop: 10, color: '#60a5fa' }}>
+              <div className="ear-session-complete">
                 Session complete — {noteLimit} notes played!
               </div>
             )}
           </div>
         )}
         {!activeRound && isFinished && (
-          <div style={{ marginTop: 16, textAlign: 'center', fontSize: 18, fontWeight: 700, color: '#60a5fa' }}>
+          <div className="ear-session-complete ear-session-complete-single">
             Session complete — {noteLimit} notes played!
           </div>
         )}
@@ -735,7 +743,7 @@ export function EarTrainingPage() {
 
       {/* ── Pitch graph ── */}
       <div
-        className="card controls trainer-input-panel"
+        className="card controls trainer-input-panel ear-graph-card"
         style={graphHidden ? { visibility: 'hidden', pointerEvents: 'none' } : undefined}
       >
         <div className="input-header">
@@ -755,13 +763,12 @@ export function EarTrainingPage() {
       </div>
 
       {/* ── Spaced-rep stats ── */}
-      {!isPatternMode && <div className="card controls">
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
-          <h3 style={{ margin: 0 }}>Progress</h3>
+      {!isPatternMode && <div className="card controls ear-progress-panel">
+        <div className="ear-progress-head">
+          <h3>Progress</h3>
           <button
             type="button"
-            className="button secondary"
-            style={{ fontSize: 12, padding: '3px 10px' }}
+            className="button secondary ear-reset-button"
             onClick={resetHistory}
             disabled={isPlaying}
             title="Reset all history"
@@ -769,7 +776,7 @@ export function EarTrainingPage() {
             Reset
           </button>
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+        <div className="ear-progress-grid">
           {EAR_DEGREES.map((deg, i) => {
             const entry    = earHistory[i];
             const attempts = entry?.attempts  ?? 0;
@@ -781,36 +788,23 @@ export function EarTrainingPage() {
             return (
               <div
                 key={deg.name}
-                style={{
-                  background: isActive ? '#1e3a5f' : '#1e293b',
-                  borderRadius: 8,
-                  padding: '8px 10px',
-                  textAlign: 'center',
-                  border: `1px solid ${isActive ? '#3b82f6' : 'transparent'}`,
-                  transition: 'border-color 0.2s',
-                }}
+                className={`ear-progress-card${isActive ? ' ear-progress-card-active' : ''}`}
               >
-                <div style={{ fontSize: 22, fontWeight: 700 }}>{deg.name}</div>
-                <div style={{ fontSize: 11, color: '#64748b', marginBottom: 4 }}>{deg.label}</div>
+                <div className="ear-progress-name">{deg.name}</div>
+                <div className="ear-progress-label">{deg.label}</div>
                 {attempts > 0 ? (
                   <>
-                    <div
-                      style={{
-                        fontSize: 15,
-                        fontWeight: 700,
-                        color: getScoreColor(rate),
-                      }}
-                    >
+                    <div className="ear-progress-rate" style={{ color: getScoreColor(rate) }}>
                       {Math.round(rate * 100)}%
                     </div>
-                    <div style={{ fontSize: 11, color: '#64748b' }}>{successes}/{attempts}</div>
+                    <div className="ear-progress-ratio">{successes}/{attempts}</div>
                     {/* Mini progress bar */}
-                    <div style={{ height: 4, borderRadius: 2, background: '#0f172a', marginTop: 4, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${Math.round(rate * 100)}%`, background: barColor, borderRadius: 2, transition: 'width 0.4s' }} />
+                    <div className="ear-progress-bar-track">
+                      <div className="ear-progress-bar-fill" style={{ width: `${Math.round(rate * 100)}%`, background: barColor }} />
                     </div>
                   </>
                 ) : (
-                  <div style={{ fontSize: 11, color: '#475569', marginTop: 4 }}>untried</div>
+                  <div className="ear-progress-untried">untried</div>
                 )}
               </div>
             );

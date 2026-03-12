@@ -65,6 +65,7 @@ function buildBeatEvents(measures, transposeSemitones = 0) {
 
   const events = [];
   let absoluteBeat = 0;
+  let previousChord = null;
 
   for (const measure of measures) {
     const { beats = 4, chords = [] } = measure;
@@ -75,8 +76,8 @@ function buildBeatEvents(measures, transposeSemitones = 0) {
       beatChordMap[chord.beat] = chord;
     }
 
-    // Start with the first defined chord (defaults to measure beat 1 or the first entry)
-    let currentChord = beatChordMap[1] ?? chords[0] ?? null;
+    // Carry the previous chord into this measure when the chart omits a new one.
+    let currentChord = beatChordMap[1] ?? chords[0] ?? previousChord;
 
     for (let b = 1; b <= beats; b++) {
       if (beatChordMap[b]) currentChord = beatChordMap[b];
@@ -102,6 +103,10 @@ function buildBeatEvents(measures, transposeSemitones = 0) {
       }
 
       absoluteBeat++;
+    }
+
+    if (currentChord) {
+      previousChord = currentChord;
     }
   }
 

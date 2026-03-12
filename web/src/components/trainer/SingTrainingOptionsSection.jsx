@@ -18,6 +18,8 @@ export function SingTrainingOptionsSection({
   onPlayTonicCadenceChange,
   hearExerciseFirst,
   onHearExerciseFirstChange,
+  karaokeLabelMode,
+  onKaraokeLabelModeChange,
   instrument,
   onInstrumentChange,
   rangeSuggestionText,
@@ -126,6 +128,14 @@ export function SingTrainingOptionsSection({
                   No
                 </label>
               </div>
+            </div>
+
+            <div className="row">
+              <span>Karaoke labels</span>
+              <select value={karaokeLabelMode} onChange={(event) => onKaraokeLabelModeChange(event.target.value)}>
+                <option value="lyrics">Lyrics</option>
+                <option value="solfege">Solfege</option>
+              </select>
             </div>
 
             <div className="row">

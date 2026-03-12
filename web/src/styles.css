@@ -184,6 +184,228 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
   min-height: 620px;
   align-content: start;
 }
+
+.ear-page-subtitle {
+  margin: 0;
+  font-size: 11px;
+  color: #94a3b8;
+}
+
+.ear-main-card {
+  gap: 8px;
+  padding: 10px;
+}
+
+.ear-controls-layout {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.ear-controls-section {
+  border: 1px solid #1f2b3d;
+  border-radius: 10px;
+  background: #0b1220;
+  padding: 8px;
+  display: grid;
+  gap: 6px;
+  align-content: start;
+}
+
+.ear-controls-title {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #93c5fd;
+}
+
+.ear-inline-field {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ear-inline-field span {
+  color: #cbd5e1;
+  min-width: 82px;
+}
+
+.ear-inline-field select {
+  flex: 1;
+}
+
+.ear-tempo-field {
+  font-size: 12px;
+  color: #cbd5e1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.ear-tempo-field input[type='range'] {
+  flex: 1;
+  min-width: 120px;
+}
+
+.ear-checkbox-field {
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+  color: #cbd5e1;
+}
+
+.ear-checkbox-field input {
+  width: auto;
+}
+
+.ear-action-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.ear-range-hint {
+  margin-top: 4px;
+  font-size: 12px;
+  color: #fca5a5;
+}
+
+.ear-round-display {
+  margin-top: 4px;
+  text-align: center;
+  border-top: 1px solid #1f2b3d;
+  padding-top: 8px;
+}
+
+.ear-round-name {
+  font-size: 32px;
+  font-weight: 800;
+  line-height: 1.05;
+  transition: color 0.2s;
+}
+
+.ear-round-detail {
+  font-size: 12px;
+  color: #94a3b8;
+  margin-top: 2px;
+  min-height: 14px;
+}
+
+.ear-round-result {
+  font-size: 13px;
+  font-weight: 600;
+  margin-top: 4px;
+}
+
+.ear-session-complete {
+  font-size: 15px;
+  font-weight: 700;
+  margin-top: 6px;
+  color: #60a5fa;
+}
+
+.ear-session-complete-single {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.ear-progress-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.ear-progress-head h3 {
+  margin: 0;
+}
+
+.ear-reset-button {
+  font-size: 12px;
+  padding: 3px 10px;
+}
+
+.ear-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+
+.ear-progress-card {
+  background: #1e293b;
+  border-radius: 8px;
+  padding: 6px 8px;
+  text-align: center;
+  border: 1px solid transparent;
+  transition: border-color 0.2s, background 0.2s;
+}
+
+.ear-progress-card-active {
+  background: #1e3a5f;
+  border-color: #3b82f6;
+}
+
+.ear-progress-name {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.ear-progress-label {
+  font-size: 11px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.ear-progress-rate {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.ear-progress-ratio {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.ear-progress-bar-track {
+  height: 4px;
+  border-radius: 2px;
+  background: #0f172a;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.ear-progress-bar-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.4s;
+}
+
+.ear-progress-untried {
+  font-size: 11px;
+  color: #475569;
+  margin-top: 4px;
+}
+
+.ear-graph-card {
+  min-height: 470px;
+  gap: 6px;
+  padding: 10px;
+}
+
+.ear-graph-card .mic-settings-canvas {
+  height: 340px;
+}
+
+.ear-progress-panel {
+  gap: 8px;
+  padding: 10px;
+}
 .note-row { display: flex; gap: 6px; flex-wrap: wrap; }
 .badge { padding: 4px 8px; border-radius: 999px; border: 1px solid #334155; background: #0b1220; font-size: 12px; }
 .current { border-color: #1d4ed8; }
@@ -502,6 +724,9 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
 
 @media (max-width: 980px) {
   .grid, .trainer-grid { grid-template-columns: 1fr; }
+  .ear-controls-layout { grid-template-columns: 1fr; }
+  .ear-progress-grid { grid-template-columns: repeat(2, 1fr); }
+  .ear-round-name { font-size: 28px; }
 }
 
 /* ── Pitch Match Page ─────────────────────────────────────────────────────── */
