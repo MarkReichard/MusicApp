@@ -58,6 +58,10 @@ import {
 const NOTE_LIMIT_OPTIONS = [5, 10, 15, 20, 30];
 const DEFAULT_NOTE_LIMIT = 10;
 const PATTERN_NOTE_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => i + 2);
+const TEMPO_BPM_MIN = 40;
+const TEMPO_BPM_MAX = 120;
+const TEMPO_BPM_DEFAULT = 72;
+const EAR_TRAINING_OPTIONS_STORAGE_KEY = 'musicapp.web.earTraining.options.v1';
 
 /** First (scored) note is "DAAAH" — 2 beats. */
 const DAAAH_BEATS = 1;
@@ -66,7 +70,11 @@ const DA_BEATS = 1;
 
 const REINFORCEMENT_GAIN = TARGET_NOTE_GAIN * 0.85;
 const TOLERANCE_CENTS = 50;
-const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.35;
+const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.8;
+const METRONOME_VOLUME_MIN = 20;
+const METRONOME_VOLUME_MAX = 300;
+const METRONOME_VOLUME_DEFAULT = 100;
+const EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY = 'musicapp.web.earTraining.metronomeVolume.v1';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
 
@@ -144,9 +152,50 @@ function getBarchartColor(rate) {
   return '#7f1d1d';
 }
 
-function scheduleMetronomeBeats(ctx, startAt, beatCount, beatSeconds) {
+function scheduleMetronomeBeats(ctx, startAt, beatCount, beatSeconds, clickGain) {
   for (let index = 0; index < beatCount; index += 1) {
-    scheduleMetronomeClick(ctx, startAt + index * beatSeconds, METRONOME_CLICK_GAIN);
+    scheduleMetronomeClick(ctx, startAt + index * beatSeconds, clickGain);
+  }
+}
+
+function clampMetronomeVolume(value) {
+  return Math.max(METRONOME_VOLUME_MIN, Math.min(METRONOME_VOLUME_MAX, value));
+}
+
+function loadMetronomeVolumeSetting() {
+  try {
+    const raw = globalThis.localStorage.getItem(EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY);
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed)) return METRONOME_VOLUME_DEFAULT;
+    return clampMetronomeVolume(parsed);
+  } catch {
+    return METRONOME_VOLUME_DEFAULT;
+  }
+}
+
+function loadEarTrainingOptions() {
+  try {
+    const raw = globalThis.localStorage.getItem(EAR_TRAINING_OPTIONS_STORAGE_KEY);
+    if (!raw) {
+      return {
+        tempoBpm: TEMPO_BPM_DEFAULT,
+        playCadenceChords: true,
+        metronomeEnabled: false,
+      };
+    }
+    const parsed = JSON.parse(raw);
+    const parsedTempo = Number(parsed?.tempoBpm ?? TEMPO_BPM_DEFAULT);
+    return {
+      tempoBpm: Math.max(TEMPO_BPM_MIN, Math.min(TEMPO_BPM_MAX, Number.isFinite(parsedTempo) ? parsedTempo : TEMPO_BPM_DEFAULT)),
+      playCadenceChords: Boolean(parsed?.playCadenceChords ?? true),
+      metronomeEnabled: Boolean(parsed?.metronomeEnabled ?? false),
+    };
+  } catch {
+    return {
+      tempoBpm: TEMPO_BPM_DEFAULT,
+      playCadenceChords: true,
+      metronomeEnabled: false,
+    };
   }
 }
 
@@ -164,6 +213,8 @@ export function EarTrainingPage() {
     return 4;
   }, [pitchRange]);
 
+  const savedEarOptions = useMemo(() => loadEarTrainingOptions(), []);
+
   // ── Options ───────────────────────────────────────────────────────────────
   const [selectedKey,  setSelectedKey]  = useState('C');
   const [singOctave,   setSingOctave]   = useState(defaultOctave);
@@ -171,11 +222,12 @@ export function EarTrainingPage() {
   const [patternType, setPatternType] = useState(EAR_PATTERN_TYPES.RANDOM_ARPEGGIO);
   const [patternNoteCount, setPatternNoteCount] = useState(4);
   const [limitPatternToStartingChord, setLimitPatternToStartingChord] = useState(false);
-  const [tempoBpm,     setTempoBpm]     = useState(72);
+  const [tempoBpm,     setTempoBpm]     = useState(savedEarOptions.tempoBpm);
   const [noteLimit,    setNoteLimit]    = useState(DEFAULT_NOTE_LIMIT);
-  const [playCadenceChords, setPlayCadenceChords] = useState(true);
+  const [playCadenceChords, setPlayCadenceChords] = useState(savedEarOptions.playCadenceChords);
   const [hideNoteName, setHideNoteName] = useState(false);
-  const [metronomeEnabled, setMetronomeEnabled] = useState(false);
+  const [metronomeEnabled, setMetronomeEnabled] = useState(savedEarOptions.metronomeEnabled);
+  const [metronomeVolume, setMetronomeVolume] = useState(() => loadMetronomeVolumeSetting());
 
   // ── Session state ──────────────────────────────────────────────────────────
   // roundPhase: 'idle' | 'playing' | 'done' | 'finished'
@@ -196,6 +248,24 @@ export function EarTrainingPage() {
   // Stable ref so async playRound always reads latest earHistory
   const earHistoryRef    = useRef(earHistory);
   useEffect(() => { earHistoryRef.current = earHistory; }, [earHistory]);
+  useEffect(() => {
+    try {
+      globalThis.localStorage.setItem(EAR_TRAINING_OPTIONS_STORAGE_KEY, JSON.stringify({
+        tempoBpm,
+        playCadenceChords,
+        metronomeEnabled,
+      }));
+    } catch {
+      // ignore storage failures
+    }
+  }, [tempoBpm, playCadenceChords, metronomeEnabled]);
+  useEffect(() => {
+    try {
+      globalThis.localStorage.setItem(EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY, String(metronomeVolume));
+    } catch {
+      // ignore storage failures
+    }
+  }, [metronomeVolume]);
 
   const {
     current: detectedPitch,
@@ -364,6 +434,7 @@ export function EarTrainingPage() {
     const promptGuideBeats = roundConfig.promptMidiSeq.length * Math.max(1, roundConfig.guideBeatsPerNote);
     const countdownBeats = 1;
     const sungPhraseBeats = midiSeq.length * DA_BEATS;
+    const metronomeClickGain = METRONOME_CLICK_GAIN * (metronomeVolume / 100);
 
     // ── Schedule audio ──────────────────────────────────────────────────────
 
@@ -393,11 +464,11 @@ export function EarTrainingPage() {
 
     if (metronomeEnabled) {
       if (cadenceBeatCount > 0) {
-        scheduleMetronomeBeats(ctx, cadenceStartAt, cadenceBeatCount, beatSeconds);
+        scheduleMetronomeBeats(ctx, cadenceStartAt, cadenceBeatCount, beatSeconds, metronomeClickGain);
       }
-      scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds);
-      scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds);
-      scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds);
+      scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds, metronomeClickGain);
+      scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds, metronomeClickGain);
+      scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds, metronomeClickGain);
     }
 
     // ── Fixed expected bars and reinforcement ───────────────────────────────
@@ -470,6 +541,7 @@ export function EarTrainingPage() {
 
   async function handleReplay() {
     if (!activeRound) return;
+    cancelPlayback();
     await playRound(activeRound);
   }
 
@@ -634,8 +706,8 @@ export function EarTrainingPage() {
             Tempo&nbsp;{tempoBpm}&nbsp;bpm
             <input
               type="range"
-              min={40}
-              max={120}
+              min={TEMPO_BPM_MIN}
+              max={TEMPO_BPM_MAX}
               value={tempoBpm}
               onChange={(e) => setTempoBpm(Number(e.target.value))}
               disabled={isPlaying}
@@ -683,6 +755,21 @@ export function EarTrainingPage() {
             />
             {' '}Metronome
           </label>
+
+            {metronomeEnabled && (
+              <label className="ear-tempo-field">
+              Metronome volume&nbsp;{metronomeVolume}%
+              <input
+                type="range"
+                min={METRONOME_VOLUME_MIN}
+                max={METRONOME_VOLUME_MAX}
+                value={metronomeVolume}
+                onChange={(e) => setMetronomeVolume(clampMetronomeVolume(Number(e.target.value)))}
+                disabled={isPlaying}
+                style={{ verticalAlign: 'middle' }}
+              />
+            </label>
+            )}
           </section>
         </div>
 
@@ -693,17 +780,14 @@ export function EarTrainingPage() {
           )}
           {isDone && (
             <>
-              <button type="button" className="button" onClick={handleNext} disabled={!hasValidRoundForSettings}>Next ▶</button>
-              <button type="button" className="button secondary" onClick={handleReplay}>↺ Replay</button>
-              <button type="button" className="button secondary" onClick={handleStop}>■ Stop</button>
             </>
-          )}
-          {isPlaying && (
-            <button type="button" className="button secondary" onClick={handleStop}>■ Stop</button>
           )}
           {isFinished && (
             <button type="button" className="button" onClick={handleStart} disabled={!hasValidRoundForSettings}>▶ Start Again</button>
           )}
+          <button type="button" className="button" onClick={handleNext} disabled={!isDone || !hasValidRoundForSettings}>Next ▶</button>
+          <button type="button" className="button secondary" onClick={handleReplay} disabled={!activeRound}>↺ Replay</button>
+          <button type="button" className="button secondary" onClick={handleStop} disabled={!activeRound}>■ Stop</button>
           <Link className="button secondary home-icon-button" to="/" title="Home" aria-label="Home">⌂</Link>
         </div>
 
