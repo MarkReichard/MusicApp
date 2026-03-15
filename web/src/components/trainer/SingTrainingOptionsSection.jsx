@@ -58,20 +58,13 @@ export function SingTrainingOptionsSection({
             </div>
 
             <div className="row">
-              <span>Tempo (BPM)</span>
+              <span>Tempo {tempoBpm} BPM</span>
               <input
-                type="number"
+                type="range"
                 min={tempoRange.min}
                 max={tempoRange.max}
                 value={tempoBpm}
-                onChange={(event) => {
-                  const next = Number(event.target.value);
-                  if (!Number.isFinite(next)) {
-                    return;
-                  }
-                  const clamped = Math.max(tempoRange.min, Math.min(tempoRange.max, Math.round(next)));
-                  onTempoBpmChange(clamped);
-                }}
+                onChange={(event) => onTempoBpmChange(Number(event.target.value))}
               />
             </div>
 
