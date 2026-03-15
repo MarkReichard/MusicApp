@@ -1207,4 +1207,252 @@ canvas { width: 100%; height: 320px; border: 1px solid #334155; border-radius: 1
 }
 .button-link:hover { color: #93c5fd; }
 
+.fretboard-game-page {
+  display: grid;
+  gap: 12px;
+}
+
+.fretboard-menu-page {
+  display: grid;
+  gap: 12px;
+}
+
+.fretboard-menu-header {
+  padding: 12px 14px;
+}
+
+.fretboard-menu-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.fretboard-menu-header p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.fretboard-menu-grid {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+}
+
+.fretboard-menu-card {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.fretboard-menu-card h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.fretboard-menu-card p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.fretboard-game-header {
+  padding: 12px 14px;
+}
+
+.fretboard-game-header h2 {
+  margin: 0 0 4px;
+  font-size: 18px;
+}
+
+.fretboard-game-header p {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.fretboard-lesson-chip {
+  margin-top: 8px;
+  display: inline-block;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #1d4ed8;
+  color: #dbeafe;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.fretboard-back-btn {
+  margin-top: 8px;
+}
+
+.fretboard-game-controls {
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.fretboard-control-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.fretboard-audio-row {
+  grid-template-columns: 1fr minmax(320px, 2fr);
+}
+
+.fretboard-audio-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.fretboard-game-stats {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+}
+
+.fretboard-game-main {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: 1fr;
+  align-items: start;
+}
+
+.fretboard-staff-panel,
+.fretboard-board-panel {
+  padding: 8px 10px;
+}
+
+.fretboard-board-panel {
+  overflow-x: auto;
+}
+
+.fretboard-panel-title {
+  color: #cbd5e1;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.fretboard-staff-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+}
+
+.fretboard-staff-key {
+  text-align: right;
+}
+
+.fretboard-staff-svg,
+.fretboard-board-svg {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.fretboard-board-svg {
+  min-width: 0;
+}
+
+.fretboard-note-label {
+  text-align: center;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.fretboard-hit {
+  fill: transparent;
+  cursor: pointer;
+}
+
+.fretboard-marker {
+  fill: none;
+  stroke-width: 1.8;
+  pointer-events: none;
+}
+
+.fretboard-marker--correct {
+  stroke: #4ade80;
+}
+
+.fretboard-marker--wrong {
+  stroke: #f87171;
+}
+
+.fretboard-hint-text {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 13px;
+}
+
+.fretboard-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: #020617b3;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  z-index: 50;
+}
+
+.fretboard-modal {
+  width: min(520px, 100%);
+  padding: 14px;
+  display: grid;
+  gap: 12px;
+  color: #e2e8f0;
+  background: #111827;
+  border: 1px solid #334155;
+}
+
+.fretboard-modal h3 {
+  margin: 0;
+  font-size: 17px;
+  color: #f8fafc;
+}
+
+.fretboard-modal span,
+.fretboard-modal label,
+.fretboard-modal p {
+  color: #cbd5e1;
+}
+
+.fretboard-modal-stats {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.fretboard-modal-fields {
+  display: grid;
+  gap: 10px;
+}
+
+.fretboard-modal-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+@media (max-width: 900px) {
+  .fretboard-game-main {
+    grid-template-columns: 1fr;
+  }
+
+  .fretboard-audio-row {
+    grid-template-columns: 1fr;
+  }
+
+  .fretboard-audio-controls {
+    grid-template-columns: 1fr;
+  }
+
+  .fretboard-modal-stats {
+    grid-template-columns: 1fr;
+  }
+}
+
 

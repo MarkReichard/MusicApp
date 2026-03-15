@@ -1,0 +1,451 @@
+```
+FRETBOARD STAFF NOTATION TRAINING GAME
+SPECIFICATION
+
+1. PURPOSE
+
+The application is an educational game designed to teach fret instrument players to map standard staff notation to fretboard positions. The system focuses exclusively on pitch recognition and fretboard mapping. Rhythm is not included in this version of the game.
+
+The game supports three instruments:
+
+- Guitar
+- Mandolin
+- 5-String Banjo
+
+The system teaches two complementary skills:
+
+1. Staff notation → fretboard mapping
+2. Fretboard → staff notation mapping
+
+The system uses progressive lessons and spaced repetition to help users build durable pitch-location associations.
+
+
+2. CORE LEARNING OBJECTIVES
+
+The game trains users to:
+
+- Recognize staff notation notes.
+- Associate notes with pitch names.
+- Identify the correct string and fret location on an instrument.
+- Learn the pitch layout of the fretboard.
+- Identify multiple possible fretboard locations for a given pitch.
+
+The game presents only single notes.
+
+Notes are displayed as sustained tones without rhythmic duration.
+
+
+3. INSTRUMENT MODELS
+
+Each instrument uses standard tuning.
+
+All notation is displayed in treble clef.
+
+3.1 Guitar
+
+Strings (low → high)
+
+E2
+A2
+D3
+G3
+B3
+E4
+
+Default fretboard range used for training:
+
+0–12 frets
+
+3.2 Mandolin
+
+Strings (low → high)
+
+G3
+D4
+A4
+E5
+
+Default fretboard range:
+
+0–12 frets
+
+3.3 5-String Banjo (standard tuning)
+
+Strings (low → high)
+
+D3
+G3
+B3
+D4
+g4 (5th string short string)
+
+The 5th string begins at fret 5.
+
+Default training range:
+
+0–12 frets (with correct modeling of 5th string)
+
+
+4. USER INTERFACE
+
+The UI consists of two primary areas.
+
+Top Section
+
+Staff notation display.
+
+- Treble clef
+- Single note displayed
+- Accidentals displayed where needed
+- Ledger lines supported
+
+Bottom Section
+
+Interactive fretboard diagram.
+
+Features:
+
+- Strings labeled
+- Frets labeled
+- Position markers displayed
+- Clickable fret locations
+
+Additional UI elements:
+
+- Instrument selector
+- Key selector
+- Lesson progress indicator
+- Score/streak indicator
+- Audio playback control
+
+
+5. AUDIO
+
+Each note presented is played as audio.
+
+Two sound modes are supported:
+
+Instrument Mode
+Audio resembles the selected instrument.
+
+Pure Tone Mode
+A clean sine wave or piano tone used for clear pitch recognition.
+
+Audio plays automatically when a new note appears.
+
+
+6. GAMEPLAY LOOP
+
+Each exercise round follows this sequence:
+
+1. Display staff notation note.
+2. Play note audio.
+3. User clicks a fretboard location (string + fret).
+4. System checks correctness.
+
+If correct:
+
+- Correct fret location highlighted in green.
+- Confirmation sound played.
+- Score/streak increased.
+
+If incorrect:
+
+- Correct location displayed.
+- Incorrect selection highlighted in red.
+- Pitch replayed.
+- Score/streak reset or reduced.
+
+The next note is then generated.
+
+
+7. LESSON STRUCTURE
+
+Lessons progress from simple to complex.
+
+
+LESSON GROUP 1 — OPEN STRINGS
+
+Goal:
+Associate open strings with staff notation.
+
+Tutorial:
+
+- Show open string note on staff.
+- Play pitch.
+- Highlight string on fretboard.
+
+Practice:
+
+- Display staff note.
+- User clicks correct open string.
+
+Notes included:
+
+All open strings of selected instrument.
+
+
+LESSON GROUP 2 — SINGLE STRING NOTE MAPPING
+
+Goal:
+Learn note progression along each string.
+
+User selects a key.
+
+Tutorial:
+
+For each string:
+
+1. Display notes of the selected key along that string.
+2. Highlight fretboard positions.
+3. Play ascending pitches.
+
+Example in key of B:
+
+B C# D# E F# G# A#
+
+Practice:
+
+- Random notes from that key appear on the staff.
+- Notes are restricted to the selected string.
+- User selects correct fret.
+
+
+LESSON GROUP 3 — FIRST POSITION
+
+Goal:
+Map notes across strings in first position.
+
+First position ranges:
+
+Guitar: frets 0–3
+Mandolin: frets 0–3
+Banjo: frets 0–3 (with 5th string exception)
+
+Practice:
+
+- Random notes appear.
+- User selects correct fret location.
+
+
+LESSON GROUP 4 — EXTENDED POSITIONS
+
+Positions expand progressively.
+
+Position ranges:
+
+Level 1: frets 0–3
+Level 2: frets 0–5
+Level 3: frets 0–7
+Level 4: frets 0–9
+Level 5: frets 0–12
+
+
+LESSON GROUP 5 — FULL FRETBOARD
+
+Notes appear anywhere within the allowed fret range.
+
+Users must identify correct fret location.
+
+
+LESSON GROUP 6 — MULTIPLE LOCATIONS
+
+Goal:
+Recognize that many notes exist in multiple locations.
+
+Example:
+
+Note: C#
+
+User must click every valid fretboard location.
+
+
+8. KEY SYSTEM
+
+User can select a key.
+
+Keys supported:
+
+All 12 major keys.
+
+Initial exercises use only diatonic notes of the key.
+
+Example:
+
+Key of B major
+
+B C# D# E F# G# A#
+
+Advanced mode may enable chromatic notes.
+
+Enharmonic handling:
+
+The system uses sharp notation only.
+
+
+9. NOTE RANGE
+
+Notes displayed on the staff are restricted to the playable range of the selected instrument and the active position level.
+
+
+10. RANDOM NOTE MODE
+
+Random practice mode generates notes within:
+
+- selected key
+- selected fret range
+- instrument pitch range
+
+Notes appear in random order.
+
+This mode supports spaced repetition.
+
+
+
+
+12. PROGRESS TRACKING
+
+The system tracks performance for each note.
+
+Metrics recorded:
+
+- attempts
+- correct answers
+- incorrect answers
+- response time
+- mastery score
+
+Progress indicators include:
+
+- accuracy percentage
+- current streak
+- mastered notes
+
+
+13. SPACED REPETITION
+
+Each note has a repetition priority score.
+
+Data tracked per note:
+
+note
+instrument
+difficulty_score
+last_seen
+interval
+
+Correct answer:
+
+interval = interval × 2
+
+Incorrect answer:
+
+interval = 1
+difficulty_score increases
+
+Notes with highest priority appear sooner.
+
+
+14. SESSION TYPES
+
+Practice Mode
+
+- unlimited attempts
+- hints available
+
+Quiz Mode
+
+- score recorded
+- limited attempts
+
+Challenge Mode
+
+- timed rounds
+- streak scoring
+
+
+15. DIFFICULTY MODES
+
+Beginner
+
+- note labels shown
+- fret numbers visible
+- correct string highlighted
+
+Intermediate
+
+- labels removed
+- fret numbers optional
+
+Advanced
+
+- multiple fretboard positions required
+- no hints
+
+
+16. VISUAL FEEDBACK
+
+Correct answer:
+
+- fret highlighted green
+- note flashes
+
+Incorrect answer:
+
+- incorrect fret highlighted red
+- correct fret shown afterward
+
+
+
+
+
+18. FUTURE FEATURES (NOT IN VERSION 1)
+
+- rhythm training
+- chord recognition
+- scale visualization
+- alternate tunings
+- ear training intervals
+- multiplayer competition
+- adaptive difficulty AI
+
+
+19. IMPLEMENTATION STATUS (MARCH 2026)
+
+Scope decisions for Version 1 are confirmed.
+
+DONE (SCOPE LOCKED FOR V1)
+
+- Lessons included: Lesson Groups 1–3
+	- Group 1: Open strings
+	- Group 2: Single-string note mapping
+	- Group 3: First position (frets 0–3)
+- Direction included: Staff notation → fretboard only
+- Difficulty included: Beginner only
+- Session type included: Practice mode only
+- Instrument included: Guitar only
+
+NOT IN V1 (NEXT PHASES)
+
+- Add additional lesson groups:
+	- Group 4: Extended positions
+	- Group 5: Full fretboard
+	- Group 6: Multiple locations
+- Add reverse mapping mode:
+	- Fretboard → staff notation
+- Add additional difficulty modes:
+	- Intermediate
+	- Advanced
+- Add additional session types:
+	- Quiz mode
+	- Challenge mode
+- Add additional instruments:
+	- Mandolin
+	- 5-string banjo
+
+NEXT IMPLEMENTATION MILESTONE
+
+- Build and ship a playable Guitar/Beginner/Practice experience using Lesson Groups 1–3.
+- Persist per-note performance and spaced-repetition state.
+- Verify note rendering (treble clef + ledger lines) and fretboard hit testing for all notes in the selected key and position range.
+

@@ -11,6 +11,8 @@ import { SingGraphV2LabPage } from './pages/SingGraphV2LabPage';
 import { SongBuilderPage } from './pages/SongBuilderPage';
 import { HomePage } from './pages/HomePage';
 import { EarTrainingPage } from './pages/EarTrainingPage';
+import { FretboardGamePage } from './pages/FretboardGamePage';
+import { FretboardLessonMenuPage } from './pages/FretboardLessonMenuPage';
 
 export function App() {
   useEffect(() => { loadPiano(); }, []);
@@ -26,6 +28,7 @@ export function App() {
           <NavLink to="/pitch-match">Pitch Match</NavLink>
           <NavLink to="/pitch-range">Vocal Range</NavLink>
           <NavLink to="/ear-training">Ear Training</NavLink>
+          <NavLink to="/fretboard-game">Fretboard Game</NavLink>
         </nav>
       </header>
 
@@ -43,6 +46,8 @@ export function App() {
           <Route path="/sing-graph-v2" element={<SingGraphV2LabPage />} />
           <Route path="/song-builder" element={<SongBuilderPage />} />
           <Route path="/ear-training" element={<EarTrainingPage />} />
+          <Route path="/fretboard-game" element={<FretboardLessonMenuPage />} />
+          <Route path="/fretboard-game/:lessonId" element={<FretboardGamePage />} />
         </Routes>
       </main>
     </div>

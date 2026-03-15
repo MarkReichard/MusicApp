@@ -32,7 +32,7 @@ export function HomePage() {
           <div className="home-card-icon">🎵</div>
           <div className="home-card-content">
             <h3>Lessons</h3>
-            <p>{lessonCount} exercise{lessonCount !== 1 ? 's' : ''} covering solfege, arpeggios, melodies, and more. Sing or play along on a piano keyboard.</p>
+            <p>{lessonCount} exercise{lessonCount === 1 ? '' : 's'} covering solfege, arpeggios, melodies, and more. Sing or play along on a piano keyboard.</p>
           </div>
           <Link className="button" to="/lessons">Browse lessons</Link>
         </div>
@@ -53,6 +53,15 @@ export function HomePage() {
             <p>Identify scale degrees by ear. Sing the prompted note and resolve it stepwise. Spaced repetition keeps you working on the notes you find hardest.</p>
           </div>
           <Link className="button" to="/ear-training">Start training</Link>
+        </div>
+
+        <div className="card home-card">
+          <div className="home-card-icon">🎸</div>
+          <div className="home-card-content">
+            <h3>Fretboard Game</h3>
+            <p>Read one staff note at a time and click the matching guitar string/fret position. Beginner mode includes guided string hints.</p>
+          </div>
+          <Link className="button" to="/fretboard-game">Start game</Link>
         </div>
 
         <div className="card home-card">
