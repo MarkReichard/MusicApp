@@ -6,9 +6,10 @@ import { usePitchDetector } from '../lib/usePitchDetector';
 import {
   SEMITONES_PER_OCTAVE,
   keyToSemitone,
+  midiToFrequencyHz,
   midiToNoteLabel,
 } from '../lib/musicTheory';
-import { playBing, playBuzz, playPianoNoteNow } from '../lib/pianoSynth';
+import { getPianoAudioContext, playBing, playBuzz, playPianoNoteNow, scheduleReferenceTone, stopAllNotes } from '../lib/pianoSynth';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
@@ -23,8 +24,65 @@ const WRONG_HOLD_READINGS     = 4;   // ~200 ms of sustained wrong pitch = 1 str
 const MAX_STRIKES             = 2;   // strikes before marking wrong
 const NOTE_TIMEOUT_MS         = 7000;
 const FEEDBACK_LINGER_MS      = 800;
+const DIRECTION_EPSILON_CENTS = 5;
+const AB_COMPARE_NOTE_DURATION_S = 1.35;
+const AB_COMPARE_GAP_S = 0.18;
+const AB_COMPARE_TARGET_GAIN = 0.3;
+const AB_COMPARE_SUNG_GAIN = 0.38;
+const AB_COMPARE_MIN_MIDI = 64; // E4
+const AB_COMPARE_MAX_MIDI = 76; // E5
 
 const TARGET_TONE_GAIN = 0.18;
+
+function median(values) {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  const sorted = [...values].sort((a, b) => a - b);
+  const middle = Math.floor(sorted.length / 2);
+  return sorted.length % 2 === 0
+    ? (sorted[middle - 1] + sorted[middle]) / 2
+    : sorted[middle];
+}
+
+function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
+  if (!Array.isArray(sungMidis) || sungMidis.length === 0) {
+    return {
+      sungMidi: null,
+      sungNoteLabel: '—',
+      signedCents: null,
+      direction: 'no-pitch',
+    };
+  }
+
+  const offPitchMidis = sungMidis.filter((midi) => Math.abs(midi - targetMidi) * 100 > toleranceCents);
+  let representativeMidis = sungMidis;
+  if (!wasCorrect && offPitchMidis.length > 0) {
+    representativeMidis = offPitchMidis;
+  }
+  const sungMidi = median(representativeMidis);
+  const signedCents = (sungMidi - targetMidi) * 100;
+  const aboveCount = representativeMidis.filter((midi) => midi > targetMidi).length;
+  const belowCount = representativeMidis.filter((midi) => midi < targetMidi).length;
+
+  let direction = 'on-pitch';
+  if (signedCents <= -DIRECTION_EPSILON_CENTS) direction = 'flat';
+  else if (signedCents >= DIRECTION_EPSILON_CENTS) direction = 'sharp';
+  else if (aboveCount !== belowCount) direction = aboveCount > belowCount ? 'sharp' : 'flat';
+
+  return {
+    sungMidi,
+    sungNoteLabel: midiToNoteLabel(sungMidi),
+    signedCents,
+    direction,
+  };
+}
+
+function getCompareTransposeSemitones(targetMidi) {
+  if (!Number.isFinite(targetMidi)) return 0;
+  let shift = 0;
+  while (targetMidi + shift < AB_COMPARE_MIN_MIDI) shift += 12;
+  while (targetMidi + shift > AB_COMPARE_MAX_MIDI) shift -= 12;
+  return shift;
+}
 
 // ── Note generation ────────────────────────────────────────────────────────────
 function generateDiatonicCandidates(selectedKey, minMidi, maxMidi) {
@@ -77,6 +135,7 @@ export function PitchMatchPage() {
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
   const [results, setResults]                 = useState([]); // 'correct' | 'wrong' | null
+  const [attempts, setAttempts]               = useState([]);
   const [phase, setPhase]                     = useState('setup'); // setup | playing_tone | listening | feedback | done
   const [feedback, setFeedback]               = useState(null); // 'correct' | 'wrong'
 
@@ -84,6 +143,7 @@ export function PitchMatchPage() {
   const wrongHoldRef  = useRef(0);
   const strikeRef     = useRef(0);
   const timeoutRef    = useRef(null);
+  const sungMidisRef  = useRef([]);
 
   const [strikes, setStrikes] = useState(0);
 
@@ -97,6 +157,27 @@ export function PitchMatchPage() {
   // ── Advance to next note ───────────────────────────────────────────────────
   const advanceNote = useCallback((wasCorrect) => {
     clearTimeout(timeoutRef.current);
+    const currentTarget = exercise[noteIndex] ?? null;
+    const sungSummary = currentTarget
+      ? summarizeSungPitch(sungMidisRef.current, currentTarget.midi, toleranceCents, wasCorrect)
+      : null;
+
+    if (currentTarget && sungSummary) {
+      setAttempts((previous) => {
+        const updated = [...previous];
+        updated[noteIndex] = {
+          index: noteIndex,
+          result: wasCorrect ? 'correct' : 'wrong',
+          targetMidi: currentTarget.midi,
+          targetNoteLabel: currentTarget.noteLabel,
+          solfege: currentTarget.solfege,
+          ...sungSummary,
+        };
+        return updated;
+      });
+    }
+
+    sungMidisRef.current = [];
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -132,7 +213,7 @@ export function PitchMatchPage() {
         }, delayMs);
       }
     }, FEEDBACK_LINGER_MS);
-  }, [noteIndex, exercise, toneDurationS]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [noteIndex, exercise, toneDurationS, toleranceCents]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startTimeout() {
     clearTimeout(timeoutRef.current);
@@ -154,7 +235,9 @@ export function PitchMatchPage() {
     setNoteIndex(0);
     setScore({ correct: 0, total: 0 });
     setResults(new Array(ex.length).fill(null));
+    setAttempts(new Array(ex.length).fill(null));
     setFeedback(null);
+    sungMidisRef.current = [];
 
     if (ex.length === 0) {
       setPhase('setup');
@@ -182,7 +265,9 @@ export function PitchMatchPage() {
     setNoteIndex(0);
     setScore({ correct: 0, total: 0 });
     setResults(new Array(wrongNotes.length).fill(null));
+    setAttempts(new Array(wrongNotes.length).fill(null));
     setFeedback(null);
+    sungMidisRef.current = [];
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(wrongNotes[0].midi, toneDurationS, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
@@ -195,6 +280,7 @@ export function PitchMatchPage() {
   function replayCurrentNote() {
     if (!targetNote) return;
     clearTimeout(timeoutRef.current);
+    sungMidisRef.current = [];
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -221,6 +307,8 @@ export function PitchMatchPage() {
       wrongHoldRef.current = 0;
       return;
     }
+
+    sungMidisRef.current = [...sungMidisRef.current, current.midi].slice(-64);
 
     const centsOff = Math.abs(current.midi - targetNote.midi) * 100;
     if (centsOff <= toleranceCents) {
@@ -263,6 +351,33 @@ export function PitchMatchPage() {
   const holdProgress = Math.min(holdCountRef.current / HOLD_READINGS_NEEDED, 1);
 
   const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
+  const wrongAttempts = attempts.filter((attempt) => attempt?.result === 'wrong');
+
+  function playAttemptComparison(attempt) {
+    if (!attempt || !Number.isFinite(attempt.targetMidi)) return;
+    stopAllNotes();
+    const compareShift = getCompareTransposeSemitones(attempt.targetMidi);
+    const targetCompareMidi = attempt.targetMidi + compareShift;
+    const audioCtx = getPianoAudioContext();
+    const startAt = audioCtx.currentTime + 0.02;
+    scheduleReferenceTone(
+      audioCtx,
+      midiToFrequencyHz(targetCompareMidi),
+      startAt,
+      AB_COMPARE_NOTE_DURATION_S,
+      AB_COMPARE_TARGET_GAIN,
+    );
+    if (!Number.isFinite(attempt.sungMidi)) return;
+    const sungCompareMidi = attempt.sungMidi + compareShift;
+    const secondAt = startAt + AB_COMPARE_NOTE_DURATION_S + AB_COMPARE_GAP_S;
+    scheduleReferenceTone(
+      audioCtx,
+      midiToFrequencyHz(sungCompareMidi),
+      secondAt,
+      AB_COMPARE_NOTE_DURATION_S,
+      AB_COMPARE_SUNG_GAIN,
+    );
+  }
 
   const phaseLabel = {
     setup:        'Configure and start',
@@ -410,7 +525,7 @@ export function PitchMatchPage() {
           {phase === 'done' && (
             <div className="pitch-match-final-score">
               <div>Score: {score.correct} / {exercise.length}</div>
-              {results.some((r) => r === 'wrong') && (
+              {results.includes('wrong') && (
                 <button
                   type="button"
                   className="button secondary"
@@ -419,6 +534,61 @@ export function PitchMatchPage() {
                 >
                   ↺ Replay wrong notes ({results.filter((r) => r === 'wrong').length})
                 </button>
+              )}
+
+              {wrongAttempts.length > 0 && (
+                <div className="pitch-match-results-table-wrap">
+                  <table className="pitch-match-results-table">
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Target</th>
+                        <th>You sang</th>
+                        <th>Offset</th>
+                        <th>Result</th>
+                        <th>Compare</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {wrongAttempts.map((attempt) => {
+                        const centsAbs = Number.isFinite(attempt.signedCents)
+                          ? Math.abs(Math.round(attempt.signedCents))
+                          : null;
+                        let offsetText = '0¢';
+                        if (attempt.direction === 'flat') {
+                          offsetText = `${centsAbs ?? '—'}¢ flat`;
+                        } else if (attempt.direction === 'sharp') {
+                          offsetText = `${centsAbs ?? '—'}¢ sharp`;
+                        } else if (attempt.direction === 'no-pitch') {
+                          offsetText = 'No pitch';
+                        }
+
+                        return (
+                          <tr key={`${attempt.index}-${attempt.targetMidi}`}>
+                            <td>{attempt.index + 1}</td>
+                            <td>{attempt.solfege} ({attempt.targetNoteLabel})</td>
+                            <td>{attempt.sungNoteLabel}</td>
+                            <td>{offsetText}</td>
+                            <td className={`pitch-match-result-${attempt.result}`}>
+                              {attempt.result === 'correct' ? '✓' : '✗'}
+                            </td>
+                            <td>
+                              <button
+                                type="button"
+                                className="button secondary pitch-match-compare-btn"
+                                onClick={() => playAttemptComparison(attempt)}
+                                disabled={!Number.isFinite(attempt.sungMidi)}
+                                title="Plays target first, then your sung pitch"
+                              >
+                                ▶ A/B
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               )}
             </div>
           )}

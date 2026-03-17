@@ -170,6 +170,18 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
 }
 
 /**
+ * Schedules an exact-frequency reference tone (never MIDI-quantized).
+ * Useful for A/B pitch comparisons where cents differences must be audible.
+ */
+export function scheduleReferenceTone(externalCtx, freq, startAt, durationS, peakGain) {
+  const ctx = getOrCreateContext();
+  const time = translateTime(startAt, externalCtx);
+  const safeDuration = Math.max(0.02, Number(durationS) || 0.2);
+  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || 0.1);
+  return scheduleFallbackTone(ctx, freq, time, safeDuration, safeGain);
+}
+
+/**
  * Schedules a short synthesized metronome click at a future time.
  *
  * @param {AudioContext} externalCtx  Caller's reference context (used only for time translation)
@@ -294,6 +306,7 @@ export function scheduleCadence(externalCtx, startAt, beatSeconds, tonicMidi, ch
 function scheduleFallbackTone(ctx, freq, time, durationS, peakGain) {
   const osc = ctx.createOscillator();
   const gainNode = ctx.createGain();
+  let cleanedUp = false;
 
   osc.type = 'triangle';
   osc.frequency.setValueAtTime(Math.max(20, Number(freq) || 440), time);
@@ -307,15 +320,27 @@ function scheduleFallbackTone(ctx, freq, time, durationS, peakGain) {
   osc.start(time);
   osc.stop(time + Math.max(0.03, durationS) + 0.03);
 
-  return () => {
+  const tracked = () => {
+    if (cleanedUp) return;
+    cleanedUp = true;
     try {
       gainNode.gain.cancelScheduledValues(ctx.currentTime);
       gainNode.gain.setValueAtTime(NEAR_ZERO, ctx.currentTime);
       osc.stop();
     } catch {
       // ignore stop race
+    } finally {
+      _activeStops.delete(tracked);
     }
   };
+
+  _activeStops.add(tracked);
+  osc.onended = () => {
+    _activeStops.delete(tracked);
+    osc.onended = null;
+  };
+
+  return tracked;
 }
 
 function scheduleClickBurst(ctx, time, peakGain) {
