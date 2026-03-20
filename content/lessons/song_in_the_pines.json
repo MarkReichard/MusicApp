@@ -57,7 +57,13 @@
           "lyric": "the"
         }
       ],
-      "chords": []
+      "chords": [
+        {
+          "beat": 1,
+          "root": "D",
+          "kind": "major"
+        }
+      ]
     },
     {
       "index": 1,
@@ -383,5 +389,5 @@
     "kind": "preloaded",
     "version": "1.0.0"
   },
-  "updatedAt": "2026-03-05T01:08:28.241Z"
+  "updatedAt": "2026-03-19T23:36:42.432Z"
 }
