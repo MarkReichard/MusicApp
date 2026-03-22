@@ -120,6 +120,13 @@ function freqToMidi(freq) {
   return Math.round(CONCERT_A_MIDI + SEMITONES_PER_OCTAVE * Math.log2(freq / CONCERT_A_HZ));
 }
 
+function freqToMidiWithDetune(freq) {
+  const exactMidi = CONCERT_A_MIDI + SEMITONES_PER_OCTAVE * Math.log2(freq / CONCERT_A_HZ);
+  const midi = Math.round(exactMidi);
+  const detuneCents = (exactMidi - midi) * 100;
+  return { midi, detuneCents };
+}
+
 /**
  * Maps our typical gain range (0.08–0.18 → velocity 56–126).
  * Formula: gain × 700, clamped to [1, 127].
@@ -157,6 +164,37 @@ export function schedulePianoNote(externalCtx, freq, startAt, durationS, peakGai
   if (_piano && typeof _piano.start === 'function') {
     const midi = freqToMidi(freq);
     const handle = _piano.start({ note: midi, velocity: gainToVelocity(safeGain), time, duration: safeDuration });
+    const stopFn = toStopFunction(handle);
+    const tracked = () => {
+      stopFn();
+      _activeStops.delete(tracked);
+    };
+    _activeStops.add(tracked);
+    return tracked;
+  }
+
+  return scheduleFallbackTone(ctx, freq, time, safeDuration, safeGain);
+}
+
+/**
+ * Schedules a microtonal sample note at a future time expressed relative to `externalCtx`.
+ * Uses nearest MIDI note plus per-note detune cents when sample playback is available.
+ */
+export function scheduleMicrotonalPianoNote(externalCtx, freq, startAt, durationS, peakGain) {
+  const ctx = getOrCreateContext();
+  const time = translateTime(startAt, externalCtx);
+  const safeDuration = Math.max(0.02, Number(durationS) || 0.2);
+  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || 0.1);
+
+  if (_piano && typeof _piano.start === 'function') {
+    const { midi, detuneCents } = freqToMidiWithDetune(freq);
+    const handle = _piano.start({
+      note: midi,
+      detune: detuneCents,
+      velocity: gainToVelocity(safeGain),
+      time,
+      duration: safeDuration,
+    });
     const stopFn = toStopFunction(handle);
     const tracked = () => {
       stopFn();
@@ -231,6 +269,26 @@ export function startHeldPianoTone(freq, peakGain) {
   if (_piano && typeof _piano.start === 'function') {
     const midi = freqToMidi(freq);
     const handle = _piano.start({ note: midi, velocity: gainToVelocity(peakGain) });
+    return { stop: toStopFunction(handle) };
+  }
+
+  const stopFallback = startFallbackHeldTone(ctx, freq, peakGain);
+  return { stop: stopFallback };
+}
+
+/**
+ * Starts a sustained held note with microtonal detune support when sample playback is available.
+ */
+export function startHeldMicrotonalPianoTone(freq, peakGain) {
+  const ctx = getOrCreateContext();
+
+  if (_piano && typeof _piano.start === 'function') {
+    const { midi, detuneCents } = freqToMidiWithDetune(freq);
+    const handle = _piano.start({
+      note: midi,
+      detune: detuneCents,
+      velocity: gainToVelocity(peakGain),
+    });
     return { stop: toStopFunction(handle) };
   }
 

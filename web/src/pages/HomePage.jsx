@@ -56,6 +56,24 @@ export function HomePage() {
         </div>
 
         <div className="card home-card">
+          <div className="home-card-icon">↕️</div>
+          <div className="home-card-content">
+            <h3>Direction Training</h3>
+            <p>Hear two tones and answer whether the second is higher or lower. Separate low/high adaptive staircases track your threshold over time.</p>
+          </div>
+          <Link className="button" to="/ear-training/direction">Start direction training</Link>
+        </div>
+
+        <div className="card home-card">
+          <div className="home-card-icon">🗣️</div>
+          <div className="home-card-content">
+            <h3>Voice Calibration</h3>
+            <p>Calibrate in-tune boundaries using sung-style timbre. Judge “in tune?” and “sharp/flat” on 0 and ±10…±100 cent shifts.</p>
+          </div>
+          <Link className="button" to="/ear-training/voice-calibration">Start calibration</Link>
+        </div>
+
+        <div className="card home-card">
           <div className="home-card-icon">🎸</div>
           <div className="home-card-content">
             <h3>Fretboard Game</h3>
