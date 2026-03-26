@@ -693,13 +693,22 @@ export function SingTrainerV2Page() {
             title="Start song over"
             aria-label="Start song over"
           >
-            Replay
+            Restart
           </button>
           {sections.length > 1 ? (
             <button
               type="button"
               className="button secondary"
-              onClick={() => setSection(sectionIndex - 1)}
+              onClick={() => {
+                const prevIndex = Math.max(0, sectionIndex - 1);
+                if (prevIndex === sectionIndex) {
+                  return;
+                }
+                const prevShiftedNotes = getShiftedNotesForSection(prevIndex);
+                const prevSectionMeasures = getMeasuresForSection(prevIndex);
+                setSection(prevIndex);
+                void playMidiSequence(prevShiftedNotes, prevSectionMeasures);
+              }}
               disabled={sectionIndex <= 0}
               title="Previous section"
               aria-label="Previous section"

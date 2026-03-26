@@ -43,6 +43,21 @@ function median(values) {
     : sorted[middle];
 }
 
+function nearestMidiByOctave(candidateMidi, referenceMidi) {
+  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
+    return candidateMidi;
+  }
+
+  let best = candidateMidi;
+  while (best - referenceMidi > 6) {
+    best -= 12;
+  }
+  while (referenceMidi - best > 6) {
+    best += 12;
+  }
+  return best;
+}
+
 function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
   if (!Array.isArray(sungMidis) || sungMidis.length === 0) {
     return {
@@ -53,8 +68,21 @@ function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
     };
   }
 
-  const offPitchMidis = sungMidis.filter((midi) => Math.abs(midi - targetMidi) * 100 > toleranceCents);
-  let representativeMidis = sungMidis;
+  const normalizedMidis = sungMidis
+    .map((midi) => nearestMidiByOctave(midi, targetMidi))
+    .filter((midi) => Number.isFinite(midi));
+
+  if (!normalizedMidis.length) {
+    return {
+      sungMidi: null,
+      sungNoteLabel: '—',
+      signedCents: null,
+      direction: 'no-pitch',
+    };
+  }
+
+  const offPitchMidis = normalizedMidis.filter((midi) => Math.abs(midi - targetMidi) * 100 > toleranceCents);
+  let representativeMidis = normalizedMidis;
   if (!wasCorrect && offPitchMidis.length > 0) {
     representativeMidis = offPitchMidis;
   }
@@ -308,9 +336,10 @@ export function PitchMatchPage() {
       return;
     }
 
-    sungMidisRef.current = [...sungMidisRef.current, current.midi].slice(-64);
+    const detectedMidiNearTarget = nearestMidiByOctave(current.midi, targetNote.midi);
+    sungMidisRef.current = [...sungMidisRef.current, detectedMidiNearTarget].slice(-64);
 
-    const centsOff = Math.abs(current.midi - targetNote.midi) * 100;
+    const centsOff = Math.abs(detectedMidiNearTarget - targetNote.midi) * 100;
     if (centsOff <= toleranceCents) {
       // On-pitch: reset wrong hold, accumulate correct hold.
       wrongHoldRef.current = 0;

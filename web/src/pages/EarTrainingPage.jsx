@@ -347,10 +347,7 @@ export function EarTrainingPage() {
       return null;
     }
 
-    const weightedPick = pickWeightedDegree(earHistoryRef.current);
-    const degreeIndex = validDegreeIndices.includes(weightedPick)
-      ? weightedPick
-      : validDegreeIndices[Math.floor(Math.random() * validDegreeIndices.length)];
+    const degreeIndex = pickWeightedDegree(earHistoryRef.current, validDegreeIndices);
 
     return buildSingleTonicRound({
       tonicMidi,

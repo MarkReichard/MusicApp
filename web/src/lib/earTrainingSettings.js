@@ -61,23 +61,37 @@ export function recordAttempt(history, degreeIndex, succeeded) {
 /**
  * Weighted-random degree selection.
  *
- * Weight formula:  1 / (successRate + 0.1)
- * Untried degrees get a high initial weight of 4.0 so they are explored first.
+ * - Selection is restricted to candidate degree indices when provided.
+ * - Lower success rates get much higher weight so weak items repeat more.
+ * - Untried items keep a high exploration weight.
  */
-export function pickWeightedDegree(history) {
-  const weights = EAR_DEGREES.map((_, i) => {
-    const entry = history[i];
-    if (!entry || entry.attempts === 0) return 4;
-    const rate = entry.successes / entry.attempts;
-    return 1 / (rate + 0.1);
+export function pickWeightedDegree(history, candidateDegreeIndices = null) {
+  const candidateIndices = Array.isArray(candidateDegreeIndices) && candidateDegreeIndices.length
+    ? candidateDegreeIndices.filter((index) => Number.isInteger(index) && index >= 0 && index < EAR_DEGREES.length)
+    : EAR_DEGREES.map((_, index) => index);
+
+  if (!candidateIndices.length) {
+    return 0;
+  }
+
+  const weightedCandidates = candidateIndices.map((index) => {
+    const entry = history[index];
+    if (!entry || entry.attempts <= 0) {
+      return { index, weight: 5 };
+    }
+
+    const successRate = entry.successes / entry.attempts;
+    const failureRate = 1 - successRate;
+    const weight = 0.2 + Math.pow(failureRate + 0.15, 2) * 6;
+    return { index, weight };
   });
 
-  const total = weights.reduce((sum, w) => sum + w, 0);
+  const total = weightedCandidates.reduce((sum, item) => sum + item.weight, 0);
   let rand = Math.random() * total;
 
-  for (let i = 0; i < weights.length; i++) {
-    rand -= weights[i];
-    if (rand <= 0) return i;
+  for (const item of weightedCandidates) {
+    rand -= item.weight;
+    if (rand <= 0) return item.index;
   }
-  return weights.length - 1;
+  return weightedCandidates.at(-1).index;
 }
