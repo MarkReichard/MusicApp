@@ -24,6 +24,7 @@ export function SingInputGraphV2({
   playedBars = [],
   expectedBars = [],
   barResults = {},
+  barMissReasons = {},
   chordMeasures = null,
   chordStartSec = 0,
   chordBeatSec = 0,
@@ -34,6 +35,7 @@ export function SingInputGraphV2({
   const desiredScrollLeftRef = useRef(0);
   const [timelineEndSec, setTimelineEndSec] = useState(MIN_TIMELINE_SECONDS);
   const [contentWidthPx, setContentWidthPx] = useState(1200);
+  const [hoverTip, setHoverTip] = useState(null);
   const latestRef = useRef({
     history,
     sessionStartMs,
@@ -64,6 +66,7 @@ export function SingInputGraphV2({
     frozenStateRef.current = null;
     desiredScrollLeftRef.current = 0;
     setTimelineEndSec(MIN_TIMELINE_SECONDS);
+    setHoverTip(null);
   }, [sessionStartMs]);
 
   useEffect(() => {
@@ -220,8 +223,48 @@ export function SingInputGraphV2({
     return () => cancelAnimationFrame(frameId);
   }, [maxMidi, minMidi, sessionStartMs, timelineEndSec]);
 
+  function handleCanvasMouseMove(event) {
+    const canvas = canvasRef.current;
+    const scroller = scrollContainerRef.current;
+    if (!canvas || !scroller) {
+      return;
+    }
+
+    const canvasRect = canvas.getBoundingClientRect();
+    const x = event.clientX - canvasRect.left;
+    const y = event.clientY - canvasRect.top;
+    const reason = getMissReasonAtPosition({
+      x,
+      y,
+      canvasWidth: canvas.clientWidth,
+      canvasHeight: canvas.clientHeight,
+      expectedBars,
+      barResults,
+      barMissReasons,
+      minMidi,
+      maxMidi,
+      timelineEndSec,
+    });
+
+    if (!reason) {
+      setHoverTip(null);
+      return;
+    }
+
+    const scrollerRect = scroller.getBoundingClientRect();
+    const nextX = Math.max(12, Math.min(scroller.clientWidth - 12, event.clientX - scrollerRect.left + 12));
+    const nextY = Math.max(12, Math.min(scroller.clientHeight - 12, event.clientY - scrollerRect.top - 12));
+
+    setHoverTip((previous) => {
+      if (previous && previous.text === reason && Math.abs(previous.x - nextX) < 1 && Math.abs(previous.y - nextY) < 1) {
+        return previous;
+      }
+      return { text: reason, x: nextX, y: nextY };
+    });
+  }
+
   return (
-    <div className="card" style={{ padding: 12, marginTop: 12, maxWidth: '100%', overflow: 'hidden' }}>
+    <div className="card" style={{ padding: 12, marginTop: 12, maxWidth: '100%', overflow: 'hidden', position: 'relative' }}>
       <div
         ref={scrollContainerRef}
         style={{
@@ -234,6 +277,8 @@ export function SingInputGraphV2({
         <canvas
           ref={canvasRef}
           className="mic-settings-canvas"
+          onMouseMove={handleCanvasMouseMove}
+          onMouseLeave={() => setHoverTip(null)}
           style={{
             display: 'block',
             width: `${contentWidthPx}px`,
@@ -242,8 +287,66 @@ export function SingInputGraphV2({
           }}
         />
       </div>
+      {hoverTip ? (
+        <div
+          style={{
+            position: 'absolute',
+            left: `${hoverTip.x}px`,
+            top: `${hoverTip.y}px`,
+            transform: 'translate(-50%, -100%)',
+            pointerEvents: 'none',
+            zIndex: 3,
+            background: 'rgba(2, 6, 23, 0.95)',
+            border: '1px solid #ef4444',
+            color: '#fecaca',
+            borderRadius: 8,
+            padding: '6px 8px',
+            fontSize: 12,
+            fontWeight: 600,
+            whiteSpace: 'nowrap',
+            boxShadow: '0 6px 16px rgba(0, 0, 0, 0.45)',
+          }}
+        >
+          {hoverTip.text}
+        </div>
+      ) : null}
     </div>
   );
+}
+
+function getMissReasonAtPosition({
+  x,
+  y,
+  canvasWidth,
+  canvasHeight,
+  expectedBars,
+  barResults,
+  barMissReasons,
+  minMidi,
+  maxMidi,
+  timelineEndSec,
+}) {
+  const xEndSec = Math.max(MIN_TIMELINE_SECONDS, timelineEndSec);
+  const midiRange = Math.max(1, maxMidi - minMidi);
+
+  for (const bar of expectedBars) {
+    if (barResults[bar.id] !== false) {
+      continue;
+    }
+
+    const x1 = (bar.startSec / Math.max(0.001, xEndSec)) * canvasWidth;
+    const x2 = (bar.endSec / Math.max(0.001, xEndSec)) * canvasWidth;
+    const yMid = canvasHeight - ((bar.midi - minMidi) / midiRange) * canvasHeight;
+    const h = 14;
+    const y1 = yMid - h / 2;
+    const y2 = yMid + h / 2;
+
+    if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
+      return barMissReasons[bar.id] || 'Missed note';
+    }
+  }
+
+  return null;
 }
 
 function drawTimeline({
@@ -590,6 +693,7 @@ SingInputGraphV2.propTypes = {
     }),
   ),
   barResults: PropTypes.objectOf(PropTypes.bool),
+  barMissReasons: PropTypes.objectOf(PropTypes.string),
   chordMeasures: PropTypes.array,
   chordStartSec: PropTypes.number,
   chordBeatSec: PropTypes.number,
@@ -605,6 +709,7 @@ SingInputGraphV2.defaultProps = {
   playedBars: [],
   expectedBars: [],
   barResults: {},
+  barMissReasons: {},
   chordMeasures: null,
   chordStartSec: 0,
   chordBeatSec: 0,

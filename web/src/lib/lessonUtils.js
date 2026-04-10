@@ -15,6 +15,7 @@ import {
 
 const DEFAULT_TEMPO_RANGE = { min: 30, max: 180 };
 const DEFAULT_OCTAVE = 4;
+const DIRECTION_REASON_EPSILON_CENTS = 8;
 
 /**
  * Returns true for song lessons that use the flat measures[] schema.
@@ -124,12 +125,15 @@ export function buildSingTimeline({ notes, tempoBpm, singOctave, selectedKey, pl
 }
 
 /**
- * Determines whether a user's pitch history satisfies a given bar's expected MIDI.
- * Used by SingTrainerV2Page.
+ * Evaluates a single expected bar against the user's pitch history.
+ * Returns both match status and a human-readable reason for misses.
  */
-export function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
+export function evaluateBarMatch({ bar, history, sessionStartMs, toleranceCents }) {
   if (!Number.isFinite(sessionStartMs) || !history.length) {
-    return false;
+    return {
+      matched: false,
+      reason: 'No pitch detected',
+    };
   }
 
   const midiValues = history
@@ -141,15 +145,54 @@ export function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
     .map((entry) => entry.midi);
 
   if (!midiValues.length) {
-    return false;
+    return {
+      matched: false,
+      reason: 'No pitch detected',
+    };
   }
 
-  const centsDiffs = midiValues.map((midi) => Math.abs((midi - bar.midi) * 100));
+  const signedCentsDiffs = midiValues.map((midi) => (midi - bar.midi) * 100);
+  const centsDiffs = signedCentsDiffs.map((diff) => Math.abs(diff));
   const inTolerance = centsDiffs.filter((diff) => diff <= toleranceCents).length;
   const inToleranceRatio = inTolerance / centsDiffs.length;
   const averageDiff = centsDiffs.reduce((sum, diff) => sum + diff, 0) / centsDiffs.length;
+  const averageSignedDiff = signedCentsDiffs.reduce((sum, diff) => sum + diff, 0) / signedCentsDiffs.length;
+  const matched = inToleranceRatio >= 0.35 || averageDiff <= toleranceCents;
 
-  return inToleranceRatio >= 0.35 || averageDiff <= toleranceCents;
+  if (matched) {
+    return {
+      matched: true,
+      reason: 'In tune',
+    };
+  }
+
+  const roundedAverage = Math.round(averageDiff);
+  if (averageSignedDiff <= -DIRECTION_REASON_EPSILON_CENTS) {
+    return {
+      matched: false,
+      reason: `Too low (${roundedAverage} cents flat)`,
+    };
+  }
+
+  if (averageSignedDiff >= DIRECTION_REASON_EPSILON_CENTS) {
+    return {
+      matched: false,
+      reason: `Too high (${roundedAverage} cents sharp)`,
+    };
+  }
+
+  return {
+    matched: false,
+    reason: `Out of tune (${roundedAverage} cents off)`,
+  };
+}
+
+/**
+ * Determines whether a user's pitch history satisfies a given bar's expected MIDI.
+ * Used by SingTrainerV2Page.
+ */
+export function isBarMatched({ bar, history, sessionStartMs, toleranceCents }) {
+  return evaluateBarMatch({ bar, history, sessionStartMs, toleranceCents }).matched;
 }
 
 /**

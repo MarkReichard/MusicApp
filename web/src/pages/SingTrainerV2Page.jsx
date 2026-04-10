@@ -28,7 +28,7 @@ import {
   MASTER_VOLUME,
   SING_COUNTDOWN_BEATS,
 } from '../lib/musicTheory';
-import { buildSections, buildSingTimeline, isBarMatched, applyBarEvaluation, getLessonDefaults, computeTransposition, transposeChordMeasures, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
+import { buildSections, buildSingTimeline, evaluateBarMatch, applyBarEvaluation, getLessonDefaults, computeTransposition, transposeChordMeasures, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
 
 const SING_GUIDE_NOTE_GAIN = 0.08 * MASTER_VOLUME;
@@ -87,6 +87,7 @@ export function SingTrainerV2Page() {
   const [session, setSession] = useState(null);
   const { start: startChords, stop: stopChords } = useChordPlayer();
   const [barResults, setBarResults] = useState({});
+  const [barMissReasons, setBarMissReasons] = useState({});
   const evaluatedBarsRef = useRef(new Set());
   const historyRef = useRef([]);
   const playbackRef = useRef({
@@ -161,6 +162,7 @@ export function SingTrainerV2Page() {
     setCorrectIndices([]);
     setSession(null);
     setBarResults({});
+    setBarMissReasons({});
     evaluatedBarsRef.current = new Set();
     clearTrackingData();
   }
@@ -175,6 +177,7 @@ export function SingTrainerV2Page() {
     setIndex(0);
     setCorrectIndices([]);
     setBarResults({});
+    setBarMissReasons({});
     evaluatedBarsRef.current = new Set();
     clearTrackingData();
   }
@@ -219,6 +222,7 @@ export function SingTrainerV2Page() {
     setCorrectIndices([]);
     setSession(null);
     setBarResults({});
+    setBarMissReasons({});
     evaluatedBarsRef.current = new Set();
     clearTrackingData();
   }
@@ -380,6 +384,7 @@ export function SingTrainerV2Page() {
     setIndex(0);
     setCorrectIndices([]);
     setBarResults({});
+    setBarMissReasons({});
     setSession({
       startMs,
       singStartSec: timeline.singStartSec,
@@ -505,6 +510,7 @@ export function SingTrainerV2Page() {
     setSectionIndex(0);
     setSession(null);
     setBarResults({});
+    setBarMissReasons({});
     evaluatedBarsRef.current = new Set();
   }, [lesson]);
 
@@ -555,18 +561,35 @@ export function SingTrainerV2Page() {
         }
 
         evaluatedBarsRef.current.add(bar.id);
-        const matched = isBarMatched({
+        const evaluation = evaluateBarMatch({
           bar,
           history: historyRef.current,
           sessionStartMs: session.startMs,
           toleranceCents,
         });
+        const matched = evaluation.matched;
 
         setBarResults((previous) => {
           if (previous[bar.id] === matched) {
             return previous;
           }
           return { ...previous, [bar.id]: matched };
+        });
+
+        setBarMissReasons((previous) => {
+          if (matched) {
+            if (!(bar.id in previous)) {
+              return previous;
+            }
+            const next = { ...previous };
+            delete next[bar.id];
+            return next;
+          }
+
+          if (previous[bar.id] === evaluation.reason) {
+            return previous;
+          }
+          return { ...previous, [bar.id]: evaluation.reason };
         });
 
         applyBarEvaluation({
@@ -800,6 +823,7 @@ export function SingTrainerV2Page() {
           playedBars={session?.playedBars ?? []}
           expectedBars={session?.expectedBars ?? []}
           barResults={barResults}
+          barMissReasons={barMissReasons}
           chordMeasures={session?.chordMeasures ?? null}
           chordStartSec={session?.chordStartSec ?? 0}
           chordBeatSec={session?.chordBeatSec ?? 0}
