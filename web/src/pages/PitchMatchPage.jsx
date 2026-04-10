@@ -9,7 +9,7 @@ import {
   midiToFrequencyHz,
   midiToNoteLabel,
 } from '../lib/musicTheory';
-import { getPianoAudioContext, playBing, playBuzz, playPianoNoteNow, scheduleReferenceTone, stopAllNotes } from '../lib/pianoSynth';
+import { INSTRUMENT_OPTIONS, getPianoAudioContext, loadInstrument, playBing, playBuzz, playPianoNoteNow, scheduleReferenceTone, stopAllNotes } from '../lib/pianoSynth';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
@@ -156,6 +156,7 @@ export function PitchMatchPage() {
   const savedPitchMatch = useMemo(() => loadPitchMatchSettings(), []);
 
   const [selectedKey, setSelectedKey]         = useState(savedPitchMatch.selectedKey);
+  const [selectedInstrument, setSelectedInstrument] = useState(savedPitchMatch.selectedInstrument);
   const [noteCount, setNoteCount]             = useState(savedPitchMatch.noteCount);
   const [toleranceCents, setToleranceCents]   = useState(savedPitchMatch.toleranceCents);
   const [toneDurationS, setToneDurationS]     = useState(savedPitchMatch.toneDurationS);
@@ -370,8 +371,12 @@ export function PitchMatchPage() {
 
   // ── Persist settings on change ──────────────────────────────────────────────
   useEffect(() => {
-    savePitchMatchSettings({ selectedKey, noteCount, toleranceCents, toneDurationS });
-  }, [selectedKey, noteCount, toleranceCents, toneDurationS]);
+    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS });
+  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS]);
+
+  useEffect(() => {
+    void loadInstrument(selectedInstrument);
+  }, [selectedInstrument]);
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => () => clearTimeout(timeoutRef.current), []);
@@ -441,6 +446,20 @@ export function PitchMatchPage() {
             >
               {AVAILABLE_KEYS.map((k) => (
                 <option key={k} value={k}>{k}</option>
+              ))}
+            </select>
+          </label>
+
+          <label className="pitch-match-label">
+            {'Instrument '}
+            <select
+              value={selectedInstrument}
+              onChange={(e) => setSelectedInstrument(e.target.value)}
+              className="pitch-match-select"
+              disabled={phase !== 'setup' && phase !== 'done'}
+            >
+              {INSTRUMENT_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>{option.label}</option>
               ))}
             </select>
           </label>

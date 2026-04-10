@@ -5,7 +5,16 @@ const DEFAULTS = {
   noteCount:      5,
   toleranceCents: 50,
   toneDurationS:  1.2,
+  selectedInstrument: 'acoustic_grand_piano',
 };
+
+const VALID_INSTRUMENTS = new Set([
+  'acoustic_grand_piano',
+  'flute',
+  'violin',
+  'electric_guitar_clean',
+  'choir_aahs',
+]);
 
 function load() {
   try {
@@ -27,6 +36,9 @@ export function loadPitchMatchSettings() {
     selectedKey: typeof stored.selectedKey === 'string' && stored.selectedKey
       ? stored.selectedKey
       : DEFAULTS.selectedKey,
+    selectedInstrument: typeof stored.selectedInstrument === 'string' && VALID_INSTRUMENTS.has(stored.selectedInstrument)
+      ? stored.selectedInstrument
+      : DEFAULTS.selectedInstrument,
     noteCount: Number.isFinite(noteCount) && noteCount >= 1
       ? Math.round(noteCount)
       : DEFAULTS.noteCount,
