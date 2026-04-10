@@ -9,7 +9,7 @@
  *  3. Only the first sung note is scored.
  *  4. App plays back the full daaah–da–da–da sequence as reinforcement.
  *     If "hide note name" is on, the name and graph are revealed here.
- *  5. After reinforcement, user clicks Next or Replay. Auto-stops after noteLimit rounds.
+ *  5. After reinforcement, user clicks Next or Replay.
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
@@ -48,19 +48,23 @@ import {
   EAR_EXERCISE_MODE_OPTIONS,
   EAR_PATTERN_TYPES,
   EAR_PATTERN_TYPE_OPTIONS,
+  isFixedIntervalPatternType,
   getAvailablePatternMidis,
   buildPatternRound,
   buildSingleTonicRound,
+  buildAscendingScaleRound,
+  buildDescendingScaleRound,
 } from '../lib/earTrainingExercise';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
 
-const NOTE_LIMIT_OPTIONS = [5, 10, 15, 20, 30];
-const DEFAULT_NOTE_LIMIT = 10;
 const PATTERN_NOTE_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => i + 2);
 const TEMPO_BPM_MIN = 40;
 const TEMPO_BPM_MAX = 120;
 const TEMPO_BPM_DEFAULT = 72;
+const TOLERANCE_CENTS_MIN = 20;
+const TOLERANCE_CENTS_MAX = 100;
+const TOLERANCE_CENTS_STEP = 5;
 const EAR_TRAINING_OPTIONS_STORAGE_KEY = 'musicapp.web.earTraining.options.v1';
 
 /** First (scored) note is "DAAAH" — 2 beats. */
@@ -69,7 +73,7 @@ const DAAAH_BEATS = 1;
 const DA_BEATS = 1;
 
 const REINFORCEMENT_GAIN = TARGET_NOTE_GAIN * 0.85;
-const TOLERANCE_CENTS = 50;
+const TOLERANCE_CENTS_DEFAULT = 50;
 const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.8;
 const METRONOME_VOLUME_MIN = 20;
 const METRONOME_VOLUME_MAX = 300;
@@ -179,20 +183,27 @@ function loadEarTrainingOptions() {
     if (!raw) {
       return {
         tempoBpm: TEMPO_BPM_DEFAULT,
+        toleranceCents: TOLERANCE_CENTS_DEFAULT,
         playCadenceChords: true,
         metronomeEnabled: false,
       };
     }
     const parsed = JSON.parse(raw);
     const parsedTempo = Number(parsed?.tempoBpm ?? TEMPO_BPM_DEFAULT);
+    const parsedTolerance = Number(parsed?.toleranceCents ?? TOLERANCE_CENTS_DEFAULT);
     return {
       tempoBpm: Math.max(TEMPO_BPM_MIN, Math.min(TEMPO_BPM_MAX, Number.isFinite(parsedTempo) ? parsedTempo : TEMPO_BPM_DEFAULT)),
+      toleranceCents: Math.max(
+        TOLERANCE_CENTS_MIN,
+        Math.min(TOLERANCE_CENTS_MAX, Number.isFinite(parsedTolerance) ? parsedTolerance : TOLERANCE_CENTS_DEFAULT),
+      ),
       playCadenceChords: Boolean(parsed?.playCadenceChords ?? true),
       metronomeEnabled: Boolean(parsed?.metronomeEnabled ?? false),
     };
   } catch {
     return {
       tempoBpm: TEMPO_BPM_DEFAULT,
+      toleranceCents: TOLERANCE_CENTS_DEFAULT,
       playCadenceChords: true,
       metronomeEnabled: false,
     };
@@ -221,18 +232,17 @@ export function EarTrainingPage() {
   const [exerciseMode, setExerciseMode] = useState(EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE);
   const [patternType, setPatternType] = useState(EAR_PATTERN_TYPES.RANDOM_ARPEGGIO);
   const [patternNoteCount, setPatternNoteCount] = useState(4);
-  const [limitPatternToStartingChord, setLimitPatternToStartingChord] = useState(false);
+  const [limitPatternToStartingOctave, setLimitPatternToStartingOctave] = useState(false);
   const [tempoBpm,     setTempoBpm]     = useState(savedEarOptions.tempoBpm);
-  const [noteLimit,    setNoteLimit]    = useState(DEFAULT_NOTE_LIMIT);
+  const [toleranceCents, setToleranceCents] = useState(savedEarOptions.toleranceCents);
   const [playCadenceChords, setPlayCadenceChords] = useState(savedEarOptions.playCadenceChords);
   const [hideNoteName, setHideNoteName] = useState(false);
   const [metronomeEnabled, setMetronomeEnabled] = useState(savedEarOptions.metronomeEnabled);
   const [metronomeVolume, setMetronomeVolume] = useState(() => loadMetronomeVolumeSetting());
 
   // ── Session state ──────────────────────────────────────────────────────────
-  // roundPhase: 'idle' | 'playing' | 'done' | 'finished'
+  // roundPhase: 'idle' | 'playing' | 'done'
   const [roundPhase,         setRoundPhase]         = useState('idle');
-  const [notesPlayed,        setNotesPlayed]        = useState(0);
   const [currentDegreeIndex, setCurrentDegreeIndex] = useState(null);
   const [session,            setSession]            = useState(null);
   const [activeRound,        setActiveRound]        = useState(null);
@@ -252,13 +262,14 @@ export function EarTrainingPage() {
     try {
       globalThis.localStorage.setItem(EAR_TRAINING_OPTIONS_STORAGE_KEY, JSON.stringify({
         tempoBpm,
+        toleranceCents,
         playCadenceChords,
         metronomeEnabled,
       }));
     } catch {
       // ignore storage failures
     }
-  }, [tempoBpm, playCadenceChords, metronomeEnabled]);
+  }, [tempoBpm, toleranceCents, playCadenceChords, metronomeEnabled]);
   useEffect(() => {
     try {
       globalThis.localStorage.setItem(EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY, String(metronomeVolume));
@@ -298,7 +309,7 @@ export function EarTrainingPage() {
           bar,
           history:        historyRef.current,
           sessionStartMs: session.startMs,
-          toleranceCents: TOLERANCE_CENTS,
+          toleranceCents,
         });
 
         barResultsRef.current = { ...barResultsRef.current, [bar.id]: matched };
@@ -327,8 +338,16 @@ export function EarTrainingPage() {
         noteCount: patternNoteCount,
         minMidi,
         maxMidi,
-        limitToStartingChord: limitPatternToStartingChord,
+        limitToStartingOctave: limitPatternToStartingOctave,
       });
+    }
+
+    if (exerciseMode === EAR_EXERCISE_MODES.ASCENDING_SCALE) {
+      return buildAscendingScaleRound({ tonicMidi, minMidi, maxMidi });
+    }
+
+    if (exerciseMode === EAR_EXERCISE_MODES.DESCENDING_SCALE) {
+      return buildDescendingScaleRound({ tonicMidi, minMidi, maxMidi });
     }
 
     const validDegreeIndices = EAR_DEGREES
@@ -406,7 +425,7 @@ export function EarTrainingPage() {
         beatSeconds,
         playCadenceChords,
         guideBeatsPerNote: roundConfig.guideBeatsPerNote,
-        useSolfegeLabels: roundConfig.mode === EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE,
+        useSolfegeLabels: roundConfig.useSolfegeLabels ?? (roundConfig.mode === EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE),
       });
 
     clearTrackingData();
@@ -520,19 +539,12 @@ export function EarTrainingPage() {
   function handleStart() {
     const round = buildRoundConfig();
     if (!round) return;
-    setNotesPlayed(1);
     void playRound(round);
   }
 
   async function handleNext() {
-    const nextCount = notesPlayed + 1;
-    if (nextCount > noteLimit) {
-      setRoundPhase('finished');
-      return;
-    }
     const round = buildRoundConfig();
     if (!round) return;
-    setNotesPlayed(nextCount);
     await playRound(round);
   }
 
@@ -560,9 +572,11 @@ export function EarTrainingPage() {
   // ── Derived display ──────────────────────────────────────────────────────────
 
   const isPatternMode = exerciseMode === EAR_EXERCISE_MODES.NOTE_PATTERN;
+  const isFixedPatternType = isFixedIntervalPatternType(patternType);
+  const isRandomPatternType = isPatternMode && !isFixedPatternType;
+  const isSingleTonicMode = exerciseMode === EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE;
   const isPlaying     = roundPhase === 'playing';
   const isDone        = roundPhase === 'done';
-  const isFinished    = roundPhase === 'finished';
   const isIdle        = roundPhase === 'idle';
 
   const directionLabel = activeRound?.detailLabel ?? null;
@@ -588,14 +602,29 @@ export function EarTrainingPage() {
     const round = buildSingleTonicRound({ tonicMidi, degree: { ...degree, index: degreeIndex }, minMidi, maxMidi });
     return Boolean(round);
   });
-  const hasValidPatternNotes = getAvailablePatternMidis({
-    tonicMidi,
-    patternType,
-    minMidi,
-    maxMidi,
-    limitToStartingChord: limitPatternToStartingChord,
-  }).length > 0;
-  const hasValidRoundForSettings = isPatternMode ? hasValidPatternNotes : hasValidSingleDegrees;
+  const hasValidPatternNotes = isFixedPatternType
+    ? Boolean(buildPatternRound({
+      tonicMidi,
+      patternType,
+      noteCount: patternNoteCount,
+      minMidi,
+      maxMidi,
+      limitToStartingOctave: limitPatternToStartingOctave,
+    }))
+    : getAvailablePatternMidis({
+      tonicMidi,
+      patternType,
+      minMidi,
+      maxMidi,
+      limitToStartingOctave: limitPatternToStartingOctave,
+    }).length > 1;
+  const hasValidAscendingScale = Boolean(buildAscendingScaleRound({ tonicMidi, minMidi, maxMidi }));
+  const hasValidDescendingScale = Boolean(buildDescendingScaleRound({ tonicMidi, minMidi, maxMidi }));
+  const hasValidRoundForSettings =
+    exerciseMode === EAR_EXERCISE_MODES.NOTE_PATTERN ? hasValidPatternNotes
+      : exerciseMode === EAR_EXERCISE_MODES.ASCENDING_SCALE ? hasValidAscendingScale
+        : exerciseMode === EAR_EXERCISE_MODES.DESCENDING_SCALE ? hasValidDescendingScale
+          : hasValidSingleDegrees;
   const rangeHint = hasRangeLimits && !hasValidRoundForSettings
     ? 'No exercise notes fit your saved range for this key/octave. Change key, octave, or pattern type.'
     : null;
@@ -670,28 +699,32 @@ export function EarTrainingPage() {
                 </select>
               </label>
 
-                <label className="ear-inline-field">
-                <span>Pattern notes</span>
-                <select
-                  value={patternNoteCount}
-                  onChange={(e) => setPatternNoteCount(Number(e.target.value))}
-                  disabled={isPlaying}
-                >
-                  {PATTERN_NOTE_COUNT_OPTIONS.map((count) => (
-                    <option key={count} value={count}>{count}</option>
-                  ))}
-                </select>
-              </label>
+                {isRandomPatternType && (
+                  <>
+                    <label className="ear-inline-field">
+                    <span>Pattern notes</span>
+                    <select
+                      value={patternNoteCount}
+                      onChange={(e) => setPatternNoteCount(Number(e.target.value))}
+                      disabled={isPlaying}
+                    >
+                      {PATTERN_NOTE_COUNT_OPTIONS.map((count) => (
+                        <option key={count} value={count}>{count}</option>
+                      ))}
+                    </select>
+                  </label>
 
-                <label className="ear-checkbox-field">
-                  <input
-                    type="checkbox"
-                    checked={limitPatternToStartingChord}
-                    onChange={(e) => setLimitPatternToStartingChord(e.target.checked)}
-                    disabled={isPlaying}
-                  />
-                  {' '}Within starting chord
-                </label>
+                    <label className="ear-checkbox-field">
+                      <input
+                        type="checkbox"
+                        checked={limitPatternToStartingOctave}
+                        onChange={(e) => setLimitPatternToStartingOctave(e.target.checked)}
+                        disabled={isPlaying}
+                      />
+                      {' '}Within starting octave
+                    </label>
+                  </>
+                )}
               </>
             )}
           </section>
@@ -712,15 +745,18 @@ export function EarTrainingPage() {
             />
           </label>
 
-            <label className="ear-inline-field">
-            <span>Notes</span>
-            <select
-              value={noteLimit}
-              onChange={(e) => setNoteLimit(Number(e.target.value))}
+            <label className="ear-tempo-field">
+            Tolerance&nbsp;{toleranceCents}¢
+            <input
+              type="range"
+              min={TOLERANCE_CENTS_MIN}
+              max={TOLERANCE_CENTS_MAX}
+              step={TOLERANCE_CENTS_STEP}
+              value={toleranceCents}
+              onChange={(e) => setToleranceCents(Number(e.target.value))}
               disabled={isPlaying}
-            >
-              {NOTE_LIMIT_OPTIONS.map((n) => <option key={n} value={n}>{n}</option>)}
-            </select>
+              style={{ verticalAlign: 'middle' }}
+            />
           </label>
 
             <label className="ear-checkbox-field">
@@ -779,9 +815,6 @@ export function EarTrainingPage() {
             <>
             </>
           )}
-          {isFinished && (
-            <button type="button" className="button" onClick={handleStart} disabled={!hasValidRoundForSettings}>▶ Start Again</button>
-          )}
           <button type="button" className="button" onClick={handleNext} disabled={!isDone || !hasValidRoundForSettings}>Next ▶</button>
           <button type="button" className="button secondary" onClick={handleReplay} disabled={!activeRound}>↺ Replay</button>
           <button type="button" className="button secondary" onClick={handleStop} disabled={!activeRound}>■ Stop</button>
@@ -808,16 +841,6 @@ export function EarTrainingPage() {
                 {lastResult === 'correct' ? '✓ Matched' : '✗ Missed'}
               </div>
             )}
-            {isFinished && (
-              <div className="ear-session-complete">
-                Session complete — {noteLimit} notes played!
-              </div>
-            )}
-          </div>
-        )}
-        {!activeRound && isFinished && (
-          <div className="ear-session-complete ear-session-complete-single">
-            Session complete — {noteLimit} notes played!
           </div>
         )}
       </div>
@@ -844,7 +867,7 @@ export function EarTrainingPage() {
       </div>
 
       {/* ── Spaced-rep stats ── */}
-      {!isPatternMode && <div className="card controls ear-progress-panel">
+      {isSingleTonicMode && <div className="card controls ear-progress-panel">
         <div className="ear-progress-head">
           <h3>Progress</h3>
           <button
