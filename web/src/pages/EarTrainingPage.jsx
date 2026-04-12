@@ -35,7 +35,7 @@ import {
   TRIAD_INTERVALS,
 } from '../lib/musicTheory';
 import { schedulePianoNote, scheduleMetronomeClick, getPianoAudioContext, stopAllNotes } from '../lib/pianoSynth';
-import { isBarMatched } from '../lib/lessonUtils';
+import { evaluateBarMatch } from '../lib/lessonUtils';
 import {
   EAR_DEGREES,
   loadEarTrainingHistory,
@@ -247,6 +247,7 @@ export function EarTrainingPage() {
   const [session,            setSession]            = useState(null);
   const [activeRound,        setActiveRound]        = useState(null);
   const [barResults,         setBarResults]         = useState({});
+  const [barMissReasons,     setBarMissReasons]     = useState({});
   const [lastResult,         setLastResult]         = useState(null);
   const [revealed,           setRevealed]           = useState(true);
   const [earHistory,         setEarHistory]         = useState(() => loadEarTrainingHistory());
@@ -305,15 +306,21 @@ export function EarTrainingPage() {
         }
 
         evaluatedBarsRef.current.add(bar.id);
-        const matched = isBarMatched({
+        const evaluation = evaluateBarMatch({
           bar,
           history:        historyRef.current,
           sessionStartMs: session.startMs,
           toleranceCents,
         });
+        const { matched, reason } = evaluation;
 
         barResultsRef.current = { ...barResultsRef.current, [bar.id]: matched };
         setBarResults((prev) => (prev[bar.id] === matched ? prev : { ...prev, [bar.id]: matched }));
+        setBarMissReasons((prev) => {
+          const nextReason = matched ? null : reason;
+          if (prev[bar.id] === nextReason) return prev;
+          return { ...prev, [bar.id]: nextReason };
+        });
 
         // First bar result drives the visible indicator (set after reveal)
         if (bar.index === 0 && session.scoreMode === 'first-note') {
@@ -432,6 +439,7 @@ export function EarTrainingPage() {
     setActiveRound(roundConfig);
     setCurrentDegreeIndex(roundConfig.degreeIndex);
     setBarResults({});
+    setBarMissReasons({});
     barResultsRef.current = {};
     evaluatedBarsRef.current = new Set();
     setLastResult(null);
@@ -560,6 +568,7 @@ export function EarTrainingPage() {
     setActiveRound(null);
     setRoundPhase('idle');
     setBarResults({});
+    setBarMissReasons({});
     setLastResult(null);
   }
 
@@ -863,6 +872,7 @@ export function EarTrainingPage() {
           playedBars={session?.playedBars ?? []}
           expectedBars={session?.expectedBars ?? []}
           barResults={barResults}
+          barMissReasons={barMissReasons}
         />
       </div>
 

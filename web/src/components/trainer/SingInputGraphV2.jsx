@@ -326,23 +326,32 @@ function getMissReasonAtPosition({
   maxMidi,
   timelineEndSec,
 }) {
-  const xEndSec = Math.max(MIN_TIMELINE_SECONDS, timelineEndSec);
-  const midiRange = Math.max(1, maxMidi - minMidi);
+  const timelineDurationSec = Math.max(MIN_TIMELINE_SECONDS, timelineEndSec);
+  const safeTimelineDurationSec = Math.max(0.001, timelineDurationSec);
+  const midiSpan = Math.max(1, maxMidi - minMidi);
+  const expectedBarHeightPx = 14;
+  const fallbackReason = 'Pitch did not match the target note';
 
-  for (const bar of expectedBars) {
-    if (barResults[bar.id] !== false) {
+  for (const expectedBar of expectedBars) {
+    const isMissedBar = barResults[expectedBar.id] === false;
+    if (!isMissedBar) {
       continue;
     }
 
-    const x1 = (bar.startSec / Math.max(0.001, xEndSec)) * canvasWidth;
-    const x2 = (bar.endSec / Math.max(0.001, xEndSec)) * canvasWidth;
-    const yMid = canvasHeight - ((bar.midi - minMidi) / midiRange) * canvasHeight;
-    const h = 14;
-    const y1 = yMid - h / 2;
-    const y2 = yMid + h / 2;
+    // Convert expected bar timing to canvas x-bounds.
+    const barLeftPx = (expectedBar.startSec / safeTimelineDurationSec) * canvasWidth;
+    const barRightPx = (expectedBar.endSec / safeTimelineDurationSec) * canvasWidth;
 
-    if (x >= x1 && x <= x2 && y >= y1 && y <= y2) {
-      return barMissReasons[bar.id] || 'Missed note';
+    // Convert expected bar pitch to canvas y-bounds.
+    const pitchRatio = (expectedBar.midi - minMidi) / midiSpan;
+    const barCenterYPx = canvasHeight - pitchRatio * canvasHeight;
+    const barTopPx = barCenterYPx - expectedBarHeightPx / 2;
+    const barBottomPx = barCenterYPx + expectedBarHeightPx / 2;
+
+    const isWithinBarTimeWindow = x >= barLeftPx && x <= barRightPx;
+    const isWithinBarPitchWindow = y >= barTopPx && y <= barBottomPx;
+    if (isWithinBarTimeWindow && isWithinBarPitchWindow) {
+      return barMissReasons[expectedBar.id] || fallbackReason;
     }
   }
 
