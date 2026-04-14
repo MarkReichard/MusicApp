@@ -1,0 +1,14 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "npx tsc": true,
+        "/^node --check pitch-lab/main\\.js$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "npm --prefix web": true,
+        "/^\\$path=\"c:\\\\Users\\\\mreic\\\\OneDrive\\\\Documents\\\\Music\\\\sing-graph-v2-detector-log-2026-02-28T22-57-18-965Z\\.csv\"; \\$csv=Import-Csv \\$path; \\$targets=250,315,944,1044; foreach\\(\\$t in \\$targets\\)\\{ Write-Output \"--- around \\$t ---\"; \\$csv \\| Where-Object \\{ \\[int\\]\\$_\\.tick -ge \\(\\$t-2\\) -and \\[int\\]\\$_\\.tick -le \\(\\$t\\+2\\) \\} \\| ForEach-Object \\{ \"tick=\\$\\(\\$_\\.tick\\) rawHz=\\$\\(\\$_\\.rawHz\\) acceptedHz=\\$\\(\\$_\\.acceptedHz\\) midi=\\$\\(\\$_\\.midi\\) voiced=\\$\\(\\$_\\.voiced\\) gate=\\$\\(\\$_\\.gateReason\\) db=\\$\\(\\$_\\.db\\)\" \\} \\}$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

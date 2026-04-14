@@ -157,6 +157,8 @@ export function evaluateBarMatch({ bar, history, sessionStartMs, toleranceCents 
   const inToleranceRatio = inTolerance / centsDiffs.length;
   const averageDiff = centsDiffs.reduce((sum, diff) => sum + diff, 0) / centsDiffs.length;
   const averageSignedDiff = signedCentsDiffs.reduce((sum, diff) => sum + diff, 0) / signedCentsDiffs.length;
+  const flatSampleCount = signedCentsDiffs.filter((diff) => diff < 0).length;
+  const sharpSampleCount = signedCentsDiffs.filter((diff) => diff > 0).length;
   const matched = inToleranceRatio >= 0.35 || averageDiff <= toleranceCents;
 
   if (matched) {
@@ -181,9 +183,23 @@ export function evaluateBarMatch({ bar, history, sessionStartMs, toleranceCents 
     };
   }
 
+  if (flatSampleCount > sharpSampleCount) {
+    return {
+      matched: false,
+      reason: `Inconsistent pitch (leans flat, ${roundedAverage} cents off)`,
+    };
+  }
+
+  if (sharpSampleCount > flatSampleCount) {
+    return {
+      matched: false,
+      reason: `Inconsistent pitch (leans sharp, ${roundedAverage} cents off)`,
+    };
+  }
+
   return {
     matched: false,
-    reason: `Out of tune (${roundedAverage} cents off)`,
+    reason: `Inconsistent pitch (mixed sharp/flat, ${roundedAverage} cents off)`,
   };
 }
 

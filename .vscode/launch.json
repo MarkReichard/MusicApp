@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Web App: Start Dev Server",
+      "type": "node-terminal",
+      "request": "launch",
+      "command": "npm run web:dev"
+    },
+    {
+      "name": "Web App: Launch Browser",
+      "type": "pwa-msedge",
+      "request": "launch",
+      "url": "http://localhost:5173",
+      "webRoot": "${workspaceFolder}/web"
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Web App: Full Launch",
+      "configurations": [
+        "Web App: Start Dev Server",
+        "Web App: Launch Browser"
+      ],
+      "stopAll": true
+    }
+  ]
+}
