@@ -4,7 +4,7 @@
   "private": true,
   "dependencies": {
     "adm-zip": "^0.5.16",
-    "fast-xml-parser": "^4.5.1"
+    "fast-xml-parser": "^4.5.5"
   },
   "scripts": {
     "start": "npm run web:dev",
