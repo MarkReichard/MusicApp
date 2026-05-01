@@ -16,6 +16,7 @@ import { FretboardGamePage } from './pages/FretboardGamePage';
 import { FretboardLessonMenuPage } from './pages/FretboardLessonMenuPage';
 import { AdaptiveDirectionPage } from './pages/AdaptiveDirectionPage';
 import { VoiceTuningCalibrationPage } from './pages/VoiceTuningCalibrationPage';
+import { ScalesExercisePage } from './pages/ScalesExercisePage';
 
 export function App() {
   useEffect(() => { loadPiano(); }, []);
@@ -34,6 +35,7 @@ export function App() {
           <NavLink to="/ear-training">Ear Training</NavLink>
           <NavLink to="/ear-training/direction">Direction Training</NavLink>
           <NavLink to="/ear-training/voice-calibration">Voice Calibration</NavLink>
+          <NavLink to="/scales">Scales</NavLink>
           <NavLink to="/fretboard-game">Fretboard Game</NavLink>
         </nav>
       </header>
@@ -55,6 +57,7 @@ export function App() {
           <Route path="/ear-training" element={<EarTrainingPage />} />
           <Route path="/ear-training/direction" element={<AdaptiveDirectionPage />} />
           <Route path="/ear-training/voice-calibration" element={<VoiceTuningCalibrationPage />} />
+          <Route path="/scales" element={<ScalesExercisePage />} />
           <Route path="/fretboard-game" element={<FretboardLessonMenuPage />} />
           <Route path="/fretboard-game/:lessonId" element={<FretboardGamePage />} />
         </Routes>

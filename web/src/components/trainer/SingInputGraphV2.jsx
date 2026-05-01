@@ -13,6 +13,8 @@ const MAX_DRAW_JUMP_SEMITONES = 5;
 const MAX_DRAW_GAP_SEC = 0.32;
 const MAX_DRAW_GAP_HIGH_ENERGY_SEC = 0.9;
 const HIGH_ENERGY_DB_THRESHOLD = -55;
+const LOW_BLEND_CENTS = 70;
+const HIGH_BLEND_CENTS = 40;
 
 export function SingInputGraphV2({
   minFrequencyHz = 55,
@@ -411,6 +413,8 @@ function drawTimeline({
     xEndSec,
     nowSec,
     barResults,
+    history,
+    sessionStartMs,
   });
 
   drawPitchLine(context, history, {
@@ -543,7 +547,16 @@ function drawBars(context, bars, { toX, toY, xStartSec, xEndSec, fillStyle, stro
   });
 }
 
-function drawExpectedBars(context, bars, { toX, toY, xStartSec, xEndSec, nowSec, barResults }) {
+function drawExpectedBars(context, bars, {
+  toX,
+  toY,
+  xStartSec,
+  xEndSec,
+  nowSec,
+  barResults,
+  history,
+  sessionStartMs,
+}) {
   bars.forEach((bar) => {
     if (bar.endSec < xStartSec || bar.startSec > xEndSec) {
       return;
@@ -560,12 +573,19 @@ function drawExpectedBars(context, bars, { toX, toY, xStartSec, xEndSec, nowSec,
     if (nowSec < bar.endSec || result === undefined) {
       context.fillStyle = 'rgba(148, 163, 184, 0.38)';
       context.strokeStyle = 'rgba(148, 163, 184, 0.70)';
-    } else if (result) {
-      context.fillStyle = 'rgba(22, 163, 74, 0.62)';
-      context.strokeStyle = '#86efac';
     } else {
-      context.fillStyle = 'rgba(220, 38, 38, 0.62)';
-      context.strokeStyle = '#fca5a5';
+      const centsOffset = getBarCentsOffset({ bar, history, sessionStartMs });
+      if (Number.isFinite(centsOffset)) {
+        const rgb = colorForCentsOffset(centsOffset);
+        context.fillStyle = toRgba(rgb, 0.8);
+        context.strokeStyle = toRgba(rgb, 1);
+      } else if (result) {
+        context.fillStyle = 'rgba(22, 163, 74, 0.62)';
+        context.strokeStyle = '#86efac';
+      } else {
+        context.fillStyle = 'rgba(220, 38, 38, 0.62)';
+        context.strokeStyle = '#fca5a5';
+      }
     }
 
     drawRoundedRect(context, x1, y1, w, h, 6);
@@ -585,10 +605,10 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
   context.lineCap = 'round';
   context.beginPath();
 
-  let hasPoint = false;
   let needsMove = true;
   let previousMidi = null;
   let lastVoicedSec = null;
+  let hasPoint = false;
 
   for (const entry of history) {
     if (!Number.isFinite(entry.timeMs)) {
@@ -633,6 +653,68 @@ function drawPitchLine(context, history, { toX, toY, xStartSec, xEndSec, singSta
   if (hasPoint) {
     context.stroke();
   }
+}
+
+function getBarCentsOffset({ bar, history, sessionStartMs }) {
+  if (!Number.isFinite(sessionStartMs) || !Array.isArray(history) || !bar) {
+    return null;
+  }
+
+  if (!Number.isFinite(bar.midi) || !Number.isFinite(bar.startSec) || !Number.isFinite(bar.endSec)) {
+    return null;
+  }
+
+  const offsets = [];
+  for (const entry of history) {
+    if (!Number.isFinite(entry?.timeMs) || !Number.isFinite(entry?.midi)) {
+      continue;
+    }
+
+    const timeSec = (entry.timeMs - sessionStartMs) / 1000;
+    if (timeSec < bar.startSec || timeSec > bar.endSec) {
+      continue;
+    }
+    offsets.push((entry.midi - bar.midi) * 100);
+  }
+
+  if (!offsets.length) {
+    return null;
+  }
+
+  // Median is robust to brief pitch spikes.
+  offsets.sort((a, b) => a - b);
+  return offsets[Math.floor(offsets.length / 2)];
+}
+
+function colorForCentsOffset(centsOffset) {
+  const lowClamped = Math.max(-LOW_BLEND_CENTS, Math.min(0, centsOffset));
+  const highClamped = Math.max(0, Math.min(HIGH_BLEND_CENTS, centsOffset));
+  const lowColor = { r: 239, g: 68, b: 68 };   // red
+  const onColor = { r: 22, g: 163, b: 74 };    // deeper green
+  const highColor = { r: 29, g: 78, b: 216 };  // stronger blue
+
+  if (centsOffset <= 0) {
+    const tLinear = (lowClamped + LOW_BLEND_CENTS) / LOW_BLEND_CENTS;
+    const t = Math.pow(tLinear, 0.85);
+    return mixRgb(lowColor, onColor, t);
+  }
+
+  const tLinear = highClamped / HIGH_BLEND_CENTS;
+  const t = Math.pow(tLinear, 0.55);
+  return mixRgb(onColor, highColor, t);
+}
+
+function toRgba(rgb, alpha) {
+  const a = Math.max(0, Math.min(1, alpha));
+  return `rgba(${rgb.r}, ${rgb.g}, ${rgb.b}, ${a})`;
+}
+
+function mixRgb(from, to, t) {
+  const clampedT = Math.max(0, Math.min(1, t));
+  const r = Math.round(from.r + (to.r - from.r) * clampedT);
+  const g = Math.round(from.g + (to.g - from.g) * clampedT);
+  const b = Math.round(from.b + (to.b - from.b) * clampedT);
+  return { r, g, b };
 }
 
 function drawRoundedRect(context, x, y, width, height, radius) {

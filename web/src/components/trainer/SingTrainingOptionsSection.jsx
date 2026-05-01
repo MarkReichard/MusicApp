@@ -88,13 +88,28 @@ export function SingTrainingOptionsSection({
 
             <div className="row">
               <span>Play I-IV-V-IV first</span>
-              <select
-                value={playTonicCadence ? 'yes' : 'no'}
-                onChange={(event) => onPlayTonicCadenceChange(event.target.value === 'yes')}
-              >
-                <option value="yes">Yes</option>
-                <option value="no">No</option>
-              </select>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="radio"
+                    name="play-tonic-cadence"
+                    checked={playTonicCadence}
+                    onChange={() => onPlayTonicCadenceChange(true)}
+                  />
+                  {' '}
+                  Yes
+                </label>
+                <label style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                  <input
+                    type="radio"
+                    name="play-tonic-cadence"
+                    checked={!playTonicCadence}
+                    onChange={() => onPlayTonicCadenceChange(false)}
+                  />
+                  {' '}
+                  No
+                </label>
+              </div>
             </div>
 
             <div className="row">
