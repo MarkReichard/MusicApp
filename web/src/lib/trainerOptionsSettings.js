@@ -29,6 +29,7 @@ const defaultTrainerOptions = {
   toleranceCents: 25,
   gracePeriodPercent: 95,
   instrument: 'acoustic_grand_piano',
+  promptOctaveShift: 0,
 };
 
 export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, rangeRecommendation = null) {
@@ -82,6 +83,11 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
     : defaultTrainerOptions.instrument;
   const karaokeLabelMode = stored.karaokeLabelMode === 'solfege' ? 'solfege' : 'lyrics';
 
+  const storedPromptOctaveShift = Number(stored.promptOctaveShift);
+  const promptOctaveShift = Number.isFinite(storedPromptOctaveShift) && [-2, -1, 0, 1, 2].includes(storedPromptOctaveShift)
+    ? storedPromptOctaveShift
+    : defaultTrainerOptions.promptOctaveShift;
+
   return {
     selectedKey,
     tempoBpm,
@@ -92,6 +98,7 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
     toleranceCents,
     gracePeriodPercent,
     instrument,
+    promptOctaveShift,
   };
 }
 

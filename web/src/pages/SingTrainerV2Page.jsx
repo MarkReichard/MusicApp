@@ -68,6 +68,7 @@ export function SingTrainerV2Page() {
   const [toleranceCents, setToleranceCents] = useState(initialOptions.toleranceCents);
   const [gracePeriodPercent, setGracePeriodPercent] = useState(initialOptions.gracePeriodPercent);
   const [instrument, setInstrument] = useState(initialOptions.instrument);
+  const [promptOctaveShift, setPromptOctaveShift] = useState(initialOptions.promptOctaveShift ?? 0);
 
   // Save range-based defaults on first visit so they persist
   useEffect(() => {
@@ -109,9 +110,22 @@ export function SingTrainerV2Page() {
 
   const { allowedKeys, tempoRange, allowedOctaves } = getLessonDefaults(lesson);
   const { keySemitoneShift, totalMidiShift } = computeTransposition(lesson, selectedKey, singOctave);
+  const promptMidiShift = promptOctaveShift * 12;
   const activeSection = sections[sectionIndex] ?? sections[0];
   const activeEvents = activeSection?.notes ?? [];
   const activeNotes = activeEvents.filter((note) => note?.type !== 'rest' && Number.isFinite(note?.midi));
+
+  // Determine which prompt octave shift options keep all notes within MIDI 0–127.
+  const validPromptOctaveShifts = useMemo(() => {
+    const candidates = [-2, -1, 0, 1, 2];
+    return candidates.filter((shift) => {
+      const extraSemitones = shift * 12;
+      return activeNotes.every((note) => {
+        const shifted = note.midi + totalMidiShift + extraSemitones;
+        return shifted >= 0 && shifted <= 127;
+      });
+    });
+  }, [activeNotes, totalMidiShift]);
   const scoringHistory = useMemo(() => {
     if (!session?.expectedBars?.length || !Number.isFinite(session.startMs)) {
       return history;
@@ -357,6 +371,8 @@ export function SingTrainerV2Page() {
     playbackRef.current.runId = runId;
     playbackRef.current.noteStops = [];
 
+    const promptNotes = shiftNotes(notes, promptMidiShift);
+
     const timeline = buildSingTimeline({
       notes,
       tempoBpm,
@@ -428,7 +444,7 @@ export function SingTrainerV2Page() {
       }
 
       if (hearExerciseFirst && melodyEnabled) {
-        for (const note of notes) {
+        for (const note of promptNotes) {
           const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
           const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
           if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
@@ -443,14 +459,14 @@ export function SingTrainerV2Page() {
         }
       } else if (hearExerciseFirst) {
         // advance cursor without scheduling notes
-        for (const note of notes) {
+        for (const note of promptNotes) {
           const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
           startAt += Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE) + NOTE_GAP_SECONDS;
         }
       }
 
       let guideAt = startAt + beatSeconds * SING_COUNTDOWN_BEATS;
-      for (const note of notes) {
+      for (const note of promptNotes) {
         const beats = Number.isFinite(note.durationBeats) ? note.durationBeats : 1;
         const noteDurationSeconds = Math.max(MIN_NOTE_DURATION_SECONDS, beatSeconds * beats * NOTE_DURATION_SCALE);
         if (note?.type === 'rest' || !Number.isFinite(note?.midi)) {
@@ -504,6 +520,7 @@ export function SingTrainerV2Page() {
     setToleranceCents(persistedOptions.toleranceCents);
     setGracePeriodPercent(persistedOptions.gracePeriodPercent);
     setInstrument(persistedOptions.instrument);
+    setPromptOctaveShift(persistedOptions.promptOctaveShift ?? 0);
 
     setIndex(0);
     setCorrectIndices([]);
@@ -529,8 +546,9 @@ export function SingTrainerV2Page() {
       toleranceCents,
       gracePeriodPercent,
       instrument,
+      promptOctaveShift,
     }, optionsKey);
-  }, [lesson, optionsKey, playTonicCadence, hearExerciseFirst, karaokeLabelMode, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument]);
+  }, [lesson, optionsKey, playTonicCadence, hearExerciseFirst, karaokeLabelMode, selectedKey, singOctave, tempoBpm, toleranceCents, gracePeriodPercent, instrument, promptOctaveShift]);
 
   useEffect(() => {
     void loadInstrument(instrument);
@@ -671,6 +689,13 @@ export function SingTrainerV2Page() {
           onToleranceCentsChange={setToleranceCents}
           gracePeriodPercent={gracePeriodPercent}
           onGracePeriodPercentChange={setGracePeriodPercent}
+          promptOctaveShift={promptOctaveShift}
+          onPromptOctaveShiftChange={(value) => {
+            if (validPromptOctaveShifts.includes(value)) {
+              setPromptOctaveShift(value);
+            }
+          }}
+          validPromptOctaveShifts={validPromptOctaveShifts}
         />
 
         <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>

@@ -29,6 +29,9 @@ export function SingTrainingOptionsSection({
   onToleranceCentsChange,
   gracePeriodPercent,
   onGracePeriodPercentChange,
+  promptOctaveShift,
+  onPromptOctaveShiftChange,
+  validPromptOctaveShifts,
 }) {
   return (
     <>
@@ -73,6 +76,24 @@ export function SingTrainingOptionsSection({
               <select value={singOctave} onChange={(event) => onSingOctaveChange(Number(event.target.value))}>
                 {allowedOctaves.map((octave) => (
                   <option key={octave} value={octave}>Oct {octave}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="row">
+              <span>Prompt octave</span>
+              <select
+                value={promptOctaveShift}
+                onChange={(event) => onPromptOctaveShiftChange(Number(event.target.value))}
+              >
+                {[-2, -1, 0, 1, 2].map((shift) => (
+                  <option
+                    key={shift}
+                    value={shift}
+                    disabled={!validPromptOctaveShifts?.includes(shift)}
+                  >
+                    {shift === 0 ? 'Normal' : shift > 0 ? `+${shift} octave` : `${shift} octave`}
+                  </option>
                 ))}
               </select>
             </div>

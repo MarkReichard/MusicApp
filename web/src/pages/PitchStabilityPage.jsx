@@ -1,0 +1,367 @@
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { loadPitchSettings } from '../lib/pitchSettings';
+import { loadPitchStabilitySettings, savePitchStabilitySettings } from '../lib/pitchStabilitySettings';
+import { usePitchDetector } from '../lib/usePitchDetector';
+import { keyToSemitone, midiToNoteLabel } from '../lib/musicTheory';
+import { INSTRUMENT_OPTIONS, loadInstrument, playPianoNoteNow } from '../lib/pianoSynth';
+
+const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
+const SOLFEGE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
+const AVAILABLE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
+
+const DEFAULT_PROMPT_DURATION_S = 1.2;
+const BESTS_SESSION_KEY = 'musicapp.web.pitchStability.bestByNote.v1';
+
+function nearestMidiByOctave(candidateMidi, referenceMidi) {
+  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
+    return candidateMidi;
+  }
+  let best = candidateMidi;
+  while (best - referenceMidi > 6) best -= 12;
+  while (referenceMidi - best > 6) best += 12;
+  return best;
+}
+
+function shuffleArray(arr) {
+  const a = [...arr];
+  for (let i = a.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function buildOctaveDiatonicCandidates(selectedKey, selectedOctave) {
+  const tonicSemitone = keyToSemitone(selectedKey);
+  const octaveBaseMidi = (selectedOctave + 1) * 12;
+  const out = [];
+
+  for (let semitone = 0; semitone < 12; semitone += 1) {
+    const midi = octaveBaseMidi + semitone;
+    const rel = ((midi - tonicSemitone) % 12 + 12) % 12;
+    const degreeIdx = DIATONIC_SEMITONES.indexOf(rel);
+    if (degreeIdx !== -1) {
+      out.push({
+        midi,
+        solfege: SOLFEGE_NAMES[degreeIdx],
+        noteLabel: midiToNoteLabel(midi),
+      });
+    }
+  }
+
+  return out;
+}
+
+function buildExercise(selectedKey, selectedOctave, noteCount) {
+  const candidates = buildOctaveDiatonicCandidates(selectedKey, selectedOctave);
+  if (candidates.length === 0) return [];
+  const shuffled = shuffleArray(candidates);
+  const exercise = [];
+  for (let i = 0; i < noteCount; i += 1) {
+    exercise.push(shuffled[i % shuffled.length]);
+  }
+  return exercise;
+}
+
+function loadSessionBests() {
+  try {
+    const raw = sessionStorage.getItem(BESTS_SESSION_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveSessionBests(next) {
+  try {
+    sessionStorage.setItem(BESTS_SESSION_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
+export function PitchStabilityPage() {
+  const pitchSettings = useMemo(() => loadPitchSettings(), []);
+  const saved = useMemo(() => loadPitchStabilitySettings(), []);
+
+  const [selectedKey, setSelectedKey] = useState(saved.selectedKey);
+  const [selectedInstrument, setSelectedInstrument] = useState(saved.selectedInstrument);
+  const [noteCount, setNoteCount] = useState(saved.noteCount);
+  const [toleranceCents, setToleranceCents] = useState(saved.toleranceCents);
+  const [selectedOctave, setSelectedOctave] = useState(saved.selectedOctave);
+  const [matchTimeS, setMatchTimeS] = useState(saved.matchTimeS);
+
+  const [exercise, setExercise] = useState([]);
+  const [noteIndex, setNoteIndex] = useState(0);
+  const [phase, setPhase] = useState('setup'); // setup | playing_tone | matching | holding | feedback | done
+  const [results, setResults] = useState([]);
+  const [feedbackText, setFeedbackText] = useState('');
+
+  const [bestsByNote, setBestsByNote] = useState(() => loadSessionBests());
+
+  const timeoutRef = useRef(null);
+  const matchDeadlineRef = useRef(0);
+  const holdStartMsRef = useRef(0);
+  const offStreakRef = useRef(0);
+  const lastGoodMsRef = useRef(0);
+
+  const { current } = usePitchDetector(pitchSettings, true);
+
+  const currentTarget = exercise[noteIndex] ?? null;
+  const maxOffSamples = Math.max(1, Math.round(Number(pitchSettings.averageReadings) || 1));
+
+  useEffect(() => {
+    savePitchStabilitySettings({
+      selectedKey,
+      selectedInstrument,
+      noteCount,
+      toleranceCents,
+      selectedOctave,
+      matchTimeS,
+    });
+  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, selectedOctave, matchTimeS]);
+
+  useEffect(() => {
+    void loadInstrument(selectedInstrument);
+  }, [selectedInstrument]);
+
+  useEffect(() => () => {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+  }, []);
+
+  function startRun() {
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    const ex = buildExercise(selectedKey, selectedOctave, noteCount);
+    setExercise(ex);
+    setNoteIndex(0);
+    setResults(new Array(ex.length).fill(null));
+    setFeedbackText('');
+    if (!ex.length) {
+      setPhase('setup');
+      return;
+    }
+    void playAndBegin(ex[0]);
+  }
+
+  async function playAndBegin(target) {
+    setPhase('playing_tone');
+    const delayMs = playPianoNoteNow(target.midi, DEFAULT_PROMPT_DURATION_S, 0.18);
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      matchDeadlineRef.current = performance.now() + matchTimeS * 1000;
+      offStreakRef.current = 0;
+      holdStartMsRef.current = 0;
+      lastGoodMsRef.current = 0;
+      setPhase('matching');
+    }, delayMs);
+  }
+
+  function finishCurrent(target, matched, holdSeconds) {
+    const row = {
+      noteIndex,
+      solfege: target.solfege,
+      noteLabel: target.noteLabel,
+      targetMidi: target.midi,
+      matched,
+      holdSeconds,
+      maxOffSamples,
+    };
+
+    setResults((prev) => {
+      const next = [...prev];
+      next[noteIndex] = row;
+      return next;
+    });
+
+    const noteKey = `${target.noteLabel}`;
+    const previousBest = Number(bestsByNote[noteKey] || 0);
+    if (holdSeconds > previousBest) {
+      const nextBests = { ...bestsByNote, [noteKey]: holdSeconds };
+      setBestsByNote(nextBests);
+      saveSessionBests(nextBests);
+      alert(`New best for ${noteKey}: ${holdSeconds.toFixed(2)}s`);
+    }
+
+    setFeedbackText(matched
+      ? `Held ${holdSeconds.toFixed(2)}s`
+      : `No match in ${matchTimeS.toFixed(1)}s`);
+    setPhase('feedback');
+
+    if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    timeoutRef.current = setTimeout(() => {
+      const nextIndex = noteIndex + 1;
+      if (nextIndex >= exercise.length) {
+        setPhase('done');
+        return;
+      }
+      setNoteIndex(nextIndex);
+      void playAndBegin(exercise[nextIndex]);
+    }, 900);
+  }
+
+  useEffect(() => {
+    if (!currentTarget) return;
+    if (phase !== 'matching' && phase !== 'holding') return;
+
+    const now = performance.now();
+    const detectedMidi = Number.isFinite(current?.midi)
+      ? nearestMidiByOctave(current.midi, currentTarget.midi)
+      : null;
+
+    const onTarget = Number.isFinite(detectedMidi)
+      && Math.abs((detectedMidi - currentTarget.midi) * 100) <= toleranceCents;
+
+    if (phase === 'matching') {
+      if (onTarget) {
+        holdStartMsRef.current = now;
+        lastGoodMsRef.current = now;
+        offStreakRef.current = 0;
+        setPhase('holding');
+        return;
+      }
+      if (now >= matchDeadlineRef.current) {
+        finishCurrent(currentTarget, false, 0);
+      }
+      return;
+    }
+
+    if (phase === 'holding') {
+      if (onTarget) {
+        lastGoodMsRef.current = now;
+        offStreakRef.current = 0;
+      } else {
+        offStreakRef.current += 1;
+      }
+
+      if (offStreakRef.current > maxOffSamples) {
+        const effectiveEndMs = lastGoodMsRef.current || now;
+        const holdSeconds = Math.max(0, (effectiveEndMs - holdStartMsRef.current) / 1000);
+        finishCurrent(currentTarget, true, holdSeconds);
+      }
+    }
+  }, [phase, current, currentTarget, toleranceCents, maxOffSamples]);
+
+  const phaseLabel = {
+    setup: 'Configure and start',
+    playing_tone: 'Listen...',
+    matching: `Match the pitch (${matchTimeS.toFixed(1)}s window)`,
+    holding: 'Hold as long as stable',
+    feedback: feedbackText,
+    done: 'Run complete',
+  }[phase] ?? '';
+
+  const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
+
+  return (
+    <div className="pitch-match-page">
+      <div className="card controls pitch-match-options">
+        <h3 style={{ margin: '0 0 8px' }}>Pitch Stability</h3>
+        <div className="pitch-match-options-row">
+          <label className="pitch-match-label">
+            {'Key '}
+            <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)} className="pitch-match-select" disabled={phase !== 'setup' && phase !== 'done'}>
+              {AVAILABLE_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </label>
+
+          <label className="pitch-match-label">
+            {'Instrument '}
+            <select value={selectedInstrument} onChange={(e) => setSelectedInstrument(e.target.value)} className="pitch-match-select" disabled={phase !== 'setup' && phase !== 'done'}>
+              {INSTRUMENT_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+            </select>
+          </label>
+
+          <label className="pitch-match-label">
+            Notes: {noteCount}
+            <input type="range" min={1} max={10} value={noteCount} onChange={(e) => setNoteCount(Number(e.target.value))} disabled={phase !== 'setup' && phase !== 'done'} style={{ width: 100 }} />
+          </label>
+
+          <label className="pitch-match-label">
+            Tolerance: {toleranceCents}¢
+            <input type="range" min={20} max={100} step={5} value={toleranceCents} onChange={(e) => setToleranceCents(Number(e.target.value))} style={{ width: 100 }} />
+          </label>
+
+          <label className="pitch-match-label">
+            Octave
+            <select value={selectedOctave} onChange={(e) => setSelectedOctave(Number(e.target.value))} className="pitch-match-select" disabled={phase !== 'setup' && phase !== 'done'}>
+              {[2, 3, 4, 5, 6].map((oct) => <option key={oct} value={oct}>{`Oct ${oct}`}</option>)}
+            </select>
+          </label>
+
+          <label className="pitch-match-label">
+            Match time: {matchTimeS.toFixed(1)}s
+            <input type="range" min={5} max={60} step={1} value={Math.round(matchTimeS * 10)} onChange={(e) => setMatchTimeS(Number(e.target.value) / 10)} style={{ width: 100 }} />
+          </label>
+
+          <button type="button" className="button" onClick={startRun}>
+            {phase === 'setup' ? 'Start' : 'Restart'}
+          </button>
+        </div>
+        <div style={{ marginTop: 8, fontSize: 12, color: '#94a3b8' }}>
+          Stability fail threshold: {maxOffSamples} consecutive off-target samples (from mic config)
+        </div>
+      </div>
+
+      {phase !== 'setup' && (
+        <div className="card pitch-match-panel">
+          <div className="note-chips-row">
+            {exercise.map((n, i) => {
+              const res = results[i];
+              const isCurrent = i === noteIndex;
+              let chipClass = 'note-chip';
+              if (res?.matched) chipClass += ' correct';
+              else if (res && !res.matched) chipClass += ' wrong';
+              else if (isCurrent) chipClass += ' active';
+              return <span key={`${i}-${n.midi}`} className={chipClass}>{n.solfege}</span>;
+            })}
+          </div>
+
+          <div className="pitch-match-phase-label">{phaseLabel}</div>
+
+          {currentTarget && phase !== 'done' && (
+            <div className="pitch-match-target">
+              <span className="target-solfege">{currentTarget.solfege}</span>
+              <span className="target-note-label">{currentTarget.noteLabel}</span>
+            </div>
+          )}
+
+          <div className="pitch-match-detected">
+            <span className="detected-label">You:</span>
+            <span className="detected-note">{detectedDisplay}</span>
+          </div>
+
+          {results.some(Boolean) && (
+            <div className="pitch-match-results-table-wrap" style={{ marginTop: 16 }}>
+              <table className="pitch-match-results-table">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Target</th>
+                    <th>Matched in time</th>
+                    <th>Hold time</th>
+                    <th>Best (session)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {results.filter(Boolean).map((row) => {
+                    const best = Number(bestsByNote[row.noteLabel] || 0);
+                    return (
+                      <tr key={`${row.noteIndex}-${row.noteLabel}`}>
+                        <td>{row.noteIndex + 1}</td>
+                        <td>{row.solfege} ({row.noteLabel})</td>
+                        <td>{row.matched ? 'Yes' : 'No'}</td>
+                        <td>{row.holdSeconds.toFixed(2)}s</td>
+                        <td>{best.toFixed(2)}s</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

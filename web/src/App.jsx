@@ -8,6 +8,7 @@ import { PitchLabPage } from './pages/PitchLabPage';
 import { PitchRangePage } from './pages/PitchRangePage';
 import { PitchMatchPage } from './pages/PitchMatchPage';
 import { PitchSelfJudgePage } from './pages/PitchSelfJudgePage';
+import { PitchStabilityPage } from './pages/PitchStabilityPage';
 import { SingGraphV2LabPage } from './pages/SingGraphV2LabPage';
 import { SongBuilderPage } from './pages/SongBuilderPage';
 import { HomePage } from './pages/HomePage';
@@ -30,6 +31,7 @@ export function App() {
           <NavLink to="/lessons">Lessons</NavLink>
           <NavLink to="/song-builder">Song Builder</NavLink>
           <NavLink to="/pitch-match">Pitch Match</NavLink>
+          <NavLink to="/pitch-stability">Pitch Stability</NavLink>
           <NavLink to="/pitch-match/self-judge">Pitch Self-Judge</NavLink>
           <NavLink to="/pitch-range">Vocal Range</NavLink>
           <NavLink to="/ear-training">Ear Training</NavLink>
@@ -50,6 +52,7 @@ export function App() {
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/pitch-range" element={<PitchRangePage />} />
           <Route path="/pitch-match" element={<PitchMatchPage />} />
+          <Route path="/pitch-stability" element={<PitchStabilityPage />} />
           <Route path="/pitch-match/self-judge" element={<PitchSelfJudgePage />} />
           <Route path="/pitch-lab" element={<PitchLabPage />} />
           <Route path="/sing-graph-v2" element={<SingGraphV2LabPage />} />
