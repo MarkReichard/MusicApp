@@ -1,3 +1,5 @@
+import { frequencyToMidi, midiToNoteLabel } from './musicTheory';
+
 export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) {
   if (!canvas) return;
   const context = canvas.getContext('2d');
@@ -10,8 +12,10 @@ export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) 
   const plotWidth = Math.max(1, plotRight - plotLeft);
   const safeMinHz = Math.max(1, Number(minPitchHz) || 1);
   const safeMaxHz = Math.max(safeMinHz + 1, Number(maxPitchHz) || safeMinHz + 1);
-  const minMidi = frequencyToMidi(safeMinHz);
-  const maxMidi = frequencyToMidi(safeMaxHz);
+  const minMidiRaw = frequencyToMidi(safeMinHz);
+  const maxMidiRaw = frequencyToMidi(safeMaxHz);
+  const minMidi = minMidiRaw ?? 0;
+  const maxMidi = maxMidiRaw ?? 12;
 
   context.clearRect(0, 0, width, height);
   context.fillStyle = '#020617';
@@ -51,6 +55,7 @@ export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) 
     validPitchPoints.forEach((point, index) => {
       const x = plotLeft + point.x * plotWidth;
       const midi = frequencyToMidi(point.pitchHz);
+      if (!Number.isFinite(midi)) return;
       const y = midiToY(midi, minMidi, maxMidi, height);
       if (index === 0) context.moveTo(x, y);
       else context.lineTo(x, y);
@@ -77,16 +82,4 @@ function buildNoteMarks(minMidi, maxMidi) {
 function midiToY(midi, minMidi, maxMidi, height) {
   const normalized = (midi - minMidi) / Math.max(1e-6, maxMidi - minMidi);
   return height - Math.max(0, Math.min(1, normalized)) * height;
-}
-
-function frequencyToMidi(frequencyHz) {
-  return 69 + 12 * Math.log2(frequencyHz / 440);
-}
-
-function midiToNoteLabel(midi) {
-  const roundedMidi = Math.round(midi);
-  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  const name = noteNames[((roundedMidi % 12) + 12) % 12] ?? 'C';
-  const octave = Math.floor(roundedMidi / 12) - 1;
-  return `${name}${octave}`;
 }

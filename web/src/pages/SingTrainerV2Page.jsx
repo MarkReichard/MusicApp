@@ -27,6 +27,8 @@ import {
   TARGET_NOTE_GAIN,
   MASTER_VOLUME,
   SING_COUNTDOWN_BEATS,
+  solfegeForChromaticOffset,
+  nearestMidiByOctave,
 } from '../lib/musicTheory';
 import { buildSections, buildSingTimeline, evaluateBarMatch, applyBarEvaluation, getLessonDefaults, computeTransposition, transposeChordMeasures, shiftNotes, getRangeSuggestionText, isSongLesson } from '../lib/lessonUtils';
 import { schedulePianoNote, loadInstrument, getPianoAudioContext } from '../lib/pianoSynth';
@@ -877,34 +879,4 @@ function getReferenceMidiForTime(relativeSec, expectedBars) {
   }
 
   return null;
-}
-
-function nearestMidiByOctave(candidateMidi, referenceMidi) {
-  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
-    return candidateMidi;
-  }
-
-  let best = candidateMidi;
-  while (best - referenceMidi > 6) {
-    best -= 12;
-  }
-  while (referenceMidi - best > 6) {
-    best += 12;
-  }
-  return best;
-}
-
-function solfegeForChromaticOffset(semitoneOffset) {
-  if (!Number.isFinite(semitoneOffset)) {
-    return '';
-  }
-  const names = ['Do', 'Di', 'Re', 'Ri', 'Mi', 'Fa', 'Fi', 'Sol', 'Si', 'La', 'Li', 'Ti'];
-  const rounded = Math.round(semitoneOffset);
-  const normalized = ((rounded % 12) + 12) % 12;
-  const octaveShift = Math.floor(rounded / 12);
-  const base = names[normalized] ?? '';
-  if (!base) {
-    return '';
-  }
-  return octaveShift > 0 ? `${base}${"'".repeat(octaveShift)}` : base;
 }

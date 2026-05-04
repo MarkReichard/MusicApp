@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { frequencyToMidi } from '../../lib/musicTheory';
 
 const MIN_TIMELINE_SECONDS = 12;
 const TIMELINE_RIGHT_PAD_SECONDS = 1;
@@ -105,9 +106,11 @@ export function SingInputGraphV2({
   const { minMidi, maxMidi } = useMemo(() => {
     const minFromSettings = frequencyToMidi(minFrequencyHz);
     const maxFromSettings = frequencyToMidi(maxFrequencyHz);
+    const minFallback = 48; // C3
+    const maxFallback = 84; // C6
     return {
-      minMidi: Math.floor(minFromSettings) - 1,
-      maxMidi: Math.ceil(maxFromSettings) + 1,
+      minMidi: Math.floor((minFromSettings ?? minFallback) - 1),
+      maxMidi: Math.ceil((maxFromSettings ?? maxFallback) + 1),
     };
   }, [maxFrequencyHz, minFrequencyHz]);
 
@@ -730,13 +733,6 @@ function drawRoundedRect(context, x, y, width, height, radius) {
   context.lineTo(x, y + r);
   context.quadraticCurveTo(x, y, x + r, y);
   context.closePath();
-}
-
-function frequencyToMidi(frequency) {
-  if (!Number.isFinite(frequency) || frequency <= 0) {
-    return 0;
-  }
-  return 69 + (12 * Math.log(frequency / 440)) / Math.log(2);
 }
 
 function getNowSec(sessionStartMs, stopScrollSec) {

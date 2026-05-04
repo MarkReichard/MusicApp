@@ -5,17 +5,18 @@ import { loadPitchMatchSettings, savePitchMatchSettings } from '../lib/pitchMatc
 import { usePitchDetector } from '../lib/usePitchDetector';
 import {
   SEMITONES_PER_OCTAVE,
+  DIATONIC_SCALE_SEMITONES,
+  DIATONIC_SOLFEGE_NAMES,
+  NATURAL_KEY_OPTIONS,
   keyToSemitone,
   midiToFrequencyHz,
   midiToNoteLabel,
+  nearestMidiByOctave,
+  frequencyToMidi,
 } from '../lib/musicTheory';
 import { INSTRUMENT_OPTIONS, getPianoAudioContext, loadInstrument, playBing, playBuzz, playPianoNoteNow, scheduleReferenceTone, stopAllNotes } from '../lib/pianoSynth';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
-const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
-const SOLFEGE_NAMES      = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
-const AVAILABLE_KEYS     = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
-
 const DEFAULT_NOTE_COUNT      = 5;
 const DEFAULT_TOLERANCE_CENTS = 50;
 const DEFAULT_TONE_DURATION_S = 1.2; // how long the played note sounds
@@ -41,21 +42,6 @@ function median(values) {
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle];
-}
-
-function nearestMidiByOctave(candidateMidi, referenceMidi) {
-  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
-    return candidateMidi;
-  }
-
-  let best = candidateMidi;
-  while (best - referenceMidi > 6) {
-    best -= 12;
-  }
-  while (referenceMidi - best > 6) {
-    best += 12;
-  }
-  return best;
 }
 
 function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
@@ -118,9 +104,9 @@ function generateDiatonicCandidates(selectedKey, minMidi, maxMidi) {
   const candidates = [];
   for (let midi = minMidi; midi <= maxMidi; midi++) {
     const semitone = ((midi - tonicSemitone) % SEMITONES_PER_OCTAVE + SEMITONES_PER_OCTAVE) % SEMITONES_PER_OCTAVE;
-    const degreeIdx = DIATONIC_SEMITONES.indexOf(semitone);
+    const degreeIdx = DIATONIC_SCALE_SEMITONES.indexOf(semitone);
     if (degreeIdx !== -1) {
-      candidates.push({ midi, solfege: SOLFEGE_NAMES[degreeIdx], noteLabel: midiToNoteLabel(midi) });
+      candidates.push({ midi, solfege: DIATONIC_SOLFEGE_NAMES[degreeIdx], noteLabel: midiToNoteLabel(midi) });
     }
   }
   return candidates;
@@ -337,7 +323,7 @@ export function PitchMatchPage() {
       return;
     }
 
-    const detectedMidiNearTarget = nearestMidiByOctave(current.midi, targetNote.midi);
+    const detectedMidiNearTarget = normalizeDetectedMidiForTarget(current.midi, current.pitchHz, targetNote.midi);
     sungMidisRef.current = [...sungMidisRef.current, detectedMidiNearTarget].slice(-64);
 
     const centsOff = Math.abs(detectedMidiNearTarget - targetNote.midi) * 100;
@@ -444,7 +430,7 @@ export function PitchMatchPage() {
               className="pitch-match-select"
               disabled={phase !== 'setup' && phase !== 'done'}
             >
-              {AVAILABLE_KEYS.map((k) => (
+              {NATURAL_KEY_OPTIONS.map((k) => (
                 <option key={k} value={k}>{k}</option>
               ))}
             </select>

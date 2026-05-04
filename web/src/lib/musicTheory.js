@@ -4,9 +4,11 @@ export const SEMITONES_PER_OCTAVE = 12;
 export const CONCERT_A_MIDI = 69;   // A4
 export const CONCERT_A_HZ = 440;
 export const KEY_OPTIONS = ['C', 'C#', 'Db', 'D', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+export const NATURAL_KEY_OPTIONS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 export const DIATONIC_SCALE_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
 export const DIATONIC_SOLFEGE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
 export const MAJOR_SCALE_SEMITONES = [...DIATONIC_SCALE_SEMITONES, 12];
+export const CHROMATIC_SOLFEGE = ['Do', 'Di', 'Re', 'Ri', 'Mi', 'Fa', 'Fi', 'Sol', 'Si', 'La', 'Li', 'Ti'];
 export const MAJOR_SOLFEGE_BY_SEMITONE = {
   0: 'Do',
   2: 'Re',
@@ -73,6 +75,12 @@ export function midiToFrequencyHz(midi) {
   return CONCERT_A_HZ * Math.pow(2, (midi - CONCERT_A_MIDI) / SEMITONES_PER_OCTAVE);
 }
 
+/** Converts a frequency in Hz to a MIDI note number, or null if invalid. */
+export function frequencyToMidi(frequencyHz) {
+  if (!Number.isFinite(frequencyHz) || frequencyHz <= 0) return null;
+  return CONCERT_A_MIDI + SEMITONES_PER_OCTAVE * Math.log2(frequencyHz / CONCERT_A_HZ);
+}
+
 /** Returns a human-readable note label (e.g. "C#4") for a MIDI number. */
 export function midiToNoteLabel(midi) {
   if (!Number.isFinite(midi)) return '-';
@@ -80,6 +88,25 @@ export function midiToNoteLabel(midi) {
   const name = NOTE_NAMES[roundedMidi % SEMITONES_PER_OCTAVE] ?? 'C';
   const octave = Math.floor(roundedMidi / SEMITONES_PER_OCTAVE) - 1;
   return `${name}${octave}`;
+}
+
+/**
+ * Normalizes a detected MIDI value to the octave nearest the reference MIDI.
+ * Useful when pitch detectors jump by octaves/harmonics.
+ */
+export function nearestMidiByOctave(candidateMidi, referenceMidi) {
+  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
+    return candidateMidi;
+  }
+
+  let best = candidateMidi;
+  while (best - referenceMidi > 6) {
+    best -= 12;
+  }
+  while (referenceMidi - best > 6) {
+    best += 12;
+  }
+  return best;
 }
 
 /** Returns the tonic MIDI number for a given key name and sing octave. */
@@ -90,6 +117,25 @@ export function tonicMidiFromKeyOctave(key, octave) {
 /** Returns the major-scale solfege syllable for a semitone offset above tonic. */
 export function solfegeForMajorScaleSemitone(semitones) {
   return MAJOR_SOLFEGE_BY_SEMITONE[semitones] ?? '';
+}
+
+/**
+ * Returns the chromatic solfege syllable for a semitone offset.
+ * Uses movable-do with sharp direction (e.g., Do, Di, Re, Ri, Mi, Fa, ...).
+ * Supports octave shifts above/below the current octave via apostrophes.
+ */
+export function solfegeForChromaticOffset(semitoneOffset) {
+  if (!Number.isFinite(semitoneOffset)) {
+    return '';
+  }
+  const rounded = Math.round(semitoneOffset);
+  const normalized = ((rounded % 12) + 12) % 12;
+  const octaveShift = Math.floor(rounded / 12);
+  const base = CHROMATIC_SOLFEGE[normalized] ?? '';
+  if (!base) {
+    return '';
+  }
+  return octaveShift > 0 ? `${base}${"'".repeat(octaveShift)}` : base;
 }
 
 /** Returns the route through the major scale from a scale degree back to tonic. */
@@ -106,4 +152,43 @@ export function buildMajorScaleRouteSemitones(semitones) {
 /** Returns the MIDI notes for the major-scale route from a target degree back to tonic. */
 export function buildMajorScaleRouteMidi(tonicMidi, semitones) {
   return buildMajorScaleRouteSemitones(semitones).map((offset) => tonicMidi + offset);
+}
+
+/**
+ * Normalizes detected pitch by testing harmonic subharmonics, then selects
+ * the candidate closest to target MIDI in the appropriate octave.
+ * Handles cases where low fundamentals are misread as harmonics.
+ */
+export function normalizeDetectedMidiForTarget(detectedMidi, detectedHz, targetMidi) {
+  if (!Number.isFinite(targetMidi)) return detectedMidi;
+
+  const candidates = [];
+  if (Number.isFinite(detectedMidi)) {
+    candidates.push(detectedMidi);
+  }
+
+  // Low fundamentals can be misread as harmonics. Try common subharmonics.
+  if (Number.isFinite(detectedHz) && detectedHz > 0) {
+    const harmonicDivisors = [2, 3, 4];
+    harmonicDivisors.forEach((divisor) => {
+      const correctedMidi = frequencyToMidi(detectedHz / divisor);
+      if (Number.isFinite(correctedMidi)) {
+        candidates.push(correctedMidi);
+      }
+    });
+  }
+
+  if (!candidates.length) return detectedMidi;
+
+  let best = nearestMidiByOctave(candidates[0], targetMidi);
+  let bestDiff = Math.abs(best - targetMidi);
+  for (let index = 1; index < candidates.length; index += 1) {
+    const normalized = nearestMidiByOctave(candidates[index], targetMidi);
+    const diff = Math.abs(normalized - targetMidi);
+    if (diff < bestDiff) {
+      best = normalized;
+      bestDiff = diff;
+    }
+  }
+  return best;
 }

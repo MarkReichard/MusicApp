@@ -2,29 +2,25 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchStabilitySettings, savePitchStabilitySettings } from '../lib/pitchStabilitySettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
-import { keyToSemitone, midiToFrequencyHz, midiToNoteLabel } from '../lib/musicTheory';
+import {
+  DIATONIC_SCALE_SEMITONES,
+  DIATONIC_SOLFEGE_NAMES,
+  NATURAL_KEY_OPTIONS,
+  keyToSemitone,
+  midiToFrequencyHz,
+  midiToNoteLabel,
+  nearestMidiByOctave,
+  frequencyToMidi,
+  normalizeDetectedMidiForTarget,
+} from '../lib/musicTheory';
 import { INSTRUMENT_OPTIONS, loadInstrument, playPianoNoteNow } from '../lib/pianoSynth';
 import { drawChart } from '../lib/drawChart';
-
-const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
-const SOLFEGE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
-const AVAILABLE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 const DEFAULT_PROMPT_DURATION_S = 1.2;
 const BESTS_SESSION_KEY = 'musicapp.web.pitchStability.bestByNote.v1';
 const GRAPH_WINDOW_MS = 4500;
 const GRAPH_RANGE_SEMITONES = 2;
 const GRAPH_HEIGHT_PX = 210;
-
-function nearestMidiByOctave(candidateMidi, referenceMidi) {
-  if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
-    return candidateMidi;
-  }
-  let best = candidateMidi;
-  while (best - referenceMidi > 6) best -= 12;
-  while (referenceMidi - best > 6) best += 12;
-  return best;
-}
 
 function shuffleArray(arr) {
   const a = [...arr];
@@ -43,11 +39,11 @@ function buildOctaveDiatonicCandidates(selectedKey, selectedOctave) {
   for (let semitone = 0; semitone < 12; semitone += 1) {
     const midi = octaveBaseMidi + semitone;
     const rel = ((midi - tonicSemitone) % 12 + 12) % 12;
-    const degreeIdx = DIATONIC_SEMITONES.indexOf(rel);
+    const degreeIdx = DIATONIC_SCALE_SEMITONES.indexOf(rel);
     if (degreeIdx !== -1) {
       out.push({
         midi,
-        solfege: SOLFEGE_NAMES[degreeIdx],
+        solfege: DIATONIC_SOLFEGE_NAMES[degreeIdx],
         noteLabel: midiToNoteLabel(midi),
       });
     }
@@ -248,7 +244,7 @@ export function PitchStabilityPage() {
     if (phase !== 'matching' && phase !== 'holding') return;
 
     const detectedMidi = Number.isFinite(current?.midi)
-      ? nearestMidiByOctave(current.midi, currentTarget.midi)
+      ? normalizeDetectedMidiForTarget(current.midi, current.pitchHz, currentTarget.midi)
       : null;
 
     const onTarget = Number.isFinite(detectedMidi)
@@ -330,7 +326,7 @@ export function PitchStabilityPage() {
           <label className="pitch-match-label">
             {'Key '}
             <select value={selectedKey} onChange={(e) => setSelectedKey(e.target.value)} className="pitch-match-select" disabled={phase !== 'setup' && phase !== 'done'}>
-              {AVAILABLE_KEYS.map((k) => <option key={k} value={k}>{k}</option>)}
+              {NATURAL_KEY_OPTIONS.map((k) => <option key={k} value={k}>{k}</option>)}
             </select>
           </label>
 

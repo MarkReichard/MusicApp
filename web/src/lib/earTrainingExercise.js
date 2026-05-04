@@ -1,4 +1,4 @@
-import { buildMajorScaleRouteMidi } from './musicTheory';
+import { buildMajorScaleRouteMidi, MAJOR_SCALE_SEMITONES, solfegeForChromaticOffset } from './musicTheory';
 
 export const EAR_EXERCISE_MODES = {
   SINGLE_TONIC_RESOLVE: 'single-tonic-resolve',
@@ -91,10 +91,6 @@ const FIXED_INTERVAL_PATTERNS = {
   },
 };
 
-// Movable-do chromatic solfege (sharp direction) used for pattern labels.
-const CHROMATIC_SOLFEGE = ['Do', 'Di', 'Re', 'Ri', 'Mi', 'Fa', 'Fi', 'Sol', 'Si', 'La', 'Li', 'Ti'];
-const MAJOR_SCALE_INTERVALS = [0, 2, 4, 5, 7, 9, 11, 12];
-
 function pickRandomFrom(array) {
   return array[Math.floor(Math.random() * array.length)];
 }
@@ -106,16 +102,6 @@ function clampPatternNoteCount(noteCount) {
   }
   const rounded = Math.round(parsed);
   return Math.max(MIN_PATTERN_NOTE_COUNT, Math.min(MAX_PATTERN_NOTE_COUNT, rounded));
-}
-
-function solfegeForPatternInterval(interval) {
-  if (!Number.isFinite(interval)) return '';
-  const normalized = ((Math.round(interval) % 12) + 12) % 12;
-  const octaveShift = Math.floor(Math.round(interval) / 12);
-  const base = CHROMATIC_SOLFEGE[normalized] ?? '';
-  if (!base) return '';
-  if (octaveShift <= 0) return base;
-  return `${base}${"'".repeat(octaveShift)}`;
 }
 
 export function isMidiInRange(midi, minMidi = null, maxMidi = null) {
@@ -234,7 +220,7 @@ export function buildPatternRound({
   }
 
   const detailLabel = singMidiSeq
-    .map((midi) => solfegeForPatternInterval(midi - tonicMidi))
+    .map((midi) => solfegeForChromaticOffset(midi - tonicMidi))
     .filter(Boolean)
     .join(' ');
 
@@ -251,7 +237,7 @@ export function buildPatternRound({
 }
 
 function buildScaleRound({ tonicMidi, minMidi = null, maxMidi = null, descending = false }) {
-  const ascendingMidis = MAJOR_SCALE_INTERVALS.map((interval) => tonicMidi + interval);
+  const ascendingMidis = MAJOR_SCALE_SEMITONES.map((interval) => tonicMidi + interval);
   const singMidiSeq = descending ? [...ascendingMidis].reverse() : ascendingMidis;
 
   if (!isSequenceInRange(singMidiSeq, minMidi, maxMidi)) {
