@@ -2,8 +2,9 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchStabilitySettings, savePitchStabilitySettings } from '../lib/pitchStabilitySettings';
 import { usePitchDetector } from '../lib/usePitchDetector';
-import { keyToSemitone, midiToNoteLabel } from '../lib/musicTheory';
+import { keyToSemitone, midiToFrequencyHz, midiToNoteLabel } from '../lib/musicTheory';
 import { INSTRUMENT_OPTIONS, loadInstrument, playPianoNoteNow } from '../lib/pianoSynth';
+import { drawChart } from '../lib/drawChart';
 
 const DIATONIC_SEMITONES = [0, 2, 4, 5, 7, 9, 11];
 const SOLFEGE_NAMES = ['Do', 'Re', 'Mi', 'Fa', 'Sol', 'La', 'Ti'];
@@ -11,6 +12,9 @@ const AVAILABLE_KEYS = ['C', 'D', 'E', 'F', 'G', 'A', 'B'];
 
 const DEFAULT_PROMPT_DURATION_S = 1.2;
 const BESTS_SESSION_KEY = 'musicapp.web.pitchStability.bestByNote.v1';
+const GRAPH_WINDOW_MS = 4500;
+const GRAPH_RANGE_SEMITONES = 2;
+const GRAPH_HEIGHT_PX = 210;
 
 function nearestMidiByOctave(candidateMidi, referenceMidi) {
   if (!Number.isFinite(candidateMidi) || !Number.isFinite(referenceMidi)) {
@@ -94,19 +98,24 @@ export function PitchStabilityPage() {
 
   const [exercise, setExercise] = useState([]);
   const [noteIndex, setNoteIndex] = useState(0);
-  const [phase, setPhase] = useState('setup'); // setup | playing_tone | matching | holding | feedback | done
+  const [phase, setPhase] = useState('setup'); // setup | playing_tone | matching | holding | feedback | between | done
   const [results, setResults] = useState([]);
   const [feedbackText, setFeedbackText] = useState('');
+  const [lastNoteLengthS, setLastNoteLengthS] = useState(null);
+  const [newBestNotice, setNewBestNotice] = useState('');
 
   const [bestsByNote, setBestsByNote] = useState(() => loadSessionBests());
 
   const timeoutRef = useRef(null);
-  const matchDeadlineRef = useRef(0);
+  const noticeTimeoutRef = useRef(null);
+  const matchWindowTimeoutRef = useRef(null);
+  const matchedInWindowRef = useRef(false);
   const holdStartMsRef = useRef(0);
   const offStreakRef = useRef(0);
   const lastGoodMsRef = useRef(0);
 
-  const { current } = usePitchDetector(pitchSettings, true);
+  const { current, history, clearHistory } = usePitchDetector(pitchSettings, true, { maxHistoryPoints: 12000 });
+  const graphCanvasRef = useRef(null);
 
   const currentTarget = exercise[noteIndex] ?? null;
   const maxOffSamples = Math.max(1, Math.round(Number(pitchSettings.averageReadings) || 1));
@@ -128,15 +137,22 @@ export function PitchStabilityPage() {
 
   useEffect(() => () => {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    if (matchWindowTimeoutRef.current) clearTimeout(matchWindowTimeoutRef.current);
   }, []);
 
   function startRun() {
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+    if (matchWindowTimeoutRef.current) clearTimeout(matchWindowTimeoutRef.current);
+    clearHistory();
     const ex = buildExercise(selectedKey, selectedOctave, noteCount);
     setExercise(ex);
     setNoteIndex(0);
     setResults(new Array(ex.length).fill(null));
     setFeedbackText('');
+    setLastNoteLengthS(null);
+    setNewBestNotice('');
     if (!ex.length) {
       setPhase('setup');
       return;
@@ -148,12 +164,25 @@ export function PitchStabilityPage() {
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(target.midi, DEFAULT_PROMPT_DURATION_S, 0.18);
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (matchWindowTimeoutRef.current) clearTimeout(matchWindowTimeoutRef.current);
     timeoutRef.current = setTimeout(() => {
-      matchDeadlineRef.current = performance.now() + matchTimeS * 1000;
+      matchedInWindowRef.current = false;
       offStreakRef.current = 0;
       holdStartMsRef.current = 0;
       lastGoodMsRef.current = 0;
       setPhase('matching');
+
+      matchWindowTimeoutRef.current = setTimeout(() => {
+        matchWindowTimeoutRef.current = null;
+        if (!matchedInWindowRef.current) {
+          finishCurrent(target, false, 0);
+          return;
+        }
+        holdStartMsRef.current = performance.now();
+        lastGoodMsRef.current = 0;
+        offStreakRef.current = 0;
+        setPhase('holding');
+      }, Math.round(matchTimeS * 1000));
     }, delayMs);
   }
 
@@ -180,15 +209,25 @@ export function PitchStabilityPage() {
       const nextBests = { ...bestsByNote, [noteKey]: holdSeconds };
       setBestsByNote(nextBests);
       saveSessionBests(nextBests);
-      alert(`New best for ${noteKey}: ${holdSeconds.toFixed(2)}s`);
+      setNewBestNotice(`New best for ${noteKey}: ${holdSeconds.toFixed(2)}s`);
+      if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
+      noticeTimeoutRef.current = setTimeout(() => {
+        setNewBestNotice('');
+        noticeTimeoutRef.current = null;
+      }, 3000);
     }
 
+    setLastNoteLengthS(holdSeconds);
     setFeedbackText(matched
-      ? `Held ${holdSeconds.toFixed(2)}s`
-      : `No match in ${matchTimeS.toFixed(1)}s`);
+      ? `Note length: ${holdSeconds.toFixed(2)}s`
+      : `No match in ${matchTimeS.toFixed(1)}s (note length: ${holdSeconds.toFixed(2)}s)`);
     setPhase('feedback');
 
     if (timeoutRef.current) clearTimeout(timeoutRef.current);
+    if (matchWindowTimeoutRef.current) {
+      clearTimeout(matchWindowTimeoutRef.current);
+      matchWindowTimeoutRef.current = null;
+    }
     timeoutRef.current = setTimeout(() => {
       const nextIndex = noteIndex + 1;
       if (nextIndex >= exercise.length) {
@@ -196,7 +235,11 @@ export function PitchStabilityPage() {
         return;
       }
       setNoteIndex(nextIndex);
-      void playAndBegin(exercise[nextIndex]);
+      clearHistory();
+      setPhase('between');
+      timeoutRef.current = setTimeout(() => {
+        void playAndBegin(exercise[nextIndex]);
+      }, 1000);
     }, 900);
   }
 
@@ -204,7 +247,6 @@ export function PitchStabilityPage() {
     if (!currentTarget) return;
     if (phase !== 'matching' && phase !== 'holding') return;
 
-    const now = performance.now();
     const detectedMidi = Number.isFinite(current?.midi)
       ? nearestMidiByOctave(current.midi, currentTarget.midi)
       : null;
@@ -214,19 +256,13 @@ export function PitchStabilityPage() {
 
     if (phase === 'matching') {
       if (onTarget) {
-        holdStartMsRef.current = now;
-        lastGoodMsRef.current = now;
-        offStreakRef.current = 0;
-        setPhase('holding');
-        return;
-      }
-      if (now >= matchDeadlineRef.current) {
-        finishCurrent(currentTarget, false, 0);
+        matchedInWindowRef.current = true;
       }
       return;
     }
 
     if (phase === 'holding') {
+      const now = performance.now();
       if (onTarget) {
         lastGoodMsRef.current = now;
         offStreakRef.current = 0;
@@ -248,10 +284,43 @@ export function PitchStabilityPage() {
     matching: `Match the pitch (${matchTimeS.toFixed(1)}s window)`,
     holding: 'Hold as long as stable',
     feedback: feedbackText,
+    between: 'Next note in 1s...',
     done: 'Run complete',
   }[phase] ?? '';
+  const showNoteLengthIndicator = (phase === 'feedback' || phase === 'between') && Number.isFinite(lastNoteLengthS);
 
   const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
+
+  useEffect(() => {
+    const canvas = graphCanvasRef.current;
+    if (!canvas) return;
+
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width < 2 || rect.height < 2) return;
+
+    const dpr = globalThis.devicePixelRatio || 1;
+    canvas.width = Math.max(1, Math.floor(rect.width * dpr));
+    canvas.height = Math.max(1, Math.floor(GRAPH_HEIGHT_PX * dpr));
+
+    const activeTargetMidi = Number.isFinite(currentTarget?.midi)
+      ? currentTarget.midi
+      : (Number.isFinite(current?.midi) ? Math.round(current.midi) : 60);
+
+    const minHz = midiToFrequencyHz(activeTargetMidi - GRAPH_RANGE_SEMITONES);
+    const maxHz = midiToFrequencyHz(activeTargetMidi + GRAPH_RANGE_SEMITONES);
+
+    const nowMs = performance.now();
+    const windowStartMs = nowMs - GRAPH_WINDOW_MS;
+    const windowed = history
+      .filter((point) => Number.isFinite(point?.timeMs) && point.timeMs >= windowStartMs)
+      .map((point) => ({
+        pitchHz: point.pitchHz,
+        db: point.db,
+        x: Math.max(0, Math.min(1, (point.timeMs - windowStartMs) / GRAPH_WINDOW_MS)),
+      }));
+
+    drawChart(canvas, windowed, minHz, maxHz, -70, 0);
+  }, [history, currentTarget, current]);
 
   return (
     <div className="pitch-match-page">
@@ -319,6 +388,42 @@ export function PitchStabilityPage() {
 
           <div className="pitch-match-phase-label">{phaseLabel}</div>
 
+          {showNoteLengthIndicator ? (
+            <div
+              style={{
+                margin: '2px auto 0',
+                maxWidth: 420,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #38bdf8',
+                background: 'rgba(56, 189, 248, 0.14)',
+                color: '#7dd3fc',
+                fontWeight: 700,
+                textAlign: 'center',
+              }}
+            >
+              Note length: {lastNoteLengthS.toFixed(2)}s
+            </div>
+          ) : null}
+
+          {newBestNotice ? (
+            <div
+              style={{
+                margin: '8px auto 0',
+                maxWidth: 420,
+                padding: '8px 10px',
+                borderRadius: 8,
+                border: '1px solid #16a34a',
+                background: 'rgba(22, 163, 74, 0.16)',
+                color: '#86efac',
+                fontWeight: 600,
+                textAlign: 'center',
+              }}
+            >
+              {newBestNotice}
+            </div>
+          ) : null}
+
           {currentTarget && phase !== 'done' && (
             <div className="pitch-match-target">
               <span className="target-solfege">{currentTarget.solfege}</span>
@@ -331,6 +436,17 @@ export function PitchStabilityPage() {
             <span className="detected-note">{detectedDisplay}</span>
           </div>
 
+          <div style={{ marginTop: 12, width: '100%', minHeight: GRAPH_HEIGHT_PX }}>
+            <canvas
+              ref={graphCanvasRef}
+              className="mic-settings-canvas"
+              style={{ width: '100%', maxWidth: '100%', height: GRAPH_HEIGHT_PX, minHeight: GRAPH_HEIGHT_PX, maxHeight: GRAPH_HEIGHT_PX, display: 'block' }}
+            />
+            <div style={{ marginTop: 6, fontSize: 12, color: '#94a3b8' }}>
+              Live pitch graph (target range: current note +/- 2 semitones)
+            </div>
+          </div>
+
           {results.some(Boolean) && (
             <div className="pitch-match-results-table-wrap" style={{ marginTop: 16 }}>
               <table className="pitch-match-results-table">
@@ -339,7 +455,7 @@ export function PitchStabilityPage() {
                     <th>#</th>
                     <th>Target</th>
                     <th>Matched in time</th>
-                    <th>Hold time</th>
+                    <th>Note length</th>
                     <th>Best (session)</th>
                   </tr>
                 </thead>
