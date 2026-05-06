@@ -74,24 +74,32 @@ export function getScaleSolfege(scaleType) {
 export function buildScaleMidiSequence({ key, octave, scaleType, direction }) {
   const tonicMidi = tonicMidiFromKeyOctave(key, octave);
   const semitones = getScaleSemitones(scaleType);
-  let midis = semitones.map((s) => tonicMidi + s);
-
   if (direction === SCALE_DIRECTIONS.DESCENDING) {
-    midis = [...midis].reverse();
+    const upperTonicMidi = tonicMidi + 12;
+    const interiorDescendingOffsets = semitones.slice(1, -1).reverse();
+    return [
+      upperTonicMidi,
+      ...interiorDescendingOffsets.map((offset) => tonicMidi + offset),
+      tonicMidi,
+    ];
   }
 
-  return midis;
+  return semitones.map((s) => tonicMidi + s);
 }
 
 /**
  * Returns solfege labels ordered to match the MIDI sequence direction.
  */
 export function buildScaleSolfegeLabels({ scaleType, direction }) {
-  let labels = [...getScaleSolfege(scaleType)];
-  if (direction === SCALE_DIRECTIONS.DESCENDING) {
-    labels = labels.reverse();
+  const labels = [...getScaleSolfege(scaleType)];
+  if (direction !== SCALE_DIRECTIONS.DESCENDING) {
+    return labels;
   }
-  return labels;
+
+  const upperTonicLabel = labels[labels.length - 1] ?? "Do'";
+  const rootLabel = labels[0] ?? 'Do';
+  const interiorDescending = labels.slice(1, -1).reverse();
+  return [upperTonicLabel, ...interiorDescending, rootLabel];
 }
 
 /**

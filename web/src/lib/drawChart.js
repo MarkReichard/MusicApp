@@ -1,6 +1,6 @@
 import { frequencyToMidi, midiToNoteLabel } from './musicTheory';
 
-export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) {
+export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb, options = {}) {
   if (!canvas) return;
   const context = canvas.getContext('2d');
   if (!context) return;
@@ -16,6 +16,11 @@ export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) 
   const maxMidiRaw = frequencyToMidi(safeMaxHz);
   const minMidi = minMidiRaw ?? 0;
   const maxMidi = maxMidiRaw ?? 12;
+  const inRangeStrokeColor = options.inRangeStrokeColor ?? '#22d3ee';
+  const outOfRangeStrokeColor = options.outOfRangeStrokeColor ?? '#ef4444';
+  const isOutOfRange = typeof options.isOutOfRange === 'function'
+    ? options.isOutOfRange
+    : (point) => Boolean(point?.isOutOfRange);
 
   context.clearRect(0, 0, width, height);
   context.fillStyle = '#020617';
@@ -49,18 +54,29 @@ export function drawChart(canvas, points, minPitchHz, maxPitchHz, minDb, maxDb) 
 
   const validPitchPoints = points.filter((point) => Number.isFinite(point.pitchHz));
   if (validPitchPoints.length > 1) {
-    context.strokeStyle = '#22d3ee';
     context.lineWidth = 2;
-    context.beginPath();
-    validPitchPoints.forEach((point, index) => {
-      const x = plotLeft + point.x * plotWidth;
-      const midi = frequencyToMidi(point.pitchHz);
-      if (!Number.isFinite(midi)) return;
-      const y = midiToY(midi, minMidi, maxMidi, height);
-      if (index === 0) context.moveTo(x, y);
-      else context.lineTo(x, y);
-    });
-    context.stroke();
+    for (let index = 1; index < validPitchPoints.length; index += 1) {
+      const previousPoint = validPitchPoints[index - 1];
+      const currentPoint = validPitchPoints[index];
+      const previousMidi = frequencyToMidi(previousPoint.pitchHz);
+      const currentMidi = frequencyToMidi(currentPoint.pitchHz);
+      if (!Number.isFinite(previousMidi) || !Number.isFinite(currentMidi)) {
+        continue;
+      }
+
+      const x1 = plotLeft + previousPoint.x * plotWidth;
+      const y1 = midiToY(previousMidi, minMidi, maxMidi, height);
+      const x2 = plotLeft + currentPoint.x * plotWidth;
+      const y2 = midiToY(currentMidi, minMidi, maxMidi, height);
+
+      context.strokeStyle = (isOutOfRange(previousPoint) || isOutOfRange(currentPoint))
+        ? outOfRangeStrokeColor
+        : inRangeStrokeColor;
+      context.beginPath();
+      context.moveTo(x1, y1);
+      context.lineTo(x2, y2);
+      context.stroke();
+    }
   }
 
 }

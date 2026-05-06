@@ -10,7 +10,6 @@ import {
   midiToFrequencyHz,
   midiToNoteLabel,
   nearestMidiByOctave,
-  frequencyToMidi,
   normalizeDetectedMidiForTarget,
 } from '../lib/musicTheory';
 import { INSTRUMENT_OPTIONS, loadInstrument, playPianoNoteNow } from '../lib/pianoSynth';
@@ -310,13 +309,20 @@ export function PitchStabilityPage() {
     const windowed = history
       .filter((point) => Number.isFinite(point?.timeMs) && point.timeMs >= windowStartMs)
       .map((point) => ({
+        isOutOfRange: Number.isFinite(currentTarget?.midi)
+          && Number.isFinite(point?.midi)
+          && Math.abs((normalizeDetectedMidiForTarget(point.midi, point.pitchHz, currentTarget.midi) - currentTarget.midi) * 100) > toleranceCents,
         pitchHz: point.pitchHz,
         db: point.db,
         x: Math.max(0, Math.min(1, (point.timeMs - windowStartMs) / GRAPH_WINDOW_MS)),
       }));
 
-    drawChart(canvas, windowed, minHz, maxHz, -70, 0);
-  }, [history, currentTarget, current]);
+    drawChart(canvas, windowed, minHz, maxHz, -70, 0, {
+      inRangeStrokeColor: '#22d3ee',
+      outOfRangeStrokeColor: '#ef4444',
+      isOutOfRange: (point) => Boolean(point?.isOutOfRange),
+    });
+  }, [history, currentTarget, current, toleranceCents]);
 
   return (
     <div className="pitch-match-page">

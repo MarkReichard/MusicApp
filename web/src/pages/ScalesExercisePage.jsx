@@ -42,7 +42,6 @@ import {
   buildScaleMidiSequence,
   buildScaleSolfegeLabels,
   buildPromptMidiSequence,
-  getScaleSolfege,
 } from '../lib/scaleExercise';
 
 // ── Constants ──────────────────────────────────────────────────────────────────
@@ -294,12 +293,15 @@ export function ScalesExercisePage() {
     const fullSolfegeLabels = buildScaleSolfegeLabels({ scaleType, direction });
 
     // Slice to start/end note range
-    const resolvedEnd = endNoteIndex < 0 || endNoteIndex >= fullScaleMidis.length
-      ? fullScaleMidis.length - 1
+    const maxScaleIndex = fullScaleMidis.length - 1;
+    const resolvedEnd = endNoteIndex < 0 || endNoteIndex > maxScaleIndex
+      ? maxScaleIndex
       : endNoteIndex;
-    const resolvedStart = Math.min(startNoteIndex, resolvedEnd);
-    const scaleMidis = fullScaleMidis.slice(resolvedStart, resolvedEnd + 1);
-    const solfegeLabels = fullSolfegeLabels.slice(resolvedStart, resolvedEnd + 1);
+    const resolvedStart = Math.max(0, Math.min(startNoteIndex, maxScaleIndex));
+    const fromIndex = Math.min(resolvedStart, resolvedEnd);
+    const toIndex = Math.max(resolvedStart, resolvedEnd);
+    const scaleMidis = fullScaleMidis.slice(fromIndex, toIndex + 1);
+    const solfegeLabels = fullSolfegeLabels.slice(fromIndex, toIndex + 1);
 
     const promptMidis = promptMode === PROMPT_MODES.ROOT_ONLY
       ? [scaleMidis[0]]
@@ -416,9 +418,9 @@ export function ScalesExercisePage() {
 
   // Build solfege options for start/end note dropdowns
   const solfegeOptions = useMemo(() => {
-    const labels = getScaleSolfege(scaleType);
+    const labels = buildScaleSolfegeLabels({ scaleType, direction });
     return labels.map((label, i) => ({ value: i, label }));
-  }, [scaleType]);
+  }, [scaleType, direction]);
 
   // Clamp start/end when scale type changes (different note counts)
   useEffect(() => {

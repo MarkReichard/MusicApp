@@ -12,7 +12,7 @@ import {
   midiToFrequencyHz,
   midiToNoteLabel,
   nearestMidiByOctave,
-  frequencyToMidi,
+  normalizeDetectedMidiForTarget,
 } from '../lib/musicTheory';
 import { INSTRUMENT_OPTIONS, getPianoAudioContext, loadInstrument, playBing, playBuzz, playPianoNoteNow, scheduleReferenceTone, stopAllNotes } from '../lib/pianoSynth';
 
