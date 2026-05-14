@@ -17,6 +17,7 @@ import { drawChart } from '../lib/drawChart';
 
 const DEFAULT_PROMPT_DURATION_S = 1.2;
 const BESTS_SESSION_KEY = 'musicapp.web.pitchStability.bestByNote.v1';
+const ALL_TIME_NOTE_STATS_KEY = 'musicapp.web.pitchStability.noteStats.v1';
 const GRAPH_WINDOW_MS = 4500;
 const GRAPH_RANGE_SEMITONES = 2;
 const GRAPH_HEIGHT_PX = 210;
@@ -80,6 +81,24 @@ function saveSessionBests(next) {
   }
 }
 
+function loadAllTimeNoteStats() {
+  try {
+    const raw = localStorage.getItem(ALL_TIME_NOTE_STATS_KEY);
+    const parsed = raw ? JSON.parse(raw) : {};
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveAllTimeNoteStats(next) {
+  try {
+    localStorage.setItem(ALL_TIME_NOTE_STATS_KEY, JSON.stringify(next));
+  } catch {
+    // ignore
+  }
+}
+
 export function PitchStabilityPage() {
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const saved = useMemo(() => loadPitchStabilitySettings(), []);
@@ -100,6 +119,7 @@ export function PitchStabilityPage() {
   const [newBestNotice, setNewBestNotice] = useState('');
 
   const [bestsByNote, setBestsByNote] = useState(() => loadSessionBests());
+  const [allTimeNoteStats, setAllTimeNoteStats] = useState(() => loadAllTimeNoteStats());
 
   const timeoutRef = useRef(null);
   const noticeTimeoutRef = useRef(null);
@@ -199,6 +219,18 @@ export function PitchStabilityPage() {
     });
 
     const noteKey = `${target.noteLabel}`;
+    const previousNoteStats = allTimeNoteStats[noteKey] ?? { totalHoldSeconds: 0, samples: 0, solfege: target.solfege };
+    const nextAllTimeStats = {
+      ...allTimeNoteStats,
+      [noteKey]: {
+        totalHoldSeconds: Number(previousNoteStats.totalHoldSeconds || 0) + holdSeconds,
+        samples: Number(previousNoteStats.samples || 0) + 1,
+        solfege: target.solfege,
+      },
+    };
+    setAllTimeNoteStats(nextAllTimeStats);
+    saveAllTimeNoteStats(nextAllTimeStats);
+
     const previousBest = Number(bestsByNote[noteKey] || 0);
     if (holdSeconds > previousBest) {
       const nextBests = { ...bestsByNote, [noteKey]: holdSeconds };
@@ -285,6 +317,28 @@ export function PitchStabilityPage() {
   const showNoteLengthIndicator = (phase === 'feedback' || phase === 'between') && Number.isFinite(lastNoteLengthS);
 
   const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
+  const completedResults = results.filter(Boolean);
+  const allTimeAverages = Object.entries(allTimeNoteStats)
+    .map(([noteLabel, stats]) => {
+      const totalHoldSeconds = Number(stats?.totalHoldSeconds || 0);
+      const samples = Number(stats?.samples || 0);
+      const averageHoldSeconds = samples > 0 ? totalHoldSeconds / samples : 0;
+      return {
+        noteLabel,
+        solfege: stats?.solfege || '',
+        totalHoldSeconds,
+        samples,
+        averageHoldSeconds,
+      };
+    })
+    .filter((row) => row.samples > 0);
+
+  const bestAllTimeTop5 = [...allTimeAverages]
+    .sort((a, b) => b.averageHoldSeconds - a.averageHoldSeconds)
+    .slice(0, 5);
+  const worstAllTimeTop5 = [...allTimeAverages]
+    .sort((a, b) => a.averageHoldSeconds - b.averageHoldSeconds)
+    .slice(0, 5);
 
   useEffect(() => {
     const canvas = graphCanvasRef.current;
@@ -449,34 +503,64 @@ export function PitchStabilityPage() {
             </div>
           </div>
 
-          {results.some(Boolean) && (
-            <div className="pitch-match-results-table-wrap" style={{ marginTop: 16 }}>
-              <table className="pitch-match-results-table">
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Target</th>
-                    <th>Matched in time</th>
-                    <th>Note length</th>
-                    <th>Best (session)</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {results.filter(Boolean).map((row) => {
-                    const best = Number(bestsByNote[row.noteLabel] || 0);
-                    return (
-                      <tr key={`${row.noteIndex}-${row.noteLabel}`}>
-                        <td>{row.noteIndex + 1}</td>
-                        <td>{row.solfege} ({row.noteLabel})</td>
-                        <td>{row.matched ? 'Yes' : 'No'}</td>
-                        <td>{row.holdSeconds.toFixed(2)}s</td>
-                        <td>{best.toFixed(2)}s</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {(results.some(Boolean) || allTimeAverages.length > 0) && (
+            <>
+              {(bestAllTimeTop5.length > 0 || worstAllTimeTop5.length > 0) && (
+                <div
+                  style={{
+                    marginTop: 14,
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))',
+                    gap: 10,
+                  }}
+                >
+                  <div style={{ border: '1px solid #14532d', background: 'rgba(22, 163, 74, 0.12)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 12, color: '#86efac', marginBottom: 4 }}>Best 5 notes all-time (avg duration)</div>
+                    {bestAllTimeTop5.map((row, index) => (
+                      <div key={`best-${row.noteLabel}`} style={{ color: '#dcfce7', fontWeight: 600, fontSize: 13 }}>
+                        {index + 1}. {row.solfege || '-'} ({row.noteLabel}) - {row.averageHoldSeconds.toFixed(2)}s avg ({row.samples} samples)
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{ border: '1px solid #7f1d1d', background: 'rgba(239, 68, 68, 0.12)', borderRadius: 8, padding: '8px 10px' }}>
+                    <div style={{ fontSize: 12, color: '#fca5a5', marginBottom: 4 }}>Worst 5 notes all-time (avg duration)</div>
+                    {worstAllTimeTop5.map((row, index) => (
+                      <div key={`worst-${row.noteLabel}`} style={{ color: '#fee2e2', fontWeight: 600, fontSize: 13 }}>
+                        {index + 1}. {row.solfege || '-'} ({row.noteLabel}) - {row.averageHoldSeconds.toFixed(2)}s avg ({row.samples} samples)
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div className="pitch-match-results-table-wrap" style={{ marginTop: 16 }}>
+                <table className="pitch-match-results-table">
+                  <thead>
+                    <tr>
+                      <th>#</th>
+                      <th>Target</th>
+                      <th>Matched in time</th>
+                      <th>Note length</th>
+                      <th>Best (session)</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {completedResults.map((row) => {
+                      const best = Number(bestsByNote[row.noteLabel] || 0);
+                      return (
+                        <tr key={`${row.noteIndex}-${row.noteLabel}`}>
+                          <td>{row.noteIndex + 1}</td>
+                          <td>{row.solfege} ({row.noteLabel})</td>
+                          <td>{row.matched ? 'Yes' : 'No'}</td>
+                          <td>{row.holdSeconds.toFixed(2)}s</td>
+                          <td>{best.toFixed(2)}s</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
         </div>
       )}

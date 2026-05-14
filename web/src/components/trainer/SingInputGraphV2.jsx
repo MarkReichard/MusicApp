@@ -275,8 +275,9 @@ export function SingInputGraphV2({
         style={{
           width: '100%',
           maxWidth: '100%',
-          overflowX: 'auto',
+          overflowX: 'scroll',
           overflowY: 'hidden',
+          scrollbarGutter: 'stable both-edges',
         }}
       >
         <canvas

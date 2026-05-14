@@ -820,7 +820,12 @@ export function SingTrainerV2Page() {
                 const isCorrect = correctIndices.includes(noteIndex);
                 const shiftedMidi = note.midi + totalMidiShift;
                 const noteOctave = Math.floor(shiftedMidi / SEMITONES_PER_OCTAVE) - 1;
-                const label = note.degree ? `${note.degree}${noteOctave}` : midiToNoteLabel(shiftedMidi);
+                const tonicMidi = tonicMidiFromKeyOctave(selectedKey, singOctave);
+                const relativeSemitones = shiftedMidi - tonicMidi;
+                const computedSolfege = solfegeForChromaticOffset(relativeSemitones);
+                const label = computedSolfege
+                  ? `${computedSolfege}${noteOctave}`
+                  : midiToNoteLabel(shiftedMidi);
                 return (
                   <span
                     key={note.id ?? `${note.midi}-${noteIndex}`}
