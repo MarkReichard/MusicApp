@@ -30,8 +30,10 @@ const AB_COMPARE_NOTE_DURATION_S = 1.35;
 const AB_COMPARE_GAP_S = 0.18;
 const AB_COMPARE_TARGET_GAIN = 0.3;
 const AB_COMPARE_SUNG_GAIN = 0.38;
-const AB_COMPARE_MIN_MIDI = 64; // E4
-const AB_COMPARE_MAX_MIDI = 76; // E5
+const AB_COMPARE_RECORDED_GAIN = 1.35;
+const AB_COMPARE_TARGET_BACKUP_GAIN = 0.08;
+const RECORDING_MIME_TYPES = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus'];
+const MIN_RECORDED_VOICED_MS = 1000;
 
 const TARGET_TONE_GAIN = 0.18;
 
@@ -44,11 +46,13 @@ function median(values) {
     : sorted[middle];
 }
 
-function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
+function summarizeSungPitch(sungMidis, rawMidis, targetMidi, toleranceCents, wasCorrect) {
   if (!Array.isArray(sungMidis) || sungMidis.length === 0) {
     return {
       sungMidi: null,
+      sungMidiRaw: null,
       sungNoteLabel: '—',
+      sungNoteLabelRaw: '—',
       signedCents: null,
       direction: 'no-pitch',
     };
@@ -61,18 +65,34 @@ function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
   if (!normalizedMidis.length) {
     return {
       sungMidi: null,
+      sungMidiRaw: null,
       sungNoteLabel: '—',
+      sungNoteLabelRaw: '—',
       signedCents: null,
       direction: 'no-pitch',
     };
   }
 
+  const rawMidiSamples = Array.isArray(rawMidis)
+    ? rawMidis.filter((midi) => Number.isFinite(midi))
+    : [];
+
   const offPitchMidis = normalizedMidis.filter((midi) => Math.abs(midi - targetMidi) * 100 > toleranceCents);
   let representativeMidis = normalizedMidis;
   if (!wasCorrect && offPitchMidis.length > 0) {
-    representativeMidis = offPitchMidis;
+    const belowTargetMidis = offPitchMidis.filter((midi) => midi < targetMidi);
+    const aboveTargetMidis = offPitchMidis.filter((midi) => midi > targetMidi);
+
+    if (belowTargetMidis.length && aboveTargetMidis.length) {
+      representativeMidis = belowTargetMidis.length >= aboveTargetMidis.length
+        ? belowTargetMidis
+        : aboveTargetMidis;
+    } else {
+      representativeMidis = offPitchMidis;
+    }
   }
   const sungMidi = median(representativeMidis);
+  const sungMidiRaw = median(rawMidiSamples);
   const signedCents = (sungMidi - targetMidi) * 100;
   const aboveCount = representativeMidis.filter((midi) => midi > targetMidi).length;
   const belowCount = representativeMidis.filter((midi) => midi < targetMidi).length;
@@ -84,18 +104,72 @@ function summarizeSungPitch(sungMidis, targetMidi, toleranceCents, wasCorrect) {
 
   return {
     sungMidi,
-    sungNoteLabel: midiToNoteLabel(sungMidi),
+    sungMidiRaw,
+    sungNoteLabel: midiToNoteLabel(sungMidiRaw ?? sungMidi),
+    sungNoteLabelRaw: midiToNoteLabel(sungMidiRaw),
     signedCents,
     direction,
   };
 }
 
-function getCompareTransposeSemitones(targetMidi) {
-  if (!Number.isFinite(targetMidi)) return 0;
-  let shift = 0;
-  while (targetMidi + shift < AB_COMPARE_MIN_MIDI) shift += 12;
-  while (targetMidi + shift > AB_COMPARE_MAX_MIDI) shift -= 12;
-  return shift;
+function getSupportedRecordingMimeType() {
+  if (typeof MediaRecorder === 'undefined' || typeof MediaRecorder.isTypeSupported !== 'function') {
+    return '';
+  }
+
+  return RECORDING_MIME_TYPES.find((mimeType) => MediaRecorder.isTypeSupported(mimeType)) ?? '';
+}
+
+async function decodeRecordedBlob(audioCtx, blob) {
+  if (!(blob instanceof Blob) || blob.size === 0) {
+    return null;
+  }
+
+  const encoded = await blob.arrayBuffer();
+  return audioCtx.decodeAudioData(encoded.slice(0));
+}
+
+function scheduleDecodedRecording(audioCtx, audioBuffer, startAt, peakGain = AB_COMPARE_RECORDED_GAIN) {
+  if (!audioBuffer) {
+    return null;
+  }
+
+  const source = audioCtx.createBufferSource();
+  const gainNode = audioCtx.createGain();
+  source.buffer = audioBuffer;
+  gainNode.gain.setValueAtTime(Math.max(0.01, Number(peakGain) || AB_COMPARE_RECORDED_GAIN), startAt);
+  source.connect(gainNode);
+  gainNode.connect(audioCtx.destination);
+
+  let stopped = false;
+  const cleanup = () => {
+    if (stopped) {
+      return;
+    }
+    stopped = true;
+    source.onended = null;
+    try {
+      source.disconnect();
+      gainNode.disconnect();
+    } catch {
+      // ignore disconnect races
+    }
+  };
+
+  source.onended = cleanup;
+  source.start(startAt);
+
+  return () => {
+    if (stopped) {
+      return;
+    }
+    try {
+      source.stop();
+    } catch {
+      // ignore stop races
+    }
+    cleanup();
+  };
 }
 
 // ── Note generation ────────────────────────────────────────────────────────────
@@ -157,24 +231,138 @@ export function PitchMatchPage() {
   const holdCountRef  = useRef(0);
   const wrongHoldRef  = useRef(0);
   const strikeRef     = useRef(0);
+  const resolvingNoteRef = useRef(false);
   const timeoutRef    = useRef(null);
   const sungMidisRef  = useRef([]);
+  const sungRawMidisRef = useRef([]);
+  const recordingRecorderRef = useRef(null);
+  const recordingStartedAtRef = useRef(null);
+  const recordingFirstVoicedAtRef = useRef(null);
+  const recordingChunksRef = useRef([]);
+  const comparePlaybackTimerRef = useRef(null);
+  const compareRecordedStopRef = useRef(null);
 
   const [strikes, setStrikes] = useState(0);
 
-  const { current } = usePitchDetector(pitchSettings, true);
+  const { current, stream } = usePitchDetector(pitchSettings, true);
 
   // ── Derived ────────────────────────────────────────────────────────────────
   const minMidi    = hasPitchRange ? pitchRange.minMidi : 48; // C3 default
   const maxMidi    = hasPitchRange ? pitchRange.maxMidi : 72; // C5 default
   const targetNote = exercise[noteIndex] ?? null;
 
+  const stopRecordedComparePlayback = useCallback(() => {
+    if (comparePlaybackTimerRef.current) {
+      clearTimeout(comparePlaybackTimerRef.current);
+      comparePlaybackTimerRef.current = null;
+    }
+    try {
+      compareRecordedStopRef.current?.();
+    } catch {
+      // ignore stop races
+    }
+    compareRecordedStopRef.current = null;
+  }, []);
+
   // ── Advance to next note ───────────────────────────────────────────────────
-  const advanceNote = useCallback((wasCorrect) => {
+  const stopCurrentRecording = useCallback(async ({ enforceMinDuration = false } = {}) => {
+    const recorder = recordingRecorderRef.current;
+    if (!recorder) {
+      recordingChunksRef.current = [];
+      recordingStartedAtRef.current = null;
+      recordingFirstVoicedAtRef.current = null;
+      return null;
+    }
+
+    const minDurationAnchorMs = Number.isFinite(recordingFirstVoicedAtRef.current)
+      ? recordingFirstVoicedAtRef.current
+      : recordingStartedAtRef.current;
+
+    if (enforceMinDuration && Number.isFinite(minDurationAnchorMs)) {
+      const elapsedMs = performance.now() - minDurationAnchorMs;
+      const remainingMs = Math.max(0, MIN_RECORDED_VOICED_MS - elapsedMs);
+      if (remainingMs > 0) {
+        await new Promise((resolve) => {
+          globalThis.setTimeout(resolve, remainingMs);
+        });
+      }
+    }
+
+    recordingRecorderRef.current = null;
+    recordingStartedAtRef.current = null;
+    recordingFirstVoicedAtRef.current = null;
+
+    const recordingBlob = await new Promise((resolve) => {
+      const handleStop = () => {
+        recorder.removeEventListener('stop', handleStop);
+        const chunks = recordingChunksRef.current;
+        recordingChunksRef.current = [];
+        if (!chunks.length) {
+          resolve(null);
+          return;
+        }
+        const mimeType = recorder.mimeType || getSupportedRecordingMimeType() || 'audio/webm';
+        resolve(new Blob(chunks, { type: mimeType }));
+      };
+
+      recorder.addEventListener('stop', handleStop, { once: true });
+      if (recorder.state === 'inactive') {
+        handleStop();
+        return;
+      }
+
+      try {
+        if (typeof recorder.requestData === 'function') {
+          recorder.requestData();
+        }
+        recorder.stop();
+      } catch {
+        handleStop();
+      }
+    });
+
+    return recordingBlob;
+  }, []);
+
+  const startCurrentRecording = useCallback(() => {
+    if (!stream || typeof MediaRecorder === 'undefined') {
+      return;
+    }
+
+    if (recordingRecorderRef.current?.state === 'recording') {
+      return;
+    }
+
+    recordingChunksRef.current = [];
+    const mimeType = getSupportedRecordingMimeType();
+    const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    recorder.ondataavailable = (event) => {
+      if (event.data && event.data.size > 0) {
+        recordingChunksRef.current.push(event.data);
+      }
+    };
+    recorder.onerror = () => {
+      recordingChunksRef.current = [];
+      recordingRecorderRef.current = null;
+      recordingStartedAtRef.current = null;
+      recordingFirstVoicedAtRef.current = null;
+    };
+    recorder.start();
+    recordingRecorderRef.current = recorder;
+    recordingStartedAtRef.current = performance.now();
+    recordingFirstVoicedAtRef.current = null;
+  }, [stream]);
+
+  const advanceNote = useCallback(async (wasCorrect) => {
+    if (resolvingNoteRef.current) {
+      return;
+    }
+    resolvingNoteRef.current = true;
     clearTimeout(timeoutRef.current);
     const currentTarget = exercise[noteIndex] ?? null;
+    const sungRecording = await stopCurrentRecording({ enforceMinDuration: true });
     const sungSummary = currentTarget
-      ? summarizeSungPitch(sungMidisRef.current, currentTarget.midi, toleranceCents, wasCorrect)
+      ? summarizeSungPitch(sungMidisRef.current, sungRawMidisRef.current, currentTarget.midi, toleranceCents, wasCorrect)
       : null;
 
     if (currentTarget && sungSummary) {
@@ -186,6 +374,7 @@ export function PitchMatchPage() {
           targetMidi: currentTarget.midi,
           targetNoteLabel: currentTarget.noteLabel,
           solfege: currentTarget.solfege,
+          sungRecording,
           ...sungSummary,
         };
         return updated;
@@ -193,6 +382,7 @@ export function PitchMatchPage() {
     }
 
     sungMidisRef.current = [];
+    sungRawMidisRef.current = [];
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -214,6 +404,7 @@ export function PitchMatchPage() {
 
     // After linger, move on
     timeoutRef.current = setTimeout(() => {
+      resolvingNoteRef.current = false;
       setFeedback(null);
       const next = noteIndex + 1;
       if (next >= exercise.length) {
@@ -228,19 +419,22 @@ export function PitchMatchPage() {
         }, delayMs);
       }
     }, FEEDBACK_LINGER_MS);
-  }, [noteIndex, exercise, toneDurationS, toleranceCents]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [noteIndex, exercise, toneDurationS, toleranceCents, stopCurrentRecording]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startTimeout() {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       playBuzz();
-      advanceNote(false);
+      void advanceNote(false);
     }, NOTE_TIMEOUT_MS);
   }
 
   // ── Start / restart exercise ───────────────────────────────────────────────
-  function startExercise() {
+  async function startExercise() {
     clearTimeout(timeoutRef.current);
+    resolvingNoteRef.current = false;
+    await stopCurrentRecording();
+    stopRecordedComparePlayback();
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -253,6 +447,7 @@ export function PitchMatchPage() {
     setAttempts(new Array(ex.length).fill(null));
     setFeedback(null);
     sungMidisRef.current = [];
+    sungRawMidisRef.current = [];
 
     if (ex.length === 0) {
       setPhase('setup');
@@ -268,10 +463,13 @@ export function PitchMatchPage() {
   }
 
   // ── Replay only wrong notes ────────────────────────────────────────────────
-  function replayWrongNotes() {
+  async function replayWrongNotes() {
     const wrongNotes = exercise.filter((_, i) => results[i] === 'wrong');
     if (wrongNotes.length === 0) return;
     clearTimeout(timeoutRef.current);
+    resolvingNoteRef.current = false;
+    await stopCurrentRecording();
+    stopRecordedComparePlayback();
     holdCountRef.current = 0;
     wrongHoldRef.current = 0;
     strikeRef.current    = 0;
@@ -283,6 +481,7 @@ export function PitchMatchPage() {
     setAttempts(new Array(wrongNotes.length).fill(null));
     setFeedback(null);
     sungMidisRef.current = [];
+    sungRawMidisRef.current = [];
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(wrongNotes[0].midi, toneDurationS, TARGET_TONE_GAIN);
     timeoutRef.current = setTimeout(() => {
@@ -292,10 +491,14 @@ export function PitchMatchPage() {
   }
 
   // ── Play current note again ────────────────────────────────────────────────
-  function replayCurrentNote() {
+  async function replayCurrentNote() {
     if (!targetNote) return;
     clearTimeout(timeoutRef.current);
+    resolvingNoteRef.current = false;
+    await stopCurrentRecording();
+    stopRecordedComparePlayback();
     sungMidisRef.current = [];
+    sungRawMidisRef.current = [];
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -308,9 +511,20 @@ export function PitchMatchPage() {
     }, delayMs);
   }
 
+  useEffect(() => {
+    if (phase !== 'listening' || resolvingNoteRef.current) {
+      return () => undefined;
+    }
+
+    startCurrentRecording();
+    return () => {
+      void stopCurrentRecording();
+    };
+  }, [phase, startCurrentRecording, stopCurrentRecording]);
+
   // ── Pitch matching tick ────────────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'listening' || !targetNote) {
+    if (phase !== 'listening' || !targetNote || resolvingNoteRef.current) {
       holdCountRef.current = 0;
       wrongHoldRef.current = 0;
       return;
@@ -324,7 +538,11 @@ export function PitchMatchPage() {
     }
 
     const detectedMidiNearTarget = normalizeDetectedMidiForTarget(current.midi, current.pitchHz, targetNote.midi);
+    if (!Number.isFinite(recordingFirstVoicedAtRef.current)) {
+      recordingFirstVoicedAtRef.current = performance.now();
+    }
     sungMidisRef.current = [...sungMidisRef.current, detectedMidiNearTarget].slice(-64);
+    sungRawMidisRef.current = [...sungRawMidisRef.current, current.midi].slice(-64);
 
     const centsOff = Math.abs(detectedMidiNearTarget - targetNote.midi) * 100;
     if (centsOff <= toleranceCents) {
@@ -365,7 +583,10 @@ export function PitchMatchPage() {
   }, [selectedInstrument]);
 
   // ── Cleanup ────────────────────────────────────────────────────────────────
-  useEffect(() => () => clearTimeout(timeoutRef.current), []);
+  useEffect(() => () => {
+    clearTimeout(timeoutRef.current);
+    stopRecordedComparePlayback();
+  }, [stopRecordedComparePlayback]);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   const holdProgress = Math.min(holdCountRef.current / HOLD_READINGS_NEEDED, 1);
@@ -373,30 +594,48 @@ export function PitchMatchPage() {
   const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
   const wrongAttempts = attempts.filter((attempt) => attempt?.result === 'wrong');
 
-  function playAttemptComparison(attempt) {
+  async function playAttemptComparison(attempt) {
     if (!attempt || !Number.isFinite(attempt.targetMidi)) return;
     stopAllNotes();
-    const compareShift = getCompareTransposeSemitones(attempt.targetMidi);
-    const targetCompareMidi = attempt.targetMidi + compareShift;
+    stopRecordedComparePlayback();
+    const targetCompareMidi = attempt.targetMidi;
+    const secondDelayMs = Math.max(0, Math.round((AB_COMPARE_NOTE_DURATION_S + AB_COMPARE_GAP_S) * 1000));
     const audioCtx = getPianoAudioContext();
+    playPianoNoteNow(targetCompareMidi, AB_COMPARE_NOTE_DURATION_S, AB_COMPARE_TARGET_GAIN);
+
     const startAt = audioCtx.currentTime + 0.02;
     scheduleReferenceTone(
       audioCtx,
       midiToFrequencyHz(targetCompareMidi),
       startAt,
       AB_COMPARE_NOTE_DURATION_S,
-      AB_COMPARE_TARGET_GAIN,
+      AB_COMPARE_TARGET_BACKUP_GAIN,
     );
-    if (!Number.isFinite(attempt.sungMidi)) return;
-    const sungCompareMidi = attempt.sungMidi + compareShift;
-    const secondAt = startAt + AB_COMPARE_NOTE_DURATION_S + AB_COMPARE_GAP_S;
-    scheduleReferenceTone(
-      audioCtx,
-      midiToFrequencyHz(sungCompareMidi),
-      secondAt,
-      AB_COMPARE_NOTE_DURATION_S,
-      AB_COMPARE_SUNG_GAIN,
-    );
+
+    const recordedBufferPromise = attempt.sungRecording instanceof Blob && attempt.sungRecording.size > 0
+      ? decodeRecordedBlob(audioCtx, attempt.sungRecording).catch(() => null)
+      : Promise.resolve(null);
+
+    comparePlaybackTimerRef.current = globalThis.setTimeout(async () => {
+      comparePlaybackTimerRef.current = null;
+
+      const recordedBuffer = await recordedBufferPromise;
+      if (recordedBuffer) {
+        compareRecordedStopRef.current = scheduleDecodedRecording(audioCtx, recordedBuffer, audioCtx.currentTime + 0.01);
+        return;
+      }
+
+      const sungMidi = Number.isFinite(attempt.sungMidiRaw) ? attempt.sungMidiRaw : attempt.sungMidi;
+      if (!Number.isFinite(sungMidi)) return;
+      const sungCompareMidi = sungMidi;
+      scheduleReferenceTone(
+        audioCtx,
+        midiToFrequencyHz(sungCompareMidi),
+        audioCtx.currentTime + 0.01,
+        AB_COMPARE_NOTE_DURATION_S,
+        AB_COMPARE_SUNG_GAIN,
+      );
+    }, secondDelayMs);
   }
 
   const phaseLabel = {
@@ -601,7 +840,7 @@ export function PitchMatchPage() {
                           <tr key={`${attempt.index}-${attempt.targetMidi}`}>
                             <td>{attempt.index + 1}</td>
                             <td>{attempt.solfege} ({attempt.targetNoteLabel})</td>
-                            <td>{attempt.sungNoteLabel}</td>
+                            <td>{attempt.sungRecording ? 'Voice clip' : (attempt.sungNoteLabelRaw ?? attempt.sungNoteLabel)}</td>
                             <td>{offsetText}</td>
                             <td className={`pitch-match-result-${attempt.result}`}>
                               {attempt.result === 'correct' ? '✓' : '✗'}
@@ -611,8 +850,8 @@ export function PitchMatchPage() {
                                 type="button"
                                 className="button secondary pitch-match-compare-btn"
                                 onClick={() => playAttemptComparison(attempt)}
-                                disabled={!Number.isFinite(attempt.sungMidi)}
-                                title="Plays target first, then your sung pitch"
+                                disabled={!(attempt.sungRecording instanceof Blob && attempt.sungRecording.size > 0) && !Number.isFinite(attempt.sungMidi)}
+                                title={attempt.sungRecording ? 'Plays target first, then your recorded voice' : 'Plays target first, then your sung pitch'}
                               >
                                 ▶ A/B
                               </button>

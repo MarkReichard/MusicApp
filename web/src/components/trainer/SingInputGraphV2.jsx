@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import PropTypes from 'prop-types';
+import { useLocation } from 'react-router-dom';
 import { frequencyToMidi } from '../../lib/musicTheory';
 
 const MIN_TIMELINE_SECONDS = 12;
@@ -16,10 +17,12 @@ const MAX_DRAW_GAP_HIGH_ENERGY_SEC = 0.9;
 const HIGH_ENERGY_DB_THRESHOLD = -55;
 const LOW_BLEND_CENTS = 70;
 const HIGH_BLEND_CENTS = 40;
+const DIRECTION_TOOLTIP_EPSILON_CENTS = 5;
 
 export function SingInputGraphV2({
   minFrequencyHz = 55,
   maxFrequencyHz = 1200,
+  toleranceCents = 50,
   history = [],
   sessionStartMs,
   singStartSec,
@@ -32,6 +35,7 @@ export function SingInputGraphV2({
   chordStartSec = 0,
   chordBeatSec = 0,
 }) {
+  const location = useLocation();
   const canvasRef = useRef(null);
   const scrollContainerRef = useRef(null);
   const frozenStateRef = useRef(null);
@@ -39,6 +43,10 @@ export function SingInputGraphV2({
   const [timelineEndSec, setTimelineEndSec] = useState(MIN_TIMELINE_SECONDS);
   const [contentWidthPx, setContentWidthPx] = useState(1200);
   const [hoverTip, setHoverTip] = useState(null);
+  const isDebug = useMemo(() => {
+    const params = new URLSearchParams(location.search);
+    return params.get('debug') === 'true';
+  }, [location.search]);
   const latestRef = useRef({
     history,
     sessionStartMs,
@@ -113,6 +121,23 @@ export function SingInputGraphV2({
       maxMidi: Math.ceil((maxFromSettings ?? maxFallback) + 1),
     };
   }, [maxFrequencyHz, minFrequencyHz]);
+
+  const debugSnapshot = useMemo(() => {
+    const nowSec = getNowSec(sessionStartMs, stopScrollSec);
+    const voicedSamples = history.filter((entry) => Number.isFinite(entry?.midi)).length;
+    const evaluatedBars = expectedBars.filter((bar) => barResults[bar.id] !== undefined).length;
+    const missedBars = expectedBars.filter((bar) => barResults[bar.id] === false).length;
+
+    return {
+      nowSec,
+      voicedSamples,
+      expectedBars: expectedBars.length,
+      evaluatedBars,
+      missedBars,
+      timelineEndSec,
+      singStartSec,
+    };
+  }, [barResults, expectedBars, history, sessionStartMs, singStartSec, stopScrollSec, timelineEndSec]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -243,9 +268,12 @@ export function SingInputGraphV2({
       y,
       canvasWidth: canvas.clientWidth,
       canvasHeight: canvas.clientHeight,
+      toleranceCents,
       expectedBars,
       barResults,
       barMissReasons,
+      history,
+      sessionStartMs,
       minMidi,
       maxMidi,
       timelineEndSec,
@@ -316,6 +344,32 @@ export function SingInputGraphV2({
           {hoverTip.text}
         </div>
       ) : null}
+      {isDebug ? (
+        <div
+          style={{
+            position: 'absolute',
+            right: 12,
+            bottom: 12,
+            pointerEvents: 'none',
+            zIndex: 2,
+            background: 'rgba(2, 6, 23, 0.9)',
+            border: '1px solid #334155',
+            color: '#cbd5e1',
+            borderRadius: 8,
+            padding: '6px 8px',
+            fontSize: 11,
+            lineHeight: 1.4,
+          }}
+        >
+          <div>Graph Debug</div>
+          <div>now: {debugSnapshot.nowSec.toFixed(2)}s</div>
+          <div>timeline: {debugSnapshot.timelineEndSec.toFixed(2)}s</div>
+          <div>sing start: {Number.isFinite(debugSnapshot.singStartSec) ? `${debugSnapshot.singStartSec.toFixed(2)}s` : '-'}</div>
+          <div>voiced samples: {debugSnapshot.voicedSamples}</div>
+          <div>bars: {debugSnapshot.evaluatedBars}/{debugSnapshot.expectedBars}</div>
+          <div>missed bars: {debugSnapshot.missedBars}</div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -325,9 +379,12 @@ function getMissReasonAtPosition({
   y,
   canvasWidth,
   canvasHeight,
+  toleranceCents,
   expectedBars,
   barResults,
   barMissReasons,
+  history,
+  sessionStartMs,
   minMidi,
   maxMidi,
   timelineEndSec,
@@ -357,6 +414,23 @@ function getMissReasonAtPosition({
     const isWithinBarTimeWindow = x >= barLeftPx && x <= barRightPx;
     const isWithinBarPitchWindow = y >= barTopPx && y <= barBottomPx;
     if (isWithinBarTimeWindow && isWithinBarPitchWindow) {
+      const centsOffset = getBarCentsOffset({
+        bar: expectedBar,
+        history,
+        sessionStartMs,
+      });
+
+      if (Number.isFinite(centsOffset)) {
+        const roundedOffset = Math.abs(Math.round(centsOffset));
+        const effectiveTolerance = Math.max(DIRECTION_TOOLTIP_EPSILON_CENTS, Number(toleranceCents) || 0);
+        if (centsOffset <= -effectiveTolerance) {
+          return `Too low (${roundedOffset} cents flat)`;
+        }
+        if (centsOffset >= effectiveTolerance) {
+          return `Too high (${roundedOffset} cents sharp)`;
+        }
+      }
+
       return barMissReasons[expectedBar.id] || fallbackReason;
     }
   }
@@ -590,6 +664,10 @@ function drawExpectedBars(context, bars, {
         context.fillStyle = 'rgba(220, 38, 38, 0.62)';
         context.strokeStyle = '#fca5a5';
       }
+
+      if (result === false) {
+        context.strokeStyle = '#ef4444';
+      }
     }
 
     drawRoundedRect(context, x1, y1, w, h, 6);
@@ -752,6 +830,7 @@ function getNowSec(sessionStartMs, stopScrollSec) {
 SingInputGraphV2.propTypes = {
   minFrequencyHz: PropTypes.number,
   maxFrequencyHz: PropTypes.number,
+  toleranceCents: PropTypes.number,
   history: PropTypes.arrayOf(
     PropTypes.shape({
       timeMs: PropTypes.number,
@@ -790,6 +869,7 @@ SingInputGraphV2.propTypes = {
 SingInputGraphV2.defaultProps = {
   minFrequencyHz: 55,
   maxFrequencyHz: 1200,
+  toleranceCents: 50,
   history: [],
   sessionStartMs: undefined,
   singStartSec: undefined,

@@ -27,6 +27,8 @@ import {
   NOTE_GAP_SECONDS,
   TARGET_NOTE_GAIN,
   PLAYBACK_BUFFER_MS,
+  METRONOME_BASE_CLICK_GAIN,
+  METRONOME_VOLUME_REFERENCE_PERCENT,
   tonicMidiFromKeyOctave,
   TRIAD_INTERVALS,
 } from '../lib/musicTheory';
@@ -57,10 +59,9 @@ const TOLERANCE_CENTS_DEFAULT = 50;
 const NOTE_BEATS = 1;
 const REINFORCEMENT_GAIN = TARGET_NOTE_GAIN * 0.85;
 const PLAY_ALONG_GAIN = TARGET_NOTE_GAIN * 0.55;
-const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.8;
+const METRONOME_CLICK_GAIN = METRONOME_BASE_CLICK_GAIN;
 const METRONOME_VOLUME_MIN = 20;
 const METRONOME_VOLUME_MAX = 300;
-const METRONOME_VOLUME_DEFAULT = 100;
 const METRONOME_VOLUME_STORAGE_KEY = 'musicapp.web.scaleExercise.metronomeVolume.v1';
 
 // ── Settings persistence ───────────────────────────────────────────────────────
@@ -85,12 +86,6 @@ function saveOptions(opts) {
 
 // ── Metronome helpers ───────────────────────────────────────────────────────────
 
-function scheduleMetronomeBeats(ctx, startAt, beatCount, beatSeconds, clickGain) {
-  for (let index = 0; index < beatCount; index += 1) {
-    scheduleMetronomeClick(ctx, startAt + index * beatSeconds, clickGain);
-  }
-}
-
 function clampMetronomeVolume(value) {
   return Math.max(METRONOME_VOLUME_MIN, Math.min(METRONOME_VOLUME_MAX, value));
 }
@@ -99,10 +94,10 @@ function loadMetronomeVolumeSetting() {
   try {
     const raw = globalThis.localStorage.getItem(METRONOME_VOLUME_STORAGE_KEY);
     const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return METRONOME_VOLUME_DEFAULT;
+    if (!Number.isFinite(parsed)) return METRONOME_VOLUME_REFERENCE_PERCENT;
     return clampMetronomeVolume(parsed);
   } catch {
-    return METRONOME_VOLUME_DEFAULT;
+    return METRONOME_VOLUME_REFERENCE_PERCENT;
   }
 }
 
@@ -327,16 +322,15 @@ export function ScalesExercisePage() {
 
     // ── Schedule prompt audio ───────────────────────────────────────────
     const cadenceStartAt = ctxNow + AUDIO_START_OFFSET_SECONDS;
-    const cadenceBeatCount = playCadence ? CADENCE_CHORD_OFFSETS.length : 0;
-    const promptGuideBeats = promptMidis.length;
-    const countdownBeats = 1;
-    const sungPhraseBeats = scaleMidis.length;
     const metronomeClickGain = METRONOME_CLICK_GAIN * (metronomeVolume / 100);
 
     let ac = cadenceStartAt;
 
     if (playCadence) {
       CADENCE_CHORD_OFFSETS.forEach((offset) => {
+        if (metronomeEnabled) {
+          scheduleMetronomeClick(ctx, ac, metronomeClickGain);
+        }
         const chordRoot = tonicMidi + offset;
         TRIAD_INTERVALS.forEach((ti) => {
           schedulePianoNote(ctx, midiToFrequencyHz(chordRoot + ti), ac, beatSeconds, CADENCE_CHORD_GAIN);
@@ -349,19 +343,19 @@ export function ScalesExercisePage() {
     const guideStartAt = ac;
 
     promptMidis.forEach((midi) => {
+      if (metronomeEnabled) {
+        scheduleMetronomeClick(ctx, ac, metronomeClickGain);
+      }
       schedulePianoNote(ctx, midiToFrequencyHz(midi), ac, noteDur, TARGET_NOTE_GAIN);
       ac += noteDur + NOTE_GAP_SECONDS;
     });
 
     const countdownStartAt = ac;
-
     if (metronomeEnabled) {
-      if (cadenceBeatCount > 0) {
-        scheduleMetronomeBeats(ctx, cadenceStartAt, cadenceBeatCount, beatSeconds, metronomeClickGain);
-      }
-      scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds, metronomeClickGain);
-      scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds, metronomeClickGain);
-      scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds, metronomeClickGain);
+      scheduleMetronomeClick(ctx, countdownStartAt, metronomeClickGain);
+      expectedBars.forEach((bar) => {
+        scheduleMetronomeClick(ctx, ctxNow + bar.startSec, metronomeClickGain);
+      });
     }
 
     // ── Schedule play-along notes during singing ────────────────────────
@@ -571,6 +565,7 @@ export function ScalesExercisePage() {
         <SingInputGraphV2
           minFrequencyHz={55}
           maxFrequencyHz={1200}
+          toleranceCents={toleranceCents}
           history={pitchHistory}
           sessionStartMs={session?.startMs}
           singStartSec={session?.singStartSec}

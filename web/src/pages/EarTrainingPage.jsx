@@ -13,11 +13,12 @@
  */
 
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
+import { DetectorLogDebugControls } from '../components/trainer/DetectorLogDebugControls';
 import {
   AUDIO_START_OFFSET_SECONDS,
   CADENCE_CHORD_GAIN,
@@ -30,6 +31,8 @@ import {
   NOTE_GAP_SECONDS,
   TARGET_NOTE_GAIN,
   PLAYBACK_BUFFER_MS,
+  METRONOME_BASE_CLICK_GAIN,
+  METRONOME_VOLUME_REFERENCE_PERCENT,
   solfegeForMajorScaleSemitone,
   tonicMidiFromKeyOctave,
   TRIAD_INTERVALS,
@@ -74,10 +77,9 @@ const DA_BEATS = 1;
 
 const REINFORCEMENT_GAIN = TARGET_NOTE_GAIN * 0.85;
 const TOLERANCE_CENTS_DEFAULT = 50;
-const METRONOME_CLICK_GAIN = TARGET_NOTE_GAIN * 1.8;
+const METRONOME_CLICK_GAIN = METRONOME_BASE_CLICK_GAIN;
 const METRONOME_VOLUME_MIN = 20;
 const METRONOME_VOLUME_MAX = 300;
-const METRONOME_VOLUME_DEFAULT = 100;
 const EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY = 'musicapp.web.earTraining.metronomeVolume.v1';
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -156,12 +158,6 @@ function getBarchartColor(rate) {
   return '#7f1d1d';
 }
 
-function scheduleMetronomeBeats(ctx, startAt, beatCount, beatSeconds, clickGain) {
-  for (let index = 0; index < beatCount; index += 1) {
-    scheduleMetronomeClick(ctx, startAt + index * beatSeconds, clickGain);
-  }
-}
-
 function clampMetronomeVolume(value) {
   return Math.max(METRONOME_VOLUME_MIN, Math.min(METRONOME_VOLUME_MAX, value));
 }
@@ -170,49 +166,71 @@ function loadMetronomeVolumeSetting() {
   try {
     const raw = globalThis.localStorage.getItem(EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY);
     const parsed = Number(raw);
-    if (!Number.isFinite(parsed)) return METRONOME_VOLUME_DEFAULT;
+    if (!Number.isFinite(parsed)) return METRONOME_VOLUME_REFERENCE_PERCENT;
     return clampMetronomeVolume(parsed);
   } catch {
-    return METRONOME_VOLUME_DEFAULT;
+    return METRONOME_VOLUME_REFERENCE_PERCENT;
   }
 }
 
 function loadEarTrainingOptions() {
+  const defaultOptions = {
+    selectedKey: 'C',
+    singOctave: null,
+    exerciseMode: EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE,
+    patternType: EAR_PATTERN_TYPES.RANDOM_ARPEGGIO,
+    patternNoteCount: 4,
+    limitPatternToStartingOctave: false,
+    tempoBpm: TEMPO_BPM_DEFAULT,
+    toleranceCents: TOLERANCE_CENTS_DEFAULT,
+    playCadenceChords: true,
+    hideNoteName: false,
+    metronomeEnabled: false,
+  };
+
   try {
     const raw = globalThis.localStorage.getItem(EAR_TRAINING_OPTIONS_STORAGE_KEY);
     if (!raw) {
-      return {
-        tempoBpm: TEMPO_BPM_DEFAULT,
-        toleranceCents: TOLERANCE_CENTS_DEFAULT,
-        playCadenceChords: true,
-        metronomeEnabled: false,
-      };
+      return defaultOptions;
     }
     const parsed = JSON.parse(raw);
+    const parsedOctave = Number(parsed?.singOctave);
     const parsedTempo = Number(parsed?.tempoBpm ?? TEMPO_BPM_DEFAULT);
     const parsedTolerance = Number(parsed?.toleranceCents ?? TOLERANCE_CENTS_DEFAULT);
+    const parsedPatternNoteCount = Number(parsed?.patternNoteCount ?? defaultOptions.patternNoteCount);
+
     return {
+      selectedKey: KEY_OPTIONS.includes(parsed?.selectedKey) ? parsed.selectedKey : defaultOptions.selectedKey,
+      singOctave: Number.isInteger(parsedOctave) ? Math.max(1, Math.min(7, parsedOctave)) : defaultOptions.singOctave,
+      exerciseMode: Object.values(EAR_EXERCISE_MODES).includes(parsed?.exerciseMode)
+        ? parsed.exerciseMode
+        : defaultOptions.exerciseMode,
+      patternType: Object.values(EAR_PATTERN_TYPES).includes(parsed?.patternType)
+        ? parsed.patternType
+        : defaultOptions.patternType,
+      patternNoteCount: PATTERN_NOTE_COUNT_OPTIONS.includes(parsedPatternNoteCount)
+        ? parsedPatternNoteCount
+        : defaultOptions.patternNoteCount,
+      limitPatternToStartingOctave: Boolean(parsed?.limitPatternToStartingOctave ?? defaultOptions.limitPatternToStartingOctave),
       tempoBpm: Math.max(TEMPO_BPM_MIN, Math.min(TEMPO_BPM_MAX, Number.isFinite(parsedTempo) ? parsedTempo : TEMPO_BPM_DEFAULT)),
       toleranceCents: Math.max(
         TOLERANCE_CENTS_MIN,
         Math.min(TOLERANCE_CENTS_MAX, Number.isFinite(parsedTolerance) ? parsedTolerance : TOLERANCE_CENTS_DEFAULT),
       ),
-      playCadenceChords: Boolean(parsed?.playCadenceChords ?? true),
-      metronomeEnabled: Boolean(parsed?.metronomeEnabled ?? false),
+      playCadenceChords: Boolean(parsed?.playCadenceChords ?? defaultOptions.playCadenceChords),
+      hideNoteName: Boolean(parsed?.hideNoteName ?? defaultOptions.hideNoteName),
+      metronomeEnabled: Boolean(parsed?.metronomeEnabled ?? defaultOptions.metronomeEnabled),
     };
   } catch {
-    return {
-      tempoBpm: TEMPO_BPM_DEFAULT,
-      toleranceCents: TOLERANCE_CENTS_DEFAULT,
-      playCadenceChords: true,
-      metronomeEnabled: false,
-    };
+    return defaultOptions;
   }
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
 
 export function EarTrainingPage() {
+  const [searchParams] = useSearchParams();
+  const isDebug = searchParams.get('debug') === 'true';
   const pitchSettings = useMemo(() => loadPitchSettings(), []);
   const pitchRange    = useMemo(() => loadPitchRangeSettings(), []);
 
@@ -227,16 +245,16 @@ export function EarTrainingPage() {
   const savedEarOptions = useMemo(() => loadEarTrainingOptions(), []);
 
   // ── Options ───────────────────────────────────────────────────────────────
-  const [selectedKey,  setSelectedKey]  = useState('C');
-  const [singOctave,   setSingOctave]   = useState(defaultOctave);
-  const [exerciseMode, setExerciseMode] = useState(EAR_EXERCISE_MODES.SINGLE_TONIC_RESOLVE);
-  const [patternType, setPatternType] = useState(EAR_PATTERN_TYPES.RANDOM_ARPEGGIO);
-  const [patternNoteCount, setPatternNoteCount] = useState(4);
-  const [limitPatternToStartingOctave, setLimitPatternToStartingOctave] = useState(false);
+  const [selectedKey,  setSelectedKey]  = useState(savedEarOptions.selectedKey);
+  const [singOctave,   setSingOctave]   = useState(savedEarOptions.singOctave ?? defaultOctave);
+  const [exerciseMode, setExerciseMode] = useState(savedEarOptions.exerciseMode);
+  const [patternType, setPatternType] = useState(savedEarOptions.patternType);
+  const [patternNoteCount, setPatternNoteCount] = useState(savedEarOptions.patternNoteCount);
+  const [limitPatternToStartingOctave, setLimitPatternToStartingOctave] = useState(savedEarOptions.limitPatternToStartingOctave);
   const [tempoBpm,     setTempoBpm]     = useState(savedEarOptions.tempoBpm);
   const [toleranceCents, setToleranceCents] = useState(savedEarOptions.toleranceCents);
   const [playCadenceChords, setPlayCadenceChords] = useState(savedEarOptions.playCadenceChords);
-  const [hideNoteName, setHideNoteName] = useState(false);
+  const [hideNoteName, setHideNoteName] = useState(savedEarOptions.hideNoteName);
   const [metronomeEnabled, setMetronomeEnabled] = useState(savedEarOptions.metronomeEnabled);
   const [metronomeVolume, setMetronomeVolume] = useState(() => loadMetronomeVolumeSetting());
 
@@ -262,15 +280,34 @@ export function EarTrainingPage() {
   useEffect(() => {
     try {
       globalThis.localStorage.setItem(EAR_TRAINING_OPTIONS_STORAGE_KEY, JSON.stringify({
+        selectedKey,
+        singOctave,
+        exerciseMode,
+        patternType,
+        patternNoteCount,
+        limitPatternToStartingOctave,
         tempoBpm,
         toleranceCents,
         playCadenceChords,
+        hideNoteName,
         metronomeEnabled,
       }));
     } catch {
       // ignore storage failures
     }
-  }, [tempoBpm, toleranceCents, playCadenceChords, metronomeEnabled]);
+  }, [
+    selectedKey,
+    singOctave,
+    exerciseMode,
+    patternType,
+    patternNoteCount,
+    limitPatternToStartingOctave,
+    tempoBpm,
+    toleranceCents,
+    playCadenceChords,
+    hideNoteName,
+    metronomeEnabled,
+  ]);
   useEffect(() => {
     try {
       globalThis.localStorage.setItem(EAR_TRAINING_METRONOME_VOLUME_STORAGE_KEY, String(metronomeVolume));
@@ -283,6 +320,9 @@ export function EarTrainingPage() {
     current: detectedPitch,
     history: pitchHistory,
     clearTrackingData,
+    detectorLogSummary,
+    clearDetectorLog,
+    getDetectorLogRows,
   } = useStablePitchTracker({ enabled: true, maxHistoryPoints: 12000, pitchSettings });
 
   useEffect(() => { historyRef.current = pitchHistory; }, [pitchHistory]);
@@ -454,10 +494,6 @@ export function EarTrainingPage() {
     const perfNow = performance.now();
     const startMs = perfNow + AUDIO_START_OFFSET_SECONDS * 1000;
     const cadenceStartAt = ctxNow + AUDIO_START_OFFSET_SECONDS;
-    const cadenceBeatCount = playCadenceChords ? CADENCE_CHORD_OFFSETS.length : 0;
-    const promptGuideBeats = roundConfig.promptMidiSeq.length * Math.max(1, roundConfig.guideBeatsPerNote);
-    const countdownBeats = 1;
-    const sungPhraseBeats = midiSeq.length * DA_BEATS;
     const metronomeClickGain = METRONOME_CLICK_GAIN * (metronomeVolume / 100);
 
     // ── Schedule audio ──────────────────────────────────────────────────────
@@ -466,6 +502,9 @@ export function EarTrainingPage() {
 
     if (playCadenceChords) {
       CADENCE_CHORD_OFFSETS.forEach((offset) => {
+        if (metronomeEnabled) {
+          scheduleMetronomeClick(ctx, ac, metronomeClickGain);
+        }
         const chordRoot = tonicMidi + offset;
         TRIAD_INTERVALS.forEach((ti) => {
           schedulePianoNote(ctx, midiToFrequencyHz(chordRoot + ti), ac, beatSeconds, CADENCE_CHORD_GAIN);
@@ -479,20 +518,26 @@ export function EarTrainingPage() {
 
     const guideDur = beatSeconds * Math.max(1, roundConfig.guideBeatsPerNote);
     roundConfig.promptMidiSeq.forEach((midi) => {
+      if (metronomeEnabled) {
+        const guideBeatsPerNote = Math.max(1, roundConfig.guideBeatsPerNote);
+        for (let beatIndex = 0; beatIndex < guideBeatsPerNote; beatIndex += 1) {
+          scheduleMetronomeClick(ctx, ac + beatIndex * beatSeconds, metronomeClickGain);
+        }
+      }
       schedulePianoNote(ctx, midiToFrequencyHz(midi), ac, guideDur, TARGET_NOTE_GAIN);
       ac += guideDur + NOTE_GAP_SECONDS;
     });
 
     const countdownStartAt = ac;
+    if (metronomeEnabled) {
+      scheduleMetronomeClick(ctx, countdownStartAt, metronomeClickGain);
+    }
     ac += beatSeconds; // countdown silence — ac is now at audio ctx equivalent of singStartSec
 
     if (metronomeEnabled) {
-      if (cadenceBeatCount > 0) {
-        scheduleMetronomeBeats(ctx, cadenceStartAt, cadenceBeatCount, beatSeconds, metronomeClickGain);
-      }
-      scheduleMetronomeBeats(ctx, guideStartAt, promptGuideBeats, beatSeconds, metronomeClickGain);
-      scheduleMetronomeBeats(ctx, countdownStartAt, countdownBeats, beatSeconds, metronomeClickGain);
-      scheduleMetronomeBeats(ctx, ctxNow + singStartSec, sungPhraseBeats, beatSeconds, metronomeClickGain);
+      expectedBars.forEach((bar) => {
+        scheduleMetronomeClick(ctx, ctxNow + bar.startSec, metronomeClickGain);
+      });
     }
 
     // ── Fixed expected bars and reinforcement ───────────────────────────────
@@ -652,6 +697,14 @@ export function EarTrainingPage() {
             <strong>{detectedPitch.note}</strong>
           </div>
         </div>
+        {isDebug ? (
+          <DetectorLogDebugControls
+            detectorLogSummary={detectorLogSummary}
+            clearDetectorLog={clearDetectorLog}
+            getDetectorLogRows={getDetectorLogRows}
+            filePrefix="ear-trainer"
+          />
+        ) : null}
         <p className="ear-page-subtitle">Choose an exercise, then sing what you hear and match each target note.</p>
 
         <div className="ear-controls-layout">
@@ -865,6 +918,7 @@ export function EarTrainingPage() {
         <SingInputGraphV2
           minFrequencyHz={55}
           maxFrequencyHz={1200}
+          toleranceCents={toleranceCents}
           history={pitchHistory}
           sessionStartMs={session?.startMs}
           singStartSec={session?.singStartSec}
@@ -929,3 +983,4 @@ export function EarTrainingPage() {
     </div>
   );
 }
+

@@ -11,6 +11,7 @@ export function usePitchDetector(settings, enabled, options = {}) {
   });
 
   const [history, setHistory] = useState([]);
+  const [stream, setStream] = useState(null);
   const resourcesRef = useRef({
     context: null,
     stream: null,
@@ -47,6 +48,7 @@ export function usePitchDetector(settings, enabled, options = {}) {
       resources.stream.getTracks().forEach((track) => track.stop());
       resources.stream = null;
     }
+    setStream(null);
     if (resources.context) {
       await resources.context.close().catch(() => undefined);
       resources.context = null;
@@ -83,6 +85,7 @@ export function usePitchDetector(settings, enabled, options = {}) {
       timer: null,
       averageWindow: [],
     };
+    setStream(stream);
 
     resourcesRef.current.timer = globalThis.setInterval(() => {
       const resources = resourcesRef.current;
@@ -136,6 +139,7 @@ export function usePitchDetector(settings, enabled, options = {}) {
   return {
     current,
     history,
+    stream,
     clearHistory: () => setHistory([]),
   };
 }

@@ -9,6 +9,7 @@ import { useStablePitchTracker } from '../lib/useStablePitchTracker';
 import { SingInputGraphV2 } from '../components/trainer/SingInputGraphV2';
 import { KaraokeOverlay } from '../components/trainer/KaraokeOverlay';
 import { SingTrainingOptionsSection } from '../components/trainer/SingTrainingOptionsSection';
+import { DetectorLogDebugControls } from '../components/trainer/DetectorLogDebugControls';
 import { useChordPlayer } from '../lib/useChordPlayer';
 import {
   tonicMidiFromKeyOctave,
@@ -308,60 +309,6 @@ export function SingTrainerV2Page() {
     setSingOctave(rangeRecommendation.octave);
   }
 
-  function handleExportDetectorLog() {
-    const rows = getDetectorLogRows();
-    if (!rows.length) {
-      return;
-    }
-
-    const header = [
-      'tick',
-      'timeSec',
-      'db',
-      'rawHz',
-      'rawClarity',
-      'acceptedHz',
-      'midi',
-      'clarity',
-      'voiced',
-      'gateReason',
-      'minDbThreshold',
-      'minClarityThreshold',
-      'minFreqHz',
-      'maxFreqHz',
-    ];
-    const csvLines = [header.join(',')];
-    rows.forEach((row) => {
-      csvLines.push([
-        row.tick,
-        formatCsvNumber(row.timeSec),
-        formatCsvNumber(row.db),
-        formatCsvNumber(row.rawHz),
-        formatCsvNumber(row.rawClarity),
-        formatCsvNumber(row.acceptedHz),
-        formatCsvNumber(row.midi),
-        formatCsvNumber(row.clarity),
-        row.voiced ? '1' : '0',
-        row.gateReason,
-        formatCsvNumber(row.minDbThreshold),
-        formatCsvNumber(row.minClarityThreshold),
-        formatCsvNumber(row.minFreqHz),
-        formatCsvNumber(row.maxFreqHz),
-      ].join(','));
-    });
-
-    const blob = new Blob([`${csvLines.join('\n')}\n`], { type: 'text/csv;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement('a');
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    anchor.href = url;
-    anchor.download = `sing-trainer-v2-detector-log-${stamp}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    document.body.removeChild(anchor);
-    URL.revokeObjectURL(url);
-  }
-
   async function playMidiSequence(notes, playbackMeasures = sectionMeasures) {
     if (!notes.length) {
       return;
@@ -651,17 +598,12 @@ export function SingTrainerV2Page() {
         </div>
 
         {isDebug ? (
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 8 }}>
-            <button type="button" className="button secondary" onClick={handleExportDetectorLog}>
-              Export Detector Log CSV
-            </button>
-            <button type="button" className="button secondary" onClick={clearDetectorLog}>
-              Clear Log
-            </button>
-            <span className="badge">Log Rows: {detectorLogSummary.count}</span>
-            <span className="badge">Last Gate: {detectorLogSummary.lastGate}</span>
-            <span className="badge">Last Raw Hz: {Number.isFinite(detectorLogSummary.lastRawHz) ? detectorLogSummary.lastRawHz.toFixed(2) : '-'}</span>
-          </div>
+          <DetectorLogDebugControls
+            detectorLogSummary={detectorLogSummary}
+            clearDetectorLog={clearDetectorLog}
+            getDetectorLogRows={getDetectorLogRows}
+            filePrefix="sing-trainer-v2"
+          />
         ) : null}
 
         <SingTrainingOptionsSection
@@ -848,7 +790,8 @@ export function SingTrainerV2Page() {
         <SingInputGraphV2
           minFrequencyHz={55}
           maxFrequencyHz={1200}
-          history={history}
+          toleranceCents={toleranceCents}
+          history={scoringHistory}
           sessionStartMs={session?.startMs}
           singStartSec={session?.singStartSec}
           stopScrollSec={session?.stopScrollSec}
@@ -863,10 +806,6 @@ export function SingTrainerV2Page() {
       </div>
     </div>
   );
-}
-
-function formatCsvNumber(value) {
-  return Number.isFinite(value) ? String(value) : '';
 }
 
 function getReferenceMidiForTime(relativeSec, expectedBars) {

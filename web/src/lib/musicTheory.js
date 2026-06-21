@@ -37,6 +37,8 @@ export const PLAYBACK_BUFFER_MS = 40;              // extra setTimeout padding a
 export const MASTER_VOLUME = 1.3;                  // master volume multiplier — adjust to scale all audio gain
 export const CADENCE_CHORD_GAIN = 0.08 * MASTER_VOLUME;  // gain for cadence chords
 export const TARGET_NOTE_GAIN = 0.16 * MASTER_VOLUME;    // gain for target notes
+export const METRONOME_VOLUME_REFERENCE_PERCENT = 100;    // UI baseline/reference point for metronome slider
+export const METRONOME_BASE_CLICK_GAIN = TARGET_NOTE_GAIN * 3.6; // 100% louder than previous baseline
 export const SING_COUNTDOWN_BEATS = 1;             // beats for sing countdown
 
 // ── Key → semitone map ─────────────────────────────────────────────────────────

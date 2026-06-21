@@ -10,7 +10,7 @@
  */
 
 import { SplendidGrandPiano, Soundfont } from 'smplr';
-import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS, MASTER_VOLUME } from './musicTheory';
+import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS, MASTER_VOLUME, METRONOME_BASE_CLICK_GAIN } from './musicTheory';
 
 export const INSTRUMENT_OPTIONS = [
   { value: 'acoustic_grand_piano', label: 'Grand Piano' },
@@ -226,10 +226,10 @@ export function scheduleReferenceTone(externalCtx, freq, startAt, durationS, pea
  * @param {number}       startAt      Absolute time in `externalCtx` to start
  * @param {number}       peakGain     Peak amplitude (0-1)
  */
-export function scheduleMetronomeClick(externalCtx, startAt, peakGain = 0.18) {
+export function scheduleMetronomeClick(externalCtx, startAt, peakGain = METRONOME_BASE_CLICK_GAIN) {
   const ctx = getOrCreateContext();
   const time = translateTime(startAt, externalCtx);
-  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || 0.18);
+  const safeGain = Math.max(NEAR_ZERO, Number(peakGain) || METRONOME_BASE_CLICK_GAIN);
   return scheduleClickBurst(ctx, time, safeGain);
 }
 
