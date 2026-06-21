@@ -24,6 +24,8 @@ const HOLD_READINGS_NEEDED    = 8;   // ~400 ms at 50 ms poll
 const WRONG_HOLD_READINGS     = 4;   // ~200 ms of sustained wrong pitch = 1 strike
 const MAX_STRIKES             = 2;   // strikes before marking wrong
 const NOTE_TIMEOUT_MS         = 7000;
+const DELAY_MODE_EXTRA_TIMEOUT_MS = 3000;
+const DELAY_MODE_CENTERING_GRACE_MS = 2000;
 const FEEDBACK_LINGER_MS      = 800;
 const DIRECTION_EPSILON_CENTS = 5;
 const AB_COMPARE_NOTE_DURATION_S = 1.35;
@@ -44,6 +46,14 @@ function median(values) {
   return sorted.length % 2 === 0
     ? (sorted[middle - 1] + sorted[middle]) / 2
     : sorted[middle];
+}
+
+function getListeningTimeoutMs(singDelayS) {
+  const singDelayMs = Math.max(0, Math.round((Number(singDelayS) || 0) * 1000));
+  if (singDelayMs <= 0) {
+    return NOTE_TIMEOUT_MS;
+  }
+  return NOTE_TIMEOUT_MS + DELAY_MODE_EXTRA_TIMEOUT_MS + DELAY_MODE_CENTERING_GRACE_MS + singDelayMs;
 }
 
 function summarizeSungPitch(sungMidis, rawMidis, targetMidi, toleranceCents, wasCorrect) {
@@ -220,13 +230,16 @@ export function PitchMatchPage() {
   const [noteCount, setNoteCount]             = useState(savedPitchMatch.noteCount);
   const [toleranceCents, setToleranceCents]   = useState(savedPitchMatch.toleranceCents);
   const [toneDurationS, setToneDurationS]     = useState(savedPitchMatch.toneDurationS);
+  const [singDelayS, setSingDelayS]           = useState(savedPitchMatch.singDelayS);
   const [exercise, setExercise]               = useState([]);
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
   const [results, setResults]                 = useState([]); // 'correct' | 'wrong' | null
   const [attempts, setAttempts]               = useState([]);
-  const [phase, setPhase]                     = useState('setup'); // setup | playing_tone | listening | feedback | done
+  const [phase, setPhase]                     = useState('setup'); // setup | playing_tone | delay | listening | feedback | done
   const [feedback, setFeedback]               = useState(null); // 'correct' | 'wrong'
+  const [delayRemainingMs, setDelayRemainingMs] = useState(0);
+  const [centeringRemainingMs, setCenteringRemainingMs] = useState(0);
 
   const holdCountRef  = useRef(0);
   const wrongHoldRef  = useRef(0);
@@ -239,6 +252,8 @@ export function PitchMatchPage() {
   const recordingStartedAtRef = useRef(null);
   const recordingFirstVoicedAtRef = useRef(null);
   const recordingChunksRef = useRef([]);
+  const delayCountdownIntervalRef = useRef(null);
+  const centeringCountdownIntervalRef = useRef(null);
   const comparePlaybackTimerRef = useRef(null);
   const compareRecordedStopRef = useRef(null);
 
@@ -250,6 +265,22 @@ export function PitchMatchPage() {
   const minMidi    = hasPitchRange ? pitchRange.minMidi : 48; // C3 default
   const maxMidi    = hasPitchRange ? pitchRange.maxMidi : 72; // C5 default
   const targetNote = exercise[noteIndex] ?? null;
+
+  const clearDelayCountdown = useCallback(() => {
+    if (delayCountdownIntervalRef.current) {
+      clearInterval(delayCountdownIntervalRef.current);
+      delayCountdownIntervalRef.current = null;
+    }
+    setDelayRemainingMs(0);
+  }, []);
+
+  const clearCenteringCountdown = useCallback(() => {
+    if (centeringCountdownIntervalRef.current) {
+      clearInterval(centeringCountdownIntervalRef.current);
+      centeringCountdownIntervalRef.current = null;
+    }
+    setCenteringRemainingMs(0);
+  }, []);
 
   const stopRecordedComparePlayback = useCallback(() => {
     if (comparePlaybackTimerRef.current) {
@@ -263,6 +294,45 @@ export function PitchMatchPage() {
     }
     compareRecordedStopRef.current = null;
   }, []);
+
+  const beginListeningPhase = useCallback(() => {
+    clearDelayCountdown();
+    setPhase('listening');
+    clearCenteringCountdown();
+    if (singDelayS > 0) {
+      const centeringEndsAtMs = Date.now() + DELAY_MODE_CENTERING_GRACE_MS;
+      setCenteringRemainingMs(DELAY_MODE_CENTERING_GRACE_MS);
+      centeringCountdownIntervalRef.current = setInterval(() => {
+        setCenteringRemainingMs(Math.max(0, centeringEndsAtMs - Date.now()));
+      }, 100);
+    }
+    startTimeout();
+  }, [clearDelayCountdown, clearCenteringCountdown, singDelayS]);
+
+  const scheduleListeningStart = useCallback((playbackDelayMs) => {
+    clearTimeout(timeoutRef.current);
+    clearDelayCountdown();
+    clearCenteringCountdown();
+
+    timeoutRef.current = setTimeout(() => {
+      const singDelayMs = Math.max(0, Math.round((Number(singDelayS) || 0) * 1000));
+      if (singDelayMs <= 0) {
+        beginListeningPhase();
+        return;
+      }
+
+      const delayEndsAtMs = Date.now() + singDelayMs;
+      setPhase('delay');
+      setDelayRemainingMs(singDelayMs);
+      delayCountdownIntervalRef.current = setInterval(() => {
+        setDelayRemainingMs(Math.max(0, delayEndsAtMs - Date.now()));
+      }, 100);
+
+      timeoutRef.current = setTimeout(() => {
+        beginListeningPhase();
+      }, singDelayMs);
+    }, playbackDelayMs);
+  }, [beginListeningPhase, clearCenteringCountdown, clearDelayCountdown, singDelayS]);
 
   // ── Advance to next note ───────────────────────────────────────────────────
   const stopCurrentRecording = useCallback(async ({ enforceMinDuration = false } = {}) => {
@@ -405,6 +475,8 @@ export function PitchMatchPage() {
     // After linger, move on
     timeoutRef.current = setTimeout(() => {
       resolvingNoteRef.current = false;
+      clearDelayCountdown();
+      clearCenteringCountdown();
       setFeedback(null);
       const next = noteIndex + 1;
       if (next >= exercise.length) {
@@ -413,20 +485,17 @@ export function PitchMatchPage() {
         setNoteIndex(next);
         setPhase('playing_tone');
         const delayMs = playPianoNoteNow(exercise[next].midi, toneDurationS, TARGET_TONE_GAIN);
-        timeoutRef.current = setTimeout(() => {
-          setPhase('listening');
-          startTimeout();
-        }, delayMs);
+        scheduleListeningStart(delayMs);
       }
     }, FEEDBACK_LINGER_MS);
-  }, [noteIndex, exercise, toneDurationS, toleranceCents, stopCurrentRecording]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [noteIndex, exercise, toneDurationS, toleranceCents, stopCurrentRecording, clearCenteringCountdown, clearDelayCountdown, scheduleListeningStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startTimeout() {
     clearTimeout(timeoutRef.current);
     timeoutRef.current = setTimeout(() => {
       playBuzz();
       void advanceNote(false);
-    }, NOTE_TIMEOUT_MS);
+    }, getListeningTimeoutMs(singDelayS));
   }
 
   // ── Start / restart exercise ───────────────────────────────────────────────
@@ -434,6 +503,8 @@ export function PitchMatchPage() {
     clearTimeout(timeoutRef.current);
     resolvingNoteRef.current = false;
     await stopCurrentRecording();
+    clearDelayCountdown();
+    clearCenteringCountdown();
     stopRecordedComparePlayback();
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
@@ -456,10 +527,7 @@ export function PitchMatchPage() {
 
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(ex[0].midi, toneDurationS, TARGET_TONE_GAIN);
-    timeoutRef.current = setTimeout(() => {
-      setPhase('listening');
-      startTimeout();
-    }, delayMs);
+    scheduleListeningStart(delayMs);
   }
 
   // ── Replay only wrong notes ────────────────────────────────────────────────
@@ -469,6 +537,8 @@ export function PitchMatchPage() {
     clearTimeout(timeoutRef.current);
     resolvingNoteRef.current = false;
     await stopCurrentRecording();
+    clearDelayCountdown();
+    clearCenteringCountdown();
     stopRecordedComparePlayback();
     holdCountRef.current = 0;
     wrongHoldRef.current = 0;
@@ -484,10 +554,7 @@ export function PitchMatchPage() {
     sungRawMidisRef.current = [];
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(wrongNotes[0].midi, toneDurationS, TARGET_TONE_GAIN);
-    timeoutRef.current = setTimeout(() => {
-      setPhase('listening');
-      startTimeout();
-    }, delayMs);
+    scheduleListeningStart(delayMs);
   }
 
   // ── Play current note again ────────────────────────────────────────────────
@@ -496,6 +563,8 @@ export function PitchMatchPage() {
     clearTimeout(timeoutRef.current);
     resolvingNoteRef.current = false;
     await stopCurrentRecording();
+    clearDelayCountdown();
+    clearCenteringCountdown();
     stopRecordedComparePlayback();
     sungMidisRef.current = [];
     sungRawMidisRef.current = [];
@@ -505,10 +574,7 @@ export function PitchMatchPage() {
     setStrikes(0);
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(targetNote.midi, toneDurationS, TARGET_TONE_GAIN);
-    timeoutRef.current = setTimeout(() => {
-      setPhase('listening');
-      startTimeout();
-    }, delayMs);
+    scheduleListeningStart(delayMs);
   }
 
   useEffect(() => {
@@ -556,6 +622,11 @@ export function PitchMatchPage() {
         advanceNote(true);
       }
     } else {
+      if (centeringRemainingMs > 0) {
+        holdCountRef.current = 0;
+        wrongHoldRef.current = 0;
+        return;
+      }
       // Off-pitch: reset correct hold, accumulate wrong hold.
       holdCountRef.current = 0;
       wrongHoldRef.current += 1;
@@ -571,12 +642,12 @@ export function PitchMatchPage() {
         }
       }
     }
-  }, [current, phase, targetNote, toleranceCents, advanceNote]);
+  }, [current, phase, targetNote, toleranceCents, centeringRemainingMs, advanceNote]);
 
   // ── Persist settings on change ──────────────────────────────────────────────
   useEffect(() => {
-    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS });
-  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS]);
+    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS });
+  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS]);
 
   useEffect(() => {
     void loadInstrument(selectedInstrument);
@@ -585,11 +656,15 @@ export function PitchMatchPage() {
   // ── Cleanup ────────────────────────────────────────────────────────────────
   useEffect(() => () => {
     clearTimeout(timeoutRef.current);
+    clearDelayCountdown();
+    clearCenteringCountdown();
     stopRecordedComparePlayback();
-  }, [stopRecordedComparePlayback]);
+  }, [clearCenteringCountdown, clearDelayCountdown, stopRecordedComparePlayback]);
 
   // ── Render helpers ─────────────────────────────────────────────────────────
   const holdProgress = Math.min(holdCountRef.current / HOLD_READINGS_NEEDED, 1);
+  const delayRemainingSeconds = Math.max(0, delayRemainingMs / 1000);
+  const centeringRemainingSeconds = Math.max(0, centeringRemainingMs / 1000);
 
   const detectedDisplay = Number.isFinite(current?.midi) ? current.note : '—';
   const wrongAttempts = attempts.filter((attempt) => attempt?.result === 'wrong');
@@ -641,7 +716,8 @@ export function PitchMatchPage() {
   const phaseLabel = {
     setup:        'Configure and start',
     playing_tone: 'Listen...',
-    listening:    'Sing the note ↑',
+    delay:        `Wait... sing in ${delayRemainingSeconds.toFixed(1)}s`,
+    listening:    centeringRemainingMs > 0 ? `Center on the note... ${centeringRemainingSeconds.toFixed(1)}s` : 'Sing the note ↑',
     feedback:     feedback === 'correct' ? '✓ Correct!' : '✗ Miss',
     done:         'Exercise complete',
   }[phase] ?? '';
@@ -728,6 +804,20 @@ export function PitchMatchPage() {
             />
           </label>
 
+          <label className="pitch-match-label">
+            Sing delay: {singDelayS.toFixed(1)}s
+            <input
+              type="range"
+              min={0}
+              max={100}
+              step={1}
+              value={Math.round(singDelayS * 10)}
+              onChange={(e) => setSingDelayS(Number(e.target.value) / 10)}
+              disabled={phase !== 'setup' && phase !== 'done'}
+              style={{ width: 100 }}
+            />
+          </label>
+
           <button type="button" className="button" onClick={startExercise}>
             {phase === 'setup' ? 'Start' : 'Restart'}
           </button>
@@ -772,7 +862,7 @@ export function PitchMatchPage() {
                   <span key={i} className={`strike-dot ${i < strikes ? 'strike-dot--used' : ''}`}>●</span>
                 ))}
               </div>
-              <button type="button" className="button secondary" onClick={replayCurrentNote} disabled={phase === 'playing_tone'}>
+              <button type="button" className="button secondary" onClick={replayCurrentNote} disabled={phase === 'playing_tone' || phase === 'delay'}>
                 ♩ Replay
               </button>
             </div>

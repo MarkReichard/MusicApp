@@ -5,6 +5,7 @@ const DEFAULTS = {
   noteCount:      5,
   toleranceCents: 50,
   toneDurationS:  1.2,
+  singDelayS:     0,
   selectedInstrument: 'acoustic_grand_piano',
 };
 
@@ -31,6 +32,7 @@ export function loadPitchMatchSettings() {
   const noteCount = Number(stored.noteCount);
   const toleranceCents = Number(stored.toleranceCents);
   const toneDurationS = Number(stored.toneDurationS);
+  const singDelayS = Number(stored.singDelayS);
 
   return {
     selectedKey: typeof stored.selectedKey === 'string' && stored.selectedKey
@@ -48,6 +50,9 @@ export function loadPitchMatchSettings() {
     toneDurationS: Number.isFinite(toneDurationS) && toneDurationS > 0
       ? toneDurationS
       : DEFAULTS.toneDurationS,
+    singDelayS: Number.isFinite(singDelayS)
+      ? Math.max(0, Math.min(10, singDelayS))
+      : DEFAULTS.singDelayS,
   };
 }
 
