@@ -20,7 +20,7 @@ import { INSTRUMENT_OPTIONS, getPianoAudioContext, loadInstrument, playBing, pla
 const DEFAULT_NOTE_COUNT      = 5;
 const DEFAULT_TOLERANCE_CENTS = 50;
 const DEFAULT_TONE_DURATION_S = 1.2; // how long the played note sounds
-const HOLD_READINGS_NEEDED    = 8;   // ~400 ms at 50 ms poll
+const HOLD_READINGS_NEEDED    = 16;  // ~800 ms at 50 ms poll
 const WRONG_HOLD_READINGS     = 4;   // ~200 ms of sustained wrong pitch = 1 strike
 const MAX_STRIKES             = 2;   // strikes before marking wrong
 const NOTE_TIMEOUT_MS         = 7000;
@@ -587,6 +587,20 @@ export function PitchMatchPage() {
       void stopCurrentRecording();
     };
   }, [phase, startCurrentRecording, stopCurrentRecording]);
+
+  // ── Delay violation detection ─────────────────────────────────────────────
+  useEffect(() => {
+    if (phase !== 'delay' || resolvingNoteRef.current) {
+      return;
+    }
+    if (!Number.isFinite(current?.midi)) {
+      return;
+    }
+
+    clearTimeout(timeoutRef.current);
+    playBuzz();
+    void advanceNote(false);
+  }, [current, phase, advanceNote]);
 
   // ── Pitch matching tick ────────────────────────────────────────────────────
   useEffect(() => {
