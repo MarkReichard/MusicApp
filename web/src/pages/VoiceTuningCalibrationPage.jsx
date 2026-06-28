@@ -9,10 +9,43 @@ const VOICE_INSTRUMENT = 'choir_aahs';
 const TONE_DURATION_S = 0.56;
 const TONE_GAP_S = 0.28;
 const TONE_GAIN = 0.16;
-const TRIAL_OFFSETS_CENTS = [0, -10, 10, -20, 20, -30, 30, -40, 40, -50, 50, -70, 70, -100, 100];
+const ABS_OFFSET_LEVELS = [0, 10, 15, 20, 25, 30, 40, 50];
 
 function pickRandom(array) {
   return array[Math.floor(Math.random() * array.length)];
+}
+
+function pickWeighted(valuesWithWeights) {
+  const totalWeight = valuesWithWeights.reduce((sum, item) => sum + item.weight, 0);
+  if (!Number.isFinite(totalWeight) || totalWeight <= 0) {
+    return pickRandom(valuesWithWeights).value;
+  }
+  let threshold = Math.random() * totalWeight;
+  for (const item of valuesWithWeights) {
+    threshold -= item.weight;
+    if (threshold <= 0) return item.value;
+  }
+  return valuesWithWeights[valuesWithWeights.length - 1].value;
+}
+
+function pickAdaptiveOffsetCents(bins) {
+  const weightedLevels = ABS_OFFSET_LEVELS.map((absCents) => {
+    const bin = bins.get(absCents);
+    const total = bin?.total ?? 0;
+    const accuracy = total > 0 ? (bin.labelCorrect / total) : null;
+
+    // Keep a random baseline and only partially bias toward weaker ranges.
+    const randomBaseline = 1;
+    const confidence = Math.min(total / 8, 1);
+    const weaknessBoost = accuracy === null ? 0.35 : (1 - accuracy) * (0.6 + 1.8 * confidence);
+    const weight = randomBaseline + weaknessBoost;
+
+    return { value: absCents, weight };
+  });
+
+  const absOffset = pickWeighted(weightedLevels);
+  if (absOffset === 0) return 0;
+  return Math.random() < 0.5 ? -absOffset : absOffset;
 }
 
 function defaultState() {
@@ -45,7 +78,7 @@ function createSummaryTotals() {
 
 function createSummaryBins() {
   const bins = new Map();
-  [0, 10, 20, 30, 40, 50, 70, 100].forEach((cents) => {
+  ABS_OFFSET_LEVELS.forEach((cents) => {
     bins.set(cents, { total: 0, inTuneChosen: 0, labelCorrect: 0 });
   });
   return bins;
@@ -120,6 +153,29 @@ function feedbackColor(isCorrect) {
   return isCorrect ? '#22c55e' : '#ef4444';
 }
 
+function describeAnswerLabel(label) {
+  if (label === 'flat') return 'Flat';
+  if (label === 'sharp') return 'Sharp';
+  return 'In tune';
+}
+
+function describeOffset(offsetCents) {
+  if (!Number.isFinite(offsetCents) || offsetCents === 0) return 'In tune';
+  return `${Math.abs(offsetCents)}¢ ${offsetCents < 0 ? 'flat' : 'sharp'}`;
+}
+
+function describeBucket(absCents) {
+  if (absCents === 0) return 'Perfect match';
+  return `${absCents}¢ away from in tune`;
+}
+
+function calculateInTuneDrop(psychometricPoints) {
+  const point0 = psychometricPoints.find((point) => point.absCents === 0 && point.inTuneRate !== null);
+  const point50 = psychometricPoints.find((point) => point.absCents === 50 && point.inTuneRate !== null);
+  if (!point0 || !point50 || point0.inTuneRate === null || point50.inTuneRate === null) return null;
+  return point0.inTuneRate - point50.inTuneRate;
+}
+
 export function VoiceTuningCalibrationPage() {
   const pitchRange = useMemo(() => loadPitchRangeSettings(), []);
   const [state, setState] = useState(() => loadState());
@@ -128,6 +184,7 @@ export function VoiceTuningCalibrationPage() {
   const [feedback, setFeedback] = useState(null);
 
   const playbackTimerRef = useRef(null);
+  const autoAdvanceTimerRef = useRef(null);
 
   const anchors = useMemo(() => {
     const minMidi = Number.isFinite(pitchRange.minMidi) ? Math.max(48, Math.round(pitchRange.minMidi)) : 52;
@@ -152,6 +209,10 @@ export function VoiceTuningCalibrationPage() {
   }, [state]);
 
   useEffect(() => () => {
+    if (autoAdvanceTimerRef.current) {
+      globalThis.clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
     if (playbackTimerRef.current) {
       globalThis.clearTimeout(playbackTimerRef.current);
       playbackTimerRef.current = null;
@@ -180,8 +241,13 @@ export function VoiceTuningCalibrationPage() {
   }
 
   function startNextTrial() {
+    if (autoAdvanceTimerRef.current) {
+      globalThis.clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
+
     const anchorMidi = pickRandom(anchors);
-    const offsetCents = pickRandom(TRIAL_OFFSETS_CENTS);
+    const offsetCents = pickAdaptiveOffsetCents(summary.bins);
     const targetFreq = midiToFrequencyHz(anchorMidi);
     const probeFreq = targetFreq * Math.pow(2, offsetCents / 1200);
 
@@ -232,9 +298,20 @@ export function VoiceTuningCalibrationPage() {
       offsetCents: trial.offsetCents,
     });
     setPhase('feedback');
+
+    if (isCorrect) {
+      autoAdvanceTimerRef.current = globalThis.setTimeout(() => {
+        autoAdvanceTimerRef.current = null;
+        startNextTrial();
+      }, 450);
+    }
   }
 
   function resetProgress() {
+    if (autoAdvanceTimerRef.current) {
+      globalThis.clearTimeout(autoAdvanceTimerRef.current);
+      autoAdvanceTimerRef.current = null;
+    }
     setState(defaultState());
     setTrial(null);
     setFeedback(null);
@@ -245,6 +322,7 @@ export function VoiceTuningCalibrationPage() {
   const nearBandDirectionAccuracy = summary.totals.nearBandDirectionTotal > 0
     ? summary.totals.nearBandDirectionCorrect / summary.totals.nearBandDirectionTotal
     : null;
+  const inTuneDrop = calculateInTuneDrop(summary.psychometricPoints);
 
   return (
     <div className="list" style={{ gap: 12 }}>
@@ -254,66 +332,55 @@ export function VoiceTuningCalibrationPage() {
           <Link className="button secondary" to="/ear-training">Back to Ear Training</Link>
         </div>
         <p style={{ margin: 0, color: '#94a3b8', fontSize: 13 }}>
-          Hear a sung-style target and a shifted version (0 or ±10…±100 cents). Label the second note as flat, in tune, or sharp.
+          You will hear two sung-style notes. The first is the reference. Decide whether the second note sounds flat, in tune, or sharp compared with the first.
         </p>
       </div>
 
       <div className="grid" style={{ gridTemplateColumns: '360px 1fr' }}>
         <div className="card controls" style={{ gap: 10 }}>
           <div className="stat">
-            <div className="k">Trials</div>
+            <div className="k">Practice rounds completed</div>
             <div className="v">{summary.totals.all}</div>
-            <small>Stored in browser local storage</small>
+            <small>Saved in this browser on this device</small>
           </div>
 
           <div className="stat">
-            <div className="k">Label accuracy</div>
+            <div className="k">Overall answer accuracy</div>
             <div className="v">{formatPercent(labelAccuracy)}</div>
-            <small>Correct flat / in-tune / sharp labels</small>
+            <small>How often you chose the correct answer across all rounds</small>
           </div>
 
           <div className="stat">
-            <div className="k">Direction (±25–±50¢ proxy)</div>
+            <div className="k">Close-call high / low accuracy</div>
             <div className="v">{formatPercent(nearBandDirectionAccuracy)}</div>
-            <small>Sharp/flat accuracy from ±30/±40/±50¢ trials</small>
+            <small>How often you correctly heard whether the second note was flat or sharp on medium-difficulty rounds</small>
           </div>
 
           <div className="stat">
-            <div className="k">Psychometric slope (0→50¢)</div>
+            <div className="k">How clearly you stop hearing “in tune”</div>
             <div className="v" style={{ fontSize: 22 }}>
-              {Number.isFinite(summary.psychometricSlope) ? summary.psychometricSlope.toFixed(4) : '—'}
+              {formatPercent(inTuneDrop)}
             </div>
-            <small>Change in “in-tune” response rate per cent</small>
+            <small>Bigger drop means you are less likely to call a note “in tune” once it is 50¢ off</small>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-            <button className="button" type="button" onClick={startNextTrial} disabled={phase === 'playing'}>
-              {trial ? 'Next trial' : 'Start'}
-            </button>
-            <button className="button secondary" type="button" onClick={replayCurrentTrial} disabled={!trial || phase === 'playing'}>
-              Replay pair
-            </button>
-            <button className="button secondary" type="button" onClick={resetProgress} disabled={phase === 'playing'}>
-              Reset progress
-            </button>
-          </div>
         </div>
 
         <div className="card" style={{ padding: 14, display: 'grid', gap: 12 }}>
           <div>
-            <strong>Trial state:</strong>{' '}
-            {phase === 'idle' && 'Ready'}
-            {phase === 'playing' && 'Playing target then comparison…'}
-            {phase === 'answer' && 'Label the second note: flat, in tune, or sharp.'}
-            {phase === 'feedback' && 'Review result'}
+            <strong>What to do:</strong>{' '}
+            {phase === 'idle' && 'Start when you are ready.'}
+            {phase === 'playing' && 'Listen to the first note, then the second note.'}
+            {phase === 'answer' && 'Decide whether the second note was flat, in tune, or sharp.'}
+            {phase === 'feedback' && 'Check the result below.'}
           </div>
 
           <div className="stat">
-            <div className="k">Current anchor note</div>
+            <div className="k">Starting note for this round</div>
             <div className="v" style={{ fontSize: 24 }}>
               {trial ? `${midiToNoteLabel(trial.anchorMidi)} (${trial.anchorMidi})` : '—'}
             </div>
-            <small>Voice model: choir</small>
+            <small>Both notes in this round are based on this pitch</small>
           </div>
 
           <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
@@ -328,6 +395,18 @@ export function VoiceTuningCalibrationPage() {
             </button>
           </div>
 
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <button className="button" type="button" onClick={startNextTrial} disabled={phase === 'playing'}>
+              {trial ? 'Next trial' : 'Start'}
+            </button>
+            <button className="button secondary" type="button" onClick={replayCurrentTrial} disabled={!trial || phase === 'playing'}>
+              Replay pair
+            </button>
+            <button className="button secondary" type="button" onClick={resetProgress} disabled={phase === 'playing'}>
+              Reset progress
+            </button>
+          </div>
+
           {feedback && (
             <div
               className="stat"
@@ -338,7 +417,7 @@ export function VoiceTuningCalibrationPage() {
                 background: feedback.isCorrect ? '#052e16' : '#3b0a0a',
               }}
             >
-              <div className="k">Feedback</div>
+              <div className="k">Last result</div>
               <div
                 className="v"
                 style={{
@@ -347,29 +426,32 @@ export function VoiceTuningCalibrationPage() {
                   color: feedback.isCorrect ? '#86efac' : '#fca5a5',
                 }}
               >
-                {feedback.isCorrect ? '✓ Correct label' : '✗ Incorrect label'}
+                {feedback.isCorrect ? 'Correct' : 'Not quite'}
               </div>
               <small>
-                Your label:{' '}
+                You answered:{' '}
                 <strong style={{ color: feedbackColor(feedback.isCorrect) }}>
-                  {feedback.answerLabel}
+                  {describeAnswerLabel(feedback.answerLabel)}
                 </strong>{' '}
-                (correct: {feedback.correctLabel}).
+                and the correct answer was <strong>{describeAnswerLabel(feedback.correctLabel)}</strong>.
               </small>
               <small style={{ color: '#f8fafc', fontWeight: 700 }}>
-                Actual shift: {feedback.offsetCents > 0 ? '+' : ''}{feedback.offsetCents}¢.
+                The second note was: {describeOffset(feedback.offsetCents)} compared with the first note.
               </small>
             </div>
           )}
 
           <div className="card" style={{ padding: 10, display: 'grid', gap: 6 }}>
-            <strong style={{ fontSize: 13 }}>In-tune response by |cents|</strong>
-            {[0, 10, 20, 30, 40, 50, 70, 100].map((absCents) => {
+            <strong style={{ fontSize: 13 }}>Percent correct by pitch difference</strong>
+            <small style={{ color: '#94a3b8' }}>
+              This shows your accuracy at each cent level (how often your label matched the correct answer).
+            </small>
+            {ABS_OFFSET_LEVELS.map((absCents) => {
               const bin = summary.bins.get(absCents);
-              const rate = bin && bin.total > 0 ? bin.inTuneYes / bin.total : null;
+              const rate = bin && bin.total > 0 ? bin.labelCorrect / bin.total : null;
               return (
                 <small key={absCents}>
-                  {absCents === 0 ? '0¢' : `±${absCents}¢`}: {formatPercent(rate)} ({bin?.total ?? 0} trials)
+                  {describeBucket(absCents)}: {formatPercent(rate)} ({bin?.total ?? 0} rounds)
                 </small>
               );
             })}
