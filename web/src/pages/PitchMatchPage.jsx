@@ -231,6 +231,7 @@ export function PitchMatchPage() {
   const [toleranceCents, setToleranceCents]   = useState(savedPitchMatch.toleranceCents);
   const [toneDurationS, setToneDurationS]     = useState(savedPitchMatch.toneDurationS);
   const [singDelayS, setSingDelayS]           = useState(savedPitchMatch.singDelayS);
+  const [enforceDelayViolation, setEnforceDelayViolation] = useState(savedPitchMatch.enforceDelayViolation);
   const [exercise, setExercise]               = useState([]);
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
@@ -254,6 +255,7 @@ export function PitchMatchPage() {
   const recordingChunksRef = useRef([]);
   const delayCountdownIntervalRef = useRef(null);
   const centeringCountdownIntervalRef = useRef(null);
+  const centeringStartedAtRef = useRef(null);
   const comparePlaybackTimerRef = useRef(null);
   const compareRecordedStopRef = useRef(null);
 
@@ -299,15 +301,10 @@ export function PitchMatchPage() {
     clearDelayCountdown();
     setPhase('listening');
     clearCenteringCountdown();
-    if (singDelayS > 0) {
-      const centeringEndsAtMs = Date.now() + DELAY_MODE_CENTERING_GRACE_MS;
-      setCenteringRemainingMs(DELAY_MODE_CENTERING_GRACE_MS);
-      centeringCountdownIntervalRef.current = setInterval(() => {
-        setCenteringRemainingMs(Math.max(0, centeringEndsAtMs - Date.now()));
-      }, 100);
-    }
+    centeringStartedAtRef.current = null;
+    setCenteringRemainingMs(0);
     startTimeout();
-  }, [clearDelayCountdown, clearCenteringCountdown, singDelayS]);
+  }, [clearDelayCountdown, clearCenteringCountdown]);
 
   const scheduleListeningStart = useCallback((playbackDelayMs) => {
     clearTimeout(timeoutRef.current);
@@ -453,6 +450,7 @@ export function PitchMatchPage() {
 
     sungMidisRef.current = [];
     sungRawMidisRef.current = [];
+    centeringStartedAtRef.current = null;
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -505,8 +503,7 @@ export function PitchMatchPage() {
     await stopCurrentRecording();
     clearDelayCountdown();
     clearCenteringCountdown();
-    stopRecordedComparePlayback();
-    holdCountRef.current  = 0;
+    stopRecordedComparePlayback();    centeringStartedAtRef.current = null;    holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
     setStrikes(0);
@@ -552,6 +549,7 @@ export function PitchMatchPage() {
     setFeedback(null);
     sungMidisRef.current = [];
     sungRawMidisRef.current = [];
+    centeringStartedAtRef.current = null;
     setPhase('playing_tone');
     const delayMs = playPianoNoteNow(wrongNotes[0].midi, toneDurationS, TARGET_TONE_GAIN);
     scheduleListeningStart(delayMs);
@@ -568,6 +566,7 @@ export function PitchMatchPage() {
     stopRecordedComparePlayback();
     sungMidisRef.current = [];
     sungRawMidisRef.current = [];
+    centeringStartedAtRef.current = null;
     holdCountRef.current  = 0;
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
@@ -590,7 +589,7 @@ export function PitchMatchPage() {
 
   // ── Delay violation detection ─────────────────────────────────────────────
   useEffect(() => {
-    if (phase !== 'delay' || resolvingNoteRef.current) {
+    if (!enforceDelayViolation || phase !== 'delay' || resolvingNoteRef.current) {
       return;
     }
     if (!Number.isFinite(current?.midi)) {
@@ -600,7 +599,36 @@ export function PitchMatchPage() {
     clearTimeout(timeoutRef.current);
     playBuzz();
     void advanceNote(false);
-  }, [current, phase, advanceNote]);
+  }, [current, phase, enforceDelayViolation, advanceNote]);
+
+  // ── Start centering grace on first vocal onset ─────────────────────────────
+  useEffect(() => {
+    if (phase !== 'listening' || resolvingNoteRef.current) {
+      return;
+    }
+    if (singDelayS <= 0) {
+      return;
+    }
+    if (centeringStartedAtRef.current) {
+      return;
+    }
+    if (!Number.isFinite(current?.midi)) {
+      return;
+    }
+
+    centeringStartedAtRef.current = Date.now();
+    const centeringEndsAtMs = centeringStartedAtRef.current + DELAY_MODE_CENTERING_GRACE_MS;
+    setCenteringRemainingMs(DELAY_MODE_CENTERING_GRACE_MS);
+    clearInterval(centeringCountdownIntervalRef.current);
+    centeringCountdownIntervalRef.current = setInterval(() => {
+      const remaining = Math.max(0, centeringEndsAtMs - Date.now());
+      setCenteringRemainingMs(remaining);
+      if (remaining <= 0 && centeringCountdownIntervalRef.current) {
+        clearInterval(centeringCountdownIntervalRef.current);
+        centeringCountdownIntervalRef.current = null;
+      }
+    }, 100);
+  }, [current, phase, singDelayS]);
 
   // ── Pitch matching tick ────────────────────────────────────────────────────
   useEffect(() => {
@@ -625,6 +653,11 @@ export function PitchMatchPage() {
     sungRawMidisRef.current = [...sungRawMidisRef.current, current.midi].slice(-64);
 
     const centsOff = Math.abs(detectedMidiNearTarget - targetNote.midi) * 100;
+    
+    // Compute grace window directly from ref to avoid state lag
+    const isInCenteringGrace = singDelayS > 0 && centeringStartedAtRef.current 
+      && Date.now() - centeringStartedAtRef.current < DELAY_MODE_CENTERING_GRACE_MS;
+    
     if (centsOff <= toleranceCents) {
       // On-pitch: reset wrong hold, accumulate correct hold.
       wrongHoldRef.current = 0;
@@ -636,7 +669,7 @@ export function PitchMatchPage() {
         advanceNote(true);
       }
     } else {
-      if (centeringRemainingMs > 0) {
+      if (isInCenteringGrace) {
         holdCountRef.current = 0;
         wrongHoldRef.current = 0;
         return;
@@ -649,6 +682,7 @@ export function PitchMatchPage() {
         const newStrikes = strikeRef.current + 1;
         strikeRef.current = newStrikes;
         setStrikes(newStrikes);
+        console.log('[pitch-tick] ACCUMULATED WRONG - strike', newStrikes);
         if (newStrikes >= MAX_STRIKES) {
           clearTimeout(timeoutRef.current);
           playBuzz();
@@ -656,12 +690,12 @@ export function PitchMatchPage() {
         }
       }
     }
-  }, [current, phase, targetNote, toleranceCents, centeringRemainingMs, advanceNote]);
+  }, [current, phase, targetNote, toleranceCents, singDelayS, advanceNote]);
 
   // ── Persist settings on change ──────────────────────────────────────────────
   useEffect(() => {
-    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS });
-  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS]);
+    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation });
+  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation]);
 
   useEffect(() => {
     void loadInstrument(selectedInstrument);
@@ -796,8 +830,8 @@ export function PitchMatchPage() {
             Tolerance: {toleranceCents}¢
             <input
               type="range"
-              min={20}
-              max={100}
+              min={0}
+              max={50}
               step={5}
               value={toleranceCents}
               onChange={(e) => setToleranceCents(Number(e.target.value))}
@@ -830,6 +864,16 @@ export function PitchMatchPage() {
               disabled={phase !== 'setup' && phase !== 'done'}
               style={{ width: 100 }}
             />
+          </label>
+
+          <label className="pitch-match-label">
+            <input
+              type="checkbox"
+              checked={enforceDelayViolation}
+              onChange={(e) => setEnforceDelayViolation(e.target.checked)}
+              disabled={phase !== 'setup' && phase !== 'done'}
+            />
+            {' '}Enforce no-singing during delay
           </label>
 
           <button type="button" className="button" onClick={startExercise}>

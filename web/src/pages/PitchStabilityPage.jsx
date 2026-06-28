@@ -404,7 +404,7 @@ export function PitchStabilityPage() {
 
           <label className="pitch-match-label">
             Tolerance: {toleranceCents}¢
-            <input type="range" min={20} max={100} step={5} value={toleranceCents} onChange={(e) => setToleranceCents(Number(e.target.value))} style={{ width: 100 }} />
+            <input type="range" min={0} max={50} step={5} value={toleranceCents} onChange={(e) => setToleranceCents(Number(e.target.value))} style={{ width: 100 }} />
           </label>
 
           <label className="pitch-match-label">

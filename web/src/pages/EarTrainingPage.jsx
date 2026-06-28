@@ -65,8 +65,8 @@ const PATTERN_NOTE_COUNT_OPTIONS = Array.from({ length: 11 }, (_, i) => i + 2);
 const TEMPO_BPM_MIN = 40;
 const TEMPO_BPM_MAX = 120;
 const TEMPO_BPM_DEFAULT = 72;
-const TOLERANCE_CENTS_MIN = 20;
-const TOLERANCE_CENTS_MAX = 100;
+const TOLERANCE_CENTS_MIN = 0;
+const TOLERANCE_CENTS_MAX = 50;
 const TOLERANCE_CENTS_STEP = 5;
 const EAR_TRAINING_OPTIONS_STORAGE_KEY = 'musicapp.web.earTraining.options.v1';
 

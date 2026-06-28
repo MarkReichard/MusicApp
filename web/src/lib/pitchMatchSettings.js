@@ -7,6 +7,7 @@ const DEFAULTS = {
   toneDurationS:  1.2,
   singDelayS:     0,
   selectedInstrument: 'acoustic_grand_piano',
+  enforceDelayViolation: true,
 };
 
 const VALID_INSTRUMENTS = new Set([
@@ -45,7 +46,7 @@ export function loadPitchMatchSettings() {
       ? Math.round(noteCount)
       : DEFAULTS.noteCount,
     toleranceCents: Number.isFinite(toleranceCents)
-      ? Math.max(1, Math.min(100, Math.round(toleranceCents)))
+      ? Math.max(0, Math.min(50, Math.round(toleranceCents)))
       : DEFAULTS.toleranceCents,
     toneDurationS: Number.isFinite(toneDurationS) && toneDurationS > 0
       ? toneDurationS
@@ -53,6 +54,9 @@ export function loadPitchMatchSettings() {
     singDelayS: Number.isFinite(singDelayS)
       ? Math.max(0, Math.min(10, singDelayS))
       : DEFAULTS.singDelayS,
+    enforceDelayViolation: typeof stored.enforceDelayViolation === 'boolean'
+      ? stored.enforceDelayViolation
+      : DEFAULTS.enforceDelayViolation,
   };
 }
 

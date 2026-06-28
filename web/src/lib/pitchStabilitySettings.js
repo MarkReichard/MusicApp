@@ -45,7 +45,7 @@ export function loadPitchStabilitySettings() {
       ? Math.round(noteCount)
       : DEFAULTS.noteCount,
     toleranceCents: Number.isFinite(toleranceCents)
-      ? Math.max(1, Math.min(100, Math.round(toleranceCents)))
+      ? Math.max(0, Math.min(50, Math.round(toleranceCents)))
       : DEFAULTS.toleranceCents,
     selectedOctave: Number.isFinite(selectedOctave)
       ? Math.max(2, Math.min(6, Math.round(selectedOctave)))

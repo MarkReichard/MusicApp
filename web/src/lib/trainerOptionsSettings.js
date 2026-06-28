@@ -70,7 +70,7 @@ export function getTrainerOptionsForLesson(lesson, storageKey = STORAGE_KEY, ran
 
   const toleranceRaw = Number(stored.toleranceCents);
   const toleranceCents = Number.isFinite(toleranceRaw)
-    ? Math.max(1, Math.min(100, Math.round(toleranceRaw)))
+    ? Math.max(0, Math.min(50, Math.round(toleranceRaw)))
     : defaultTrainerOptions.toleranceCents;
 
   const graceRaw = Number(stored.gracePeriodPercent);

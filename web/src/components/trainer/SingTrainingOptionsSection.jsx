@@ -187,8 +187,8 @@ export function SingTrainingOptionsSection({
               <span>Tolerance (cents)</span>
               <input
                 type="number"
-                min="1"
-                max="100"
+                min="0"
+                max="50"
                 step="1"
                 value={toleranceCents}
                 onChange={(event) => {
@@ -196,7 +196,7 @@ export function SingTrainingOptionsSection({
                   if (!Number.isFinite(next)) {
                     return;
                   }
-                  onToleranceCentsChange(Math.max(1, Math.min(100, Math.round(next))));
+                  onToleranceCentsChange(Math.max(0, Math.min(50, Math.round(next))));
                 }}
               />
             </div>
