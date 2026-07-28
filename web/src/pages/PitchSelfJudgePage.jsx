@@ -469,17 +469,6 @@ export function PitchSelfJudgePage() {
             <small>Lower is better</small>
           </div>
 
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
-            <button className="button" type="button" onClick={startExerciseTrial} disabled={!instrumentReady || phase === 'playing-target' || phase === 'delay' || phase === 'singing'}>
-              {targetMidi ? 'Next trial' : 'Start'}
-            </button>
-            <button className="button secondary" type="button" onClick={retryCurrentTarget} disabled={!instrumentReady || !Number.isFinite(targetMidi) || phase === 'playing-target' || phase === 'delay' || phase === 'singing'}>
-              Retry
-            </button>
-            <button className="button secondary" type="button" onClick={resetProgress}>
-              Reset progress
-            </button>
-          </div>
         </div>
 
         <div className="card" style={{ padding: 14, display: 'grid', gap: 12 }}>
@@ -499,9 +488,21 @@ export function PitchSelfJudgePage() {
             <small>{phase === 'delay' ? 'Hold this in memory.' : 'No live pitch cue shown during delay/singing.'}</small>
           </div>
 
-          {phase === 'self-judge' && (
-            <>
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center' }}>
+          <div style={{ display: 'grid', gap: 10, justifyItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
+              <button className="button" type="button" onClick={startExerciseTrial} disabled={!instrumentReady || phase === 'playing-target' || phase === 'delay' || phase === 'singing'}>
+                {targetMidi ? 'Next trial' : 'Start'}
+              </button>
+              <button className="button secondary" type="button" onClick={retryCurrentTarget} disabled={!instrumentReady || !Number.isFinite(targetMidi) || phase === 'playing-target' || phase === 'delay' || phase === 'singing'}>
+                Retry
+              </button>
+              <button className="button secondary" type="button" onClick={resetProgress}>
+                Reset progress
+              </button>
+            </div>
+
+            {phase === 'self-judge' && (
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'center' }}>
                 <button className={choiceButtonClass(selfDirection, 'flat')} type="button" onClick={() => setSelfDirection('flat')}>
                   I sang flat
                 </button>
@@ -512,6 +513,16 @@ export function PitchSelfJudgePage() {
                   I sang sharp
                 </button>
 
+                <button className="button" type="button" onClick={submitSelfJudgment} disabled={!canSubmitSelf}>
+                  Reveal result
+                </button>
+              </div>
+            )}
+          </div>
+
+          {phase === 'self-judge' && (
+            <>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center' }}>
                 <label htmlFor="self-judge-magnitude-bin" style={{ color: '#cbd5e1', fontSize: 13 }}>
                   How far off?
                 </label>
@@ -535,12 +546,6 @@ export function PitchSelfJudgePage() {
               <small style={{ color: '#cbd5e1' }}>
                 Selected magnitude: {selfMagnitudeBin || 'Skip'}
               </small>
-
-              <div>
-                <button className="button" type="button" onClick={submitSelfJudgment} disabled={!canSubmitSelf}>
-                  Reveal result
-                </button>
-              </div>
             </>
           )}
 
