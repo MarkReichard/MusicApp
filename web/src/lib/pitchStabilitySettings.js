@@ -1,3 +1,5 @@
+import { INSTRUMENT_OPTIONS } from './pianoSynth';
+
 const STORAGE_KEY = 'musicapp.web.pitchStability.v1';
 
 const DEFAULTS = {
@@ -9,13 +11,7 @@ const DEFAULTS = {
   matchTimeS: 2.5,
 };
 
-const VALID_INSTRUMENTS = new Set([
-  'acoustic_grand_piano',
-  'flute',
-  'violin',
-  'electric_guitar_clean',
-  'choir_aahs',
-]);
+const VALID_INSTRUMENTS = new Set(INSTRUMENT_OPTIONS.map((option) => option.value));
 
 function load() {
   try {

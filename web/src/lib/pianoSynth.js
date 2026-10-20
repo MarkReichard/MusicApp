@@ -12,12 +12,69 @@
 import { SplendidGrandPiano, Soundfont } from 'smplr';
 import { CONCERT_A_HZ, CONCERT_A_MIDI, SEMITONES_PER_OCTAVE, midiToFrequencyHz, CADENCE_CHORD_OFFSETS, TRIAD_INTERVALS, MASTER_VOLUME, METRONOME_BASE_CLICK_GAIN } from './musicTheory';
 
+// Values are General MIDI instrument names from the gleitz/midi-js-soundfonts
+// set loaded by smplr's Soundfont — see SOUNDFONT_INSTRUMENTS in smplr for the full list.
 export const INSTRUMENT_OPTIONS = [
+  // Pianos & keys
   { value: 'acoustic_grand_piano', label: 'Grand Piano' },
-  { value: 'flute',                label: 'Flute' },
-  { value: 'violin',               label: 'Violin' },
+  { value: 'bright_acoustic_piano',label: 'Bright Piano' },
+  { value: 'electric_piano_1',     label: 'Electric Piano' },
+  { value: 'honkytonk_piano',      label: 'Honky-Tonk Piano' },
+  { value: 'harpsichord',          label: 'Harpsichord' },
+  { value: 'clavinet',             label: 'Clavinet' },
+  // Organ & accordion
+  { value: 'drawbar_organ',        label: 'Organ' },
+  { value: 'church_organ',         label: 'Church Organ' },
+  { value: 'accordion',            label: 'Accordion' },
+  { value: 'harmonica',            label: 'Harmonica' },
+  // Guitar
+  { value: 'acoustic_guitar_nylon',label: 'Nylon Guitar' },
+  { value: 'acoustic_guitar_steel',label: 'Steel Guitar' },
   { value: 'electric_guitar_clean',label: 'Electric Guitar' },
+  { value: 'overdriven_guitar',    label: 'Overdriven Guitar' },
+  { value: 'distortion_guitar',    label: 'Distortion Guitar' },
+  { value: 'banjo',                label: 'Banjo' },
+  { value: 'sitar',                label: 'Sitar' },
+  // Bass
+  { value: 'acoustic_bass',        label: 'Upright Bass' },
+  { value: 'electric_bass_finger', label: 'Electric Bass' },
+  { value: 'synth_bass_1',         label: 'Synth Bass' },
+  // Strings
+  { value: 'violin',               label: 'Violin' },
+  { value: 'viola',                label: 'Viola' },
+  { value: 'cello',                label: 'Cello' },
+  { value: 'contrabass',           label: 'Contrabass' },
+  { value: 'string_ensemble_1',    label: 'String Ensemble' },
+  { value: 'pizzicato_strings',    label: 'Pizzicato Strings' },
+  { value: 'orchestral_harp',      label: 'Harp' },
+  // Brass
+  { value: 'trumpet',              label: 'Trumpet' },
+  { value: 'trombone',             label: 'Trombone' },
+  { value: 'french_horn',          label: 'French Horn' },
+  { value: 'tuba',                 label: 'Tuba' },
+  { value: 'brass_section',        label: 'Brass Section' },
+  // Reed & woodwind
+  { value: 'soprano_sax',          label: 'Soprano Sax' },
+  { value: 'alto_sax',             label: 'Alto Sax' },
+  { value: 'clarinet',             label: 'Clarinet' },
+  { value: 'oboe',                 label: 'Oboe' },
+  { value: 'bassoon',              label: 'Bassoon' },
+  // Pipe
+  { value: 'flute',                label: 'Flute' },
+  { value: 'piccolo',              label: 'Piccolo' },
+  { value: 'recorder',             label: 'Recorder' },
+  { value: 'pan_flute',            label: 'Pan Flute' },
+  // Mallet & chromatic percussion
+  { value: 'marimba',              label: 'Marimba' },
+  { value: 'xylophone',            label: 'Xylophone' },
+  { value: 'vibraphone',           label: 'Vibraphone' },
+  { value: 'glockenspiel',         label: 'Glockenspiel' },
+  { value: 'kalimba',              label: 'Kalimba' },
+  // Synth & voice
+  { value: 'lead_1_square',        label: 'Synth Lead' },
+  { value: 'synth_strings_1',      label: 'Synth Strings' },
   { value: 'choir_aahs',           label: 'Choir' },
+  { value: 'voice_oohs',           label: 'Voice (Oohs)' },
 ];
 
 // ── Singleton state ────────────────────────────────────────────────────────────
