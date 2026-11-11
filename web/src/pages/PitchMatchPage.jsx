@@ -2,6 +2,15 @@
 import { loadPitchSettings } from '../lib/pitchSettings';
 import { loadPitchRangeSettings } from '../lib/pitchRangeSettings';
 import { loadPitchMatchSettings, savePitchMatchSettings } from '../lib/pitchMatchSettings';
+import {
+  loadPitchMatchMemory,
+  savePitchMatchMemory,
+  resetPitchMatchMemory,
+  getPitchMatchItemId,
+  recordPitchMatchResult,
+  getPitchMatchMemoryStats,
+  buildSpacedRepetitionExercise,
+} from '../lib/pitchMatchMemory';
 import { usePitchDetector } from '../lib/usePitchDetector';
 import {
   SEMITONES_PER_OCTAVE,
@@ -205,9 +214,12 @@ function shuffleArray(arr) {
   return a;
 }
 
-function buildExercise(selectedKey, noteCount, minMidi, maxMidi) {
+function buildExercise(selectedKey, noteCount, minMidi, maxMidi, memory, spacedRepetitionEnabled) {
   const candidates = generateDiatonicCandidates(selectedKey, minMidi, maxMidi);
   if (candidates.length === 0) return [];
+  if (spacedRepetitionEnabled) {
+    return buildSpacedRepetitionExercise(selectedKey, candidates, noteCount, memory);
+  }
   const shuffled = shuffleArray(candidates);
   // Allow repeats if noteCount > candidates.length
   const exercise = [];
@@ -232,6 +244,9 @@ export function PitchMatchPage() {
   const [toneDurationS, setToneDurationS]     = useState(savedPitchMatch.toneDurationS);
   const [singDelayS, setSingDelayS]           = useState(savedPitchMatch.singDelayS);
   const [enforceDelayViolation, setEnforceDelayViolation] = useState(savedPitchMatch.enforceDelayViolation);
+  const [spacedRepetitionEnabled, setSpacedRepetitionEnabled] = useState(savedPitchMatch.spacedRepetitionEnabled);
+  const [retryMissedUntilCorrect, setRetryMissedUntilCorrect] = useState(savedPitchMatch.retryMissedUntilCorrect);
+  const [memory, setMemory]                   = useState(() => loadPitchMatchMemory());
   const [exercise, setExercise]               = useState([]);
   const [noteIndex, setNoteIndex]             = useState(0);
   const [score, setScore]                     = useState({ correct: 0, total: 0 });
@@ -446,6 +461,9 @@ export function PitchMatchPage() {
         };
         return updated;
       });
+
+      const itemId = getPitchMatchItemId(selectedKey, currentTarget.midi);
+      setMemory((previousMemory) => recordPitchMatchResult(previousMemory, itemId, wasCorrect));
     }
 
     sungMidisRef.current = [];
@@ -457,11 +475,15 @@ export function PitchMatchPage() {
     setStrikes(0);
 
     const resultLabel = wasCorrect ? 'correct' : 'wrong';
+    // Retry mode keeps the same note in place until it's finally sung correctly.
+    const shouldAdvance = wasCorrect || !retryMissedUntilCorrect;
 
-    setScore((s) => ({
-      correct: s.correct + (wasCorrect ? 1 : 0),
-      total:   s.total + 1,
-    }));
+    if (shouldAdvance) {
+      setScore((s) => ({
+        correct: s.correct + (wasCorrect ? 1 : 0),
+        total:   s.total + 1,
+      }));
+    }
     setResults((r) => {
       const updated = [...r];
       updated[noteIndex] = resultLabel;
@@ -470,12 +492,20 @@ export function PitchMatchPage() {
     setFeedback(resultLabel);
     setPhase('feedback');
 
-    // After linger, move on
+    // After linger, move on (or retry the same note)
     timeoutRef.current = setTimeout(() => {
       resolvingNoteRef.current = false;
       clearDelayCountdown();
       clearCenteringCountdown();
       setFeedback(null);
+
+      if (!shouldAdvance) {
+        setPhase('playing_tone');
+        const delayMs = playPianoNoteNow(exercise[noteIndex].midi, toneDurationS, TARGET_TONE_GAIN);
+        scheduleListeningStart(delayMs);
+        return;
+      }
+
       const next = noteIndex + 1;
       if (next >= exercise.length) {
         setPhase('done');
@@ -486,7 +516,7 @@ export function PitchMatchPage() {
         scheduleListeningStart(delayMs);
       }
     }, FEEDBACK_LINGER_MS);
-  }, [noteIndex, exercise, toneDurationS, toleranceCents, stopCurrentRecording, clearCenteringCountdown, clearDelayCountdown, scheduleListeningStart]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [noteIndex, exercise, toneDurationS, toleranceCents, selectedKey, retryMissedUntilCorrect, stopCurrentRecording, clearCenteringCountdown, clearDelayCountdown, scheduleListeningStart]); // eslint-disable-line react-hooks/exhaustive-deps
 
   function startTimeout() {
     clearTimeout(timeoutRef.current);
@@ -507,7 +537,7 @@ export function PitchMatchPage() {
     wrongHoldRef.current  = 0;
     strikeRef.current     = 0;
     setStrikes(0);
-    const ex = buildExercise(selectedKey, noteCount, minMidi, maxMidi);
+    const ex = buildExercise(selectedKey, noteCount, minMidi, maxMidi, memory, spacedRepetitionEnabled);
     setExercise(ex);
     setNoteIndex(0);
     setScore({ correct: 0, total: 0 });
@@ -685,7 +715,7 @@ export function PitchMatchPage() {
         console.log('[pitch-tick] ACCUMULATED WRONG - strike', newStrikes);
         if (newStrikes >= MAX_STRIKES) {
           clearTimeout(timeoutRef.current);
-          playBuzz();
+          playBuzz(detectedMidiNearTarget < targetNote.midi ? 'flat' : 'sharp');
           advanceNote(false);
         }
       }
@@ -694,8 +724,13 @@ export function PitchMatchPage() {
 
   // ── Persist settings on change ──────────────────────────────────────────────
   useEffect(() => {
-    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation });
-  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation]);
+    savePitchMatchSettings({ selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation, spacedRepetitionEnabled, retryMissedUntilCorrect });
+  }, [selectedKey, selectedInstrument, noteCount, toleranceCents, toneDurationS, singDelayS, enforceDelayViolation, spacedRepetitionEnabled, retryMissedUntilCorrect]);
+
+  // ── Persist spaced repetition memory on change ──────────────────────────────
+  useEffect(() => {
+    savePitchMatchMemory(memory);
+  }, [memory]);
 
   useEffect(() => {
     void loadInstrument(selectedInstrument);
@@ -769,6 +804,16 @@ export function PitchMatchPage() {
     feedback:     feedback === 'correct' ? '✓ Correct!' : '✗ Miss',
     done:         'Exercise complete',
   }[phase] ?? '';
+
+  const memoryStats = getPitchMatchMemoryStats(memory);
+
+  function handleResetMemory() {
+    if (typeof window !== 'undefined'
+      && !window.confirm('Reset spaced repetition memory for Pitch Match? This clears per-note history saved on this device.')) {
+      return;
+    }
+    setMemory(resetPitchMatchMemory());
+  }
 
   // ── JSX ────────────────────────────────────────────────────────────────────
   return (
@@ -875,6 +920,40 @@ export function PitchMatchPage() {
             />
             {' '}Enforce no-singing during delay
           </label>
+
+          <label className="pitch-match-label">
+            <input
+              type="checkbox"
+              checked={spacedRepetitionEnabled}
+              onChange={(e) => setSpacedRepetitionEnabled(e.target.checked)}
+              disabled={phase !== 'setup' && phase !== 'done'}
+            />
+            {' '}Spaced repetition
+          </label>
+
+          <label className="pitch-match-label">
+            <input
+              type="checkbox"
+              checked={retryMissedUntilCorrect}
+              onChange={(e) => setRetryMissedUntilCorrect(e.target.checked)}
+              disabled={phase !== 'setup' && phase !== 'done'}
+            />
+            {' '}Retry missed notes
+          </label>
+
+          <span className="pitch-match-memory-stats">
+            {memoryStats.trackedCount} note{memoryStats.trackedCount === 1 ? '' : 's'} tracked
+            {memoryStats.dueCount > 0 ? `, ${memoryStats.dueCount} due` : ''}
+          </span>
+
+          <button
+            type="button"
+            className="button secondary"
+            onClick={handleResetMemory}
+            disabled={(phase !== 'setup' && phase !== 'done') || memoryStats.trackedCount === 0}
+          >
+            Reset saved
+          </button>
 
           <button type="button" className="button" onClick={startExercise}>
             {phase === 'setup' ? 'Start' : 'Restart'}

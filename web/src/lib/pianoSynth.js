@@ -95,6 +95,9 @@ const BING_FREQ_HZ    = 1047;       // C6
 const BING_DURATION_S = 0.9;
 const BUZZ_FREQ_HZ    = 160;
 const BUZZ_DURATION_S = 0.45;
+const SHARP_BEEP_FREQ_HZ     = 1400; // high-pitched, distinct from the low flat buzz
+const SHARP_BEEP_DURATION_S  = 0.11;
+const SHARP_BEEP_GAP_S       = 0.09;
 const CLICK_DURATION_S = 0.024;
 
 // ── Context management ─────────────────────────────────────────────────────────
@@ -385,8 +388,8 @@ export function playBing() {
   });
 }
 
-/** Plays a short "buzz" failure sound. */
-export function playBuzz() {
+/** Plays a single low sawtooth buzz — the neutral/flat failure sound. */
+function playLowBuzz() {
   const ctx = getOrCreateContext();
   const now = ctx.currentTime + NOTE_START_OFFSET_S;
   const masterGain = ctx.createGain();
@@ -399,6 +402,38 @@ export function playBuzz() {
   osc.connect(masterGain);
   osc.start(now);
   osc.stop(now + BUZZ_DURATION_S + 0.05);
+}
+
+/** Plays two short high-pitched square-wave beeps — the sharp failure sound. */
+function playHighBeeps() {
+  const ctx = getOrCreateContext();
+  const start = ctx.currentTime + NOTE_START_OFFSET_S;
+  [0, 1].forEach((i) => {
+    const beepStart = start + i * (SHARP_BEEP_DURATION_S + SHARP_BEEP_GAP_S);
+    const masterGain = ctx.createGain();
+    masterGain.gain.setValueAtTime(0.16, beepStart);
+    masterGain.gain.exponentialRampToValueAtTime(NEAR_ZERO, beepStart + SHARP_BEEP_DURATION_S);
+    masterGain.connect(ctx.destination);
+    const osc = ctx.createOscillator();
+    osc.type = 'square';
+    osc.frequency.value = SHARP_BEEP_FREQ_HZ;
+    osc.connect(masterGain);
+    osc.start(beepStart);
+    osc.stop(beepStart + SHARP_BEEP_DURATION_S + 0.05);
+  });
+}
+
+/**
+ * Plays a failure sound. When `direction` is 'flat' (sung too low) a single
+ * low buzz plays; when 'sharp' (sung too high) two short high beeps play
+ * instead, so the miss direction is audible without looking at the screen.
+ */
+export function playBuzz(direction = null) {
+  if (direction === 'sharp') {
+    playHighBeeps();
+  } else {
+    playLowBuzz();
+  }
 }
 
 /**

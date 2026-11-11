@@ -10,6 +10,8 @@ const DEFAULTS = {
   singDelayS:     0,
   selectedInstrument: 'acoustic_grand_piano',
   enforceDelayViolation: true,
+  spacedRepetitionEnabled: true,
+  retryMissedUntilCorrect: false,
 };
 
 const VALID_INSTRUMENTS = new Set(INSTRUMENT_OPTIONS.map((option) => option.value));
@@ -53,6 +55,12 @@ export function loadPitchMatchSettings() {
     enforceDelayViolation: typeof stored.enforceDelayViolation === 'boolean'
       ? stored.enforceDelayViolation
       : DEFAULTS.enforceDelayViolation,
+    spacedRepetitionEnabled: typeof stored.spacedRepetitionEnabled === 'boolean'
+      ? stored.spacedRepetitionEnabled
+      : DEFAULTS.spacedRepetitionEnabled,
+    retryMissedUntilCorrect: typeof stored.retryMissedUntilCorrect === 'boolean'
+      ? stored.retryMissedUntilCorrect
+      : DEFAULTS.retryMissedUntilCorrect,
   };
 }
 
